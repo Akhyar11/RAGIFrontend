@@ -290,6 +290,7 @@ export interface UsulanJafung {
   jafung_tujuan_id: number;
   nomor_sk?: string | null;
   tanggal_mulai_berlaku?: string | null;
+  tanggal_selesai_berlaku?: string | null;
   angka_kredit_usulan: number;
   status_usulan: StatusUsulanJafung;
   file_sk_hasil?: string | null;

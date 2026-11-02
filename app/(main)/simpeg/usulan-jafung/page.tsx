@@ -138,37 +138,31 @@ export default function JabatanAkademikDosenPage() {
       ),
     },
     {
-      key: 'tmt_berlaku',
-      label: 'Tanggal Mulai Berlaku / TMT',
+      key: 'tmt_mulai',
+      label: 'TMT Mulai',
       render: (u) => {
         if (!u.tanggal_mulai_berlaku) {
           return <span className="text-2xs text-slate-400">-</span>;
         }
-        const dMulai = new Date(u.tanggal_mulai_berlaku);
-        const formattedMulai = isNaN(dMulai.getTime())
+        const d = new Date(u.tanggal_mulai_berlaku);
+        const formatted = isNaN(d.getTime())
           ? u.tanggal_mulai_berlaku
-          : dMulai.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' });
-
-        if (u.tanggal_selesai_berlaku) {
-          const dSelesai = new Date(u.tanggal_selesai_berlaku);
-          const formattedSelesai = isNaN(dSelesai.getTime())
-            ? u.tanggal_selesai_berlaku
-            : dSelesai.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' });
-          return (
-            <div className="flex flex-col">
-              <span className="text-xs text-slate-800 font-medium">
-                {formattedMulai} s/d {formattedSelesai}
-              </span>
-            </div>
-          );
+          : d.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' });
+        return <span className="text-xs text-slate-700 font-medium">{formatted}</span>;
+      },
+    },
+    {
+      key: 'tmt_selesai',
+      label: 'TMT Selesai',
+      render: (u) => {
+        if (!u.tanggal_selesai_berlaku) {
+          return <span className="text-2xs text-slate-400 italic">-</span>;
         }
-
-        return (
-          <div className="flex flex-col">
-            <span className="text-xs text-slate-800 font-medium">{formattedMulai}</span>
-            <span className="text-2xs text-emerald-600 font-medium">Definitif / Aktif</span>
-          </div>
-        );
+        const d = new Date(u.tanggal_selesai_berlaku);
+        const formatted = isNaN(d.getTime())
+          ? u.tanggal_selesai_berlaku
+          : d.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' });
+        return <span className="text-xs text-slate-700 font-medium">{formatted}</span>;
       },
     },
     {
@@ -310,7 +304,8 @@ export default function JabatanAkademikDosenPage() {
               onChange={(val) => setFilterOrderBy(val)}
               options={[
                 { value: 'created_at', label: 'Tanggal Input' },
-                { value: 'tanggal_mulai_berlaku', label: 'Tanggal Mulai Berlaku (TMT)' },
+                { value: 'tanggal_mulai_berlaku', label: 'TMT Mulai' },
+                { value: 'tanggal_selesai_berlaku', label: 'TMT Selesai' },
                 { value: 'nomor_sk', label: 'Nomor SK' },
                 { value: 'id', label: 'ID' },
               ]}

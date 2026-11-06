@@ -27,8 +27,8 @@ export const useSpmbStore = create<SpmbStore>()(
         try {
           const res = await spmbService.getGelombang();
           const list: GelombangPenerimaan[] = res.data || [];
-          // Find gelombang explicitly set to 'aktif' by Admin
-          const active = list.find((g) => g.status === 'aktif') || list[0] || null;
+          // Backend computes this flag from the current recurring period and WIB time.
+          const active = list.find((g) => g.pendaftaran_dibuka === true) || null;
           set({ activeGelombang: active, isLoadingActiveGelombang: false });
           return active;
         } catch (error) {

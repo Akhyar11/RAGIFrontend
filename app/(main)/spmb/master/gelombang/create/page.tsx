@@ -14,6 +14,7 @@ import { Select } from '@/components/ui/Select';
 import { AsyncSelect } from '@/components/ui/AsyncSelect';
 import { Button } from '@/components/ui/Button';
 import { PageHeader } from '@/components/layout/PageHeader';
+import { PeriodeTanggalInput } from '@/components/spmb/PeriodeTanggalInput';
 
 // ============================================================
 // VALIDATION SCHEMA (MANDATORY ZOD STANDARD)
@@ -24,18 +25,10 @@ const gelombangFormSchema = z.object({
   biaya_pendaftaran: z.number().min(0, 'Biaya pendaftaran minimal 0').optional(),
   potongan_biaya_daftar_ulang: z.number().min(0, 'Potongan biaya daftar ulang minimal 0').max(100, 'Potongan biaya daftar ulang maksimal 100').optional(),
   kuota_total: z.number().min(1, 'Kuota pendaftar minimal 1'),
-  tanggal_buka: z.string().min(1, 'Tanggal buka pendaftaran wajib diisi'),
-  tanggal_tutup: z.string().min(1, 'Tanggal tutup pendaftaran wajib diisi'),
+  tanggal_buka: z.string().regex(/^\d{2}-\d{2}$/, 'Periode buka pendaftaran wajib diisi'),
+  tanggal_tutup: z.string().regex(/^\d{2}-\d{2}$/, 'Periode tutup pendaftaran wajib diisi'),
   tanggal_pengumuman: z.string().optional().nullable(),
   status: z.enum(['draft', 'aktif', 'ditutup', 'selesai']),
-}).refine((data) => {
-  if (data.tanggal_buka && data.tanggal_tutup) {
-    return new Date(data.tanggal_tutup) >= new Date(data.tanggal_buka);
-  }
-  return true;
-}, {
-  message: 'Tanggal tutup pendaftaran harus setelah tanggal buka',
-  path: ['tanggal_tutup'],
 });
 
 type GelombangFormValues = z.infer<typeof gelombangFormSchema>;
@@ -44,7 +37,7 @@ export default function CreateGelombangPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
 
-  const { register, handleSubmit, control, watch, formState: { errors } } = useForm<GelombangFormValues>({
+  const { register, handleSubmit, control, formState: { errors } } = useForm<GelombangFormValues>({
     resolver: zodResolver(gelombangFormSchema) as any,
     defaultValues: {
       nama: '',
@@ -57,9 +50,6 @@ export default function CreateGelombangPage() {
       tanggal_pengumuman: '',
     }
   });
-
-  const tglBuka = watch('tanggal_buka');
-  const tglTutup = watch('tanggal_tutup');
 
   const loadJalurMasuk = useCallback(async (input: string) => {
     try {
@@ -78,11 +68,6 @@ export default function CreateGelombangPage() {
   }, []);
 
   const onSubmit = async (data: Partial<GelombangPenerimaan>) => {
-    if (data.tanggal_buka && data.tanggal_tutup && new Date(data.tanggal_tutup) < new Date(data.tanggal_buka)) {
-      toast.error('Tanggal tutup pendaftaran harus setelah tanggal buka');
-      return;
-    }
-
     try {
       setLoading(true);
       const payload = {
@@ -100,8 +85,6 @@ export default function CreateGelombangPage() {
       setLoading(false);
     }
   };
-
-  const isDateInvalid = Boolean(tglBuka && tglTutup && new Date(tglTutup) < new Date(tglBuka));
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -201,13 +184,13 @@ export default function CreateGelombangPage() {
                       required
                       options={[
                         { value: 'draft', label: 'Draft (Belum Dipublikasikan)' },
-                        { value: 'aktif', label: 'Aktif (Sedang Berjalan / Dibuka)' },
+                        { value: 'aktif', label: 'Aktifkan Jadwal (Dibuka Otomatis pada Periode)' },
                         { value: 'ditutup', label: 'Ditutup (Pendaftaran Berakhir)' },
                         { value: 'selesai', label: 'Selesai (Sudah Pengumuman)' }
                       ]}
                       value={field.value}
                       onChange={field.onChange}
-                      hint="Status keaktifan gelombang."
+                      hint="Jadwal aktif akan membuka pendaftaran otomatis sesuai tanggal dan bulan yang dipilih."
                       error={errors.status?.message}
                     />
                   )}
@@ -215,22 +198,34 @@ export default function CreateGelombangPage() {
               </div>
 
               <div>
-                <Input 
-                  type="date"
-                  label="Tanggal Buka Pendaftaran"
-                  required
-                  error={errors.tanggal_buka?.message}
-                  {...register('tanggal_buka')} 
+                <Controller
+                  name="tanggal_buka"
+                  control={control}
+                  render={({ field }) => (
+                    <PeriodeTanggalInput
+                      label="Periode Buka Pendaftaran"
+                      required
+                      value={field.value}
+                      onChange={field.onChange}
+                      error={errors.tanggal_buka?.message}
+                    />
+                  )}
                 />
               </div>
 
               <div>
-                <Input 
-                  type="date"
-                  label="Tanggal Tutup Pendaftaran"
-                  required
-                  error={errors.tanggal_tutup?.message || (isDateInvalid ? 'Tanggal tutup harus setelah tanggal buka' : undefined)}
-                  {...register('tanggal_tutup')} 
+                <Controller
+                  name="tanggal_tutup"
+                  control={control}
+                  render={({ field }) => (
+                    <PeriodeTanggalInput
+                      label="Periode Tutup Pendaftaran"
+                      required
+                      value={field.value}
+                      onChange={field.onChange}
+                      error={errors.tanggal_tutup?.message}
+                    />
+                  )}
                 />
               </div>
 
@@ -260,7 +255,7 @@ export default function CreateGelombangPage() {
                 type="submit"
                 variant="primary"
                 loading={loading}
-                disabled={loading || isDateInvalid}
+                disabled={loading}
                 icon={<Save size={16} />}
               >
                 Simpan Gelombang

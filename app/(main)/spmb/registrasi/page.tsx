@@ -37,6 +37,7 @@ import {
   Award,
   FileSpreadsheet,
   Gift,
+  Tag,
   XCircle,
   Search,
 } from 'lucide-react';
@@ -52,7 +53,7 @@ import { spmbService, PendaftaranCalonMhs, PendaftaranBerkas } from '@/services/
 import { useSpmbStore } from '@/store/spmbStore';
 import { useUiStore } from '@/store/uiStore';
 import api from '@/lib/axios';
-import type { BiayaBebanItem } from '@/types/spmb.types';
+import type { BiayaBebanItem, SpmbKodeDiskonPreview } from '@/types/spmb.types';
 
 import { XenditCheckoutModal } from '@/components/sikeu/payment-gateway/XenditCheckoutModal';
 
@@ -62,6 +63,7 @@ const spmbRegistrasiSchema = z.object({
   program_studi_id: z.string().min(1, 'Program Studi Utama wajib dipilih'),
   program_studi_pilihan2_id: z.string().optional(),
   master_tipe_jalur_id: z.string().min(1, 'Jenis pendaftaran wajib dipilih'),
+  kode_diskon: z.string().max(50, 'Kode diskon maksimal 50 karakter').optional(),
   info_daftar: z.string().min(1, 'Info pendaftaran wajib dipilih'),
   ket_info_daftar: z.string().min(1, 'Keterangan info pendaftaran wajib diisi'),
   
@@ -392,6 +394,7 @@ export default function RegistrasiSpmbPage() {
       gelombang_id: '',
       program_studi_id: '',
       master_tipe_jalur_id: '',
+      kode_diskon: '',
       info_daftar: '',
       ket_info_daftar: '',
       nama_lengkap: '',
@@ -475,6 +478,12 @@ export default function RegistrasiSpmbPage() {
     name?: string;
     message?: string;
   }>({ status: 'idle' });
+  const [discountCheck, setDiscountCheck] = useState<{
+    status: 'idle' | 'checking' | 'valid' | 'invalid';
+    message?: string;
+    preview?: SpmbKodeDiskonPreview;
+  }>({ status: 'idle' });
+  const [discountLocked, setDiscountLocked] = useState(false);
 
   const referralCodeValue = watch('used_referral_code');
 
@@ -515,6 +524,43 @@ export default function RegistrasiSpmbPage() {
   const selectedGelombang = watch('gelombang_id');
   const selectedTipeJalur = watch('master_tipe_jalur_id');
   const selectedProdi = watch('program_studi_id');
+  const discountCodeValue = watch('kode_diskon');
+
+  useEffect(() => {
+    setDiscountCheck({ status: 'idle' });
+  }, [discountCodeValue, selectedGelombang, selectedTipeJalur, selectedProdi]);
+
+  const checkDiscountCode = async () => {
+    const kode = String(getValues('kode_diskon') || '').trim().toUpperCase();
+    const masterTipeJalurId = Number(getValues('master_tipe_jalur_id'));
+    const programStudiId = Number(getValues('program_studi_id'));
+    const gelombangId = Number(getValues('gelombang_id'));
+
+    if (!kode) {
+      setDiscountCheck({ status: 'invalid', message: 'Masukkan kode diskon terlebih dahulu.' });
+      return;
+    }
+    if (!masterTipeJalurId || !programStudiId || !gelombangId) {
+      setDiscountCheck({ status: 'invalid', message: 'Pilih jalur, gelombang, program studi, dan jenis pendaftaran terlebih dahulu.' });
+      return;
+    }
+
+    setDiscountCheck({ status: 'checking' });
+    try {
+      const response = await spmbService.validateKodeDiskon({
+        kode,
+        master_tipe_jalur_id: masterTipeJalurId,
+        program_studi_id: programStudiId,
+        gelombang_id: gelombangId,
+      });
+      setDiscountCheck({ status: 'valid', message: response.message, preview: response.data });
+    } catch (error: any) {
+      const message = error?.response?.data?.errors?.kode_diskon?.[0]
+        || error?.response?.data?.message
+        || 'Kode diskon tidak dapat digunakan.';
+      setDiscountCheck({ status: 'invalid', message });
+    }
+  };
   const { activeGelombang, fetchActiveGelombang } = useSpmbStore();
   const { module_color: moduleColor, fetchModuleColor } = useUiStore();
 
@@ -586,11 +632,14 @@ export default function RegistrasiSpmbPage() {
 
   const checkExistingRegistration = async () => {
     setIsCheckingRegistration(true);
+    setDiscountLocked(false);
     try {
       const res = await spmbService.getMyPendaftaran();
       if (res.data && res.data.pendaftaran) {
         const { pendaftaran, tagihan } = res.data;
         const p = pendaftaran;
+        const discountUsage = p.kode_diskon_usage || p.kodeDiskonUsage;
+        setDiscountLocked(Boolean(tagihan?.tagihan || discountUsage));
 
         const jalurId = p.gelombang_penerimaan?.jalur_masuk_id ? String(p.gelombang_penerimaan.jalur_masuk_id) : '';
         if (jalurId) {
@@ -603,6 +652,7 @@ export default function RegistrasiSpmbPage() {
           program_studi_id: p.program_studi_id ? String(p.program_studi_id) : '',
           program_studi_pilihan2_id: p.program_studi_pilihan2_id ? String(p.program_studi_pilihan2_id) : '',
           master_tipe_jalur_id: p.master_tipe_jalur_id ? String(p.master_tipe_jalur_id) : '',
+          kode_diskon: discountUsage?.kode_diskon || '',
           nama_lengkap: p.nama_lengkap || '',
           nik: p.nik || '',
           tanggal_lahir: p.tanggal_lahir ? p.tanggal_lahir.split('T')[0] : '',
@@ -896,7 +946,7 @@ export default function RegistrasiSpmbPage() {
       const list = res.data || [];
       setGelombangRaw(list);
       const options = list
-        .filter((g: any) => String(g.jalur_masuk_id) === String(jalurId) && g.status === 'aktif')
+        .filter((g: any) => String(g.jalur_masuk_id) === String(jalurId) && g.pendaftaran_dibuka === true)
         .map((g: any) => ({
           value: String(g.id),
           label: g.nama,
@@ -950,7 +1000,10 @@ export default function RegistrasiSpmbPage() {
         if (rawValues.program_studi_pilihan2_id) {
           payload.program_studi_pilihan2_id = Number(rawValues.program_studi_pilihan2_id);
         }
-        await spmbService.submitBiodata(payload);
+        const saveResponse = await spmbService.submitBiodata(payload);
+        if (saveResponse?.data?.tagihan?.tagihan || getValues('kode_diskon')) {
+          setDiscountLocked(true);
+        }
         const nextStep = Math.min(currentStep + 1, STEPS.length);
         setCurrentStep(nextStep);
         if (typeof window !== 'undefined') {
@@ -1514,6 +1567,54 @@ export default function RegistrasiSpmbPage() {
                     />
                   )}
                 />
+              </div>
+
+              <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-3">
+                <div className="flex items-center gap-2">
+                  <Tag size={16} className="text-[var(--module-primary)]" />
+                  <h4 className="font-bold text-slate-900 text-sm">Kode Diskon Pendaftaran</h4>
+                  <span className="text-2xs text-slate-500 font-medium">(Opsional)</span>
+                </div>
+                <p className="text-xs leading-relaxed text-slate-500">
+                  Kode hanya mengurangi komponen Master Biaya SPMB yang ditandai sebagai beban pendaftaran. Tarif fallback dan biaya daftar ulang tidak termasuk.
+                </p>
+                <div className="flex items-end gap-2">
+                  <div className="flex-1">
+                    <Input
+                      label="Kode Diskon"
+                      placeholder="Masukkan kode diskon"
+                      className="font-mono uppercase tracking-wider"
+                      disabled={discountLocked}
+                      error={errors.kode_diskon?.message}
+                      {...register('kode_diskon')}
+                    />
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="shrink-0"
+                    icon={<Search size={16} />}
+                    onClick={checkDiscountCode}
+                    loading={discountCheck.status === 'checking'}
+                  >
+                    Cek
+                  </Button>
+                </div>
+                {discountLocked && (
+                  <p className="text-2xs text-slate-500">
+                    Tagihan pendaftaran sudah diterbitkan atau kode sudah dipakai. Kode diskon tidak dapat ditambahkan atau diganti.
+                  </p>
+                )}
+                {discountCheck.status === 'valid' && discountCheck.preview && (
+                  <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-800 space-y-1">
+                    <p className="flex items-center gap-2 font-semibold"><CheckCircle2 size={15} />{discountCheck.message}</p>
+                    <p>Potongan: <strong>Rp {Number(discountCheck.preview.nominal_diskon).toLocaleString('id-ID')}</strong></p>
+                    <p>Total komponen pendaftaran setelah potongan: <strong>Rp {Number(discountCheck.preview.total_setelah_diskon).toLocaleString('id-ID')}</strong></p>
+                  </div>
+                )}
+                {discountCheck.status === 'invalid' && (
+                  <p className="flex items-center gap-2 text-xs font-semibold text-[var(--danger)]"><XCircle size={15} />{discountCheck.message}</p>
+                )}
               </div>
 
               <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-4">

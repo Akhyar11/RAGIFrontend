@@ -28,6 +28,7 @@ export interface GelombangPenerimaan {
   id: number;
   jalur_masuk_id: number;
   nama: string;
+  /** Periode tahunan berulang dengan format MM-DD, tanpa tahun. */
   tanggal_buka: string;
   tanggal_tutup: string;
   tanggal_pengumuman: string | null;
@@ -36,6 +37,7 @@ export interface GelombangPenerimaan {
   biaya_pendaftaran: string | number;
   potongan_biaya_daftar_ulang: string | number;
   status: 'draft' | 'aktif' | 'ditutup' | 'selesai';
+  pendaftaran_dibuka?: boolean;
   created_at: string;
   updated_at: string;
   jalur_masuk?: JalurMasuk;
@@ -582,4 +584,44 @@ export const SORT_DIR_OPTIONS = [
   { value: 'asc', label: 'Menaik (Asc)' },
   { value: 'desc', label: 'Menurun (Desc)' },
 ] as const;
+
+export type SpmbKodeDiskonTipe = 'persen' | 'nominal';
+
+export interface SpmbKodeDiskon {
+  id: number;
+  kode: string;
+  nama: string;
+  tipe_diskon: SpmbKodeDiskonTipe;
+  nilai: number | string;
+  maksimum_potongan: number | string | null;
+  batas_penggunaan: number | null;
+  penggunaan_count?: number;
+  berlaku_mulai: string | null;
+  berlaku_sampai: string | null;
+  is_active: boolean;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface SpmbKodeDiskonPayload {
+  kode: string;
+  nama: string;
+  tipe_diskon: SpmbKodeDiskonTipe;
+  nilai: number;
+  maksimum_potongan: number | null;
+  batas_penggunaan: number | null;
+  berlaku_mulai: string | null;
+  berlaku_sampai: string | null;
+  is_active: boolean;
+}
+
+export interface SpmbKodeDiskonPreview {
+  kode: string;
+  subtotal_komponen: number;
+  nominal_diskon: number;
+  total_setelah_diskon: number;
+  tipe_diskon: SpmbKodeDiskonTipe;
+  nilai: number;
+  already_applied: boolean;
+}
 

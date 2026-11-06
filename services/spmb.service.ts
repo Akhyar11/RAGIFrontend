@@ -8,6 +8,9 @@ import type {
   TemplateSuratSpmbPayload,
   GetTemplateSuratParams,
   SpmbPotonganCalon,
+  SpmbKodeDiskon,
+  SpmbKodeDiskonPayload,
+  SpmbKodeDiskonPreview,
 } from '@/types/spmb.types';
 
 export interface JalurMasuk {
@@ -25,6 +28,7 @@ export interface GelombangPenerimaan {
   id: number;
   jalur_masuk_id: number;
   nama: string;
+  /** Periode tahunan berulang dengan format MM-DD, tanpa tahun. */
   tanggal_buka: string;
   tanggal_tutup: string;
   tanggal_pengumuman: string | null;
@@ -33,6 +37,7 @@ export interface GelombangPenerimaan {
   biaya_pendaftaran: number;
   potongan_biaya_daftar_ulang: number;
   status: 'draft' | 'aktif' | 'ditutup' | 'selesai';
+  pendaftaran_dibuka?: boolean;
   jalur_masuk?: JalurMasuk;
 }
 
@@ -59,6 +64,15 @@ export interface PendaftaranCalonMhs {
   info_daftar?: string;
   ket_info_daftar?: string;
   used_referral_code?: string | null;
+  kode_diskon?: string | null;
+  kode_diskon_usage?: {
+    id: number;
+    kode_diskon: string;
+    subtotal_komponen: number | string;
+    nominal_diskon: number | string;
+    tagihan_id?: number | null;
+    digunakan_at?: string;
+  } | null;
   referrer_user_id?: number | null;
   referral_validated_at?: string | null;
   referrer?: {
@@ -196,6 +210,53 @@ export const spmbService = {
     const response = await api.get('/spmb/prodi', { params });
     return response.data;
   },
+  getKodeDiskonList: async (params?: {
+    page?: number;
+    per_page?: number;
+    search?: string;
+    kode?: string;
+    nama?: string;
+    tipe_diskon?: string;
+    nilai_min?: number | string;
+    nilai_max?: number | string;
+    maksimum_potongan_min?: number | string;
+    maksimum_potongan_max?: number | string;
+    potongan_status?: string;
+    kuota_status?: string;
+    berlaku_mulai?: string;
+    berlaku_sampai?: string;
+    is_active?: string;
+    sort_by?: string;
+    sort_order?: string;
+  }) => {
+    const response = await api.get('/spmb/master/kode-diskon', { params });
+    return response.data;
+  },
+  getKodeDiskon: async (id: number) => {
+    const response = await api.get(`/spmb/master/kode-diskon/${id}`);
+    return response.data as { status: string; data: SpmbKodeDiskon };
+  },
+  createKodeDiskon: async (payload: SpmbKodeDiskonPayload) => {
+    const response = await api.post('/spmb/master/kode-diskon', payload);
+    return response.data;
+  },
+  updateKodeDiskon: async (id: number, payload: SpmbKodeDiskonPayload) => {
+    const response = await api.put(`/spmb/master/kode-diskon/${id}`, payload);
+    return response.data;
+  },
+  deleteKodeDiskon: async (id: number) => {
+    const response = await api.delete(`/spmb/master/kode-diskon/${id}`);
+    return response.data;
+  },
+  validateKodeDiskon: async (payload: {
+    kode: string;
+    master_tipe_jalur_id: number;
+    program_studi_id: number;
+    gelombang_id: number;
+  }) => {
+    const response = await api.post('/spmb/kode-diskon/validate', payload);
+    return response.data as { status: string; message: string; data: SpmbKodeDiskonPreview };
+  },
   getLaporanStatistik: async () => {
     const response = await api.get('/spmb/laporan/statistik');
     return response.data;
@@ -243,7 +304,9 @@ export const spmbService = {
     sort_by?: string;
     sort_dir?: string;
   }) => {
-    const response = await api.get('/spmb/gelombang', { params });
+    const response = await api.get('/spmb/gelombang', {
+      params: { ...params, per_page: params?.per_page ?? 100 },
+    });
     return response.data;
   },
 

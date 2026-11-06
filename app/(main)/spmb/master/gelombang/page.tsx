@@ -15,7 +15,14 @@ import { Select } from '@/components/ui/Select';
 import { Badge } from '@/components/ui/Badge';
 import { DropdownMenu } from '@/components/ui/DropdownMenu';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
+import { PeriodeTanggalInput } from '@/components/spmb/PeriodeTanggalInput';
 import { useRouter } from 'next/navigation';
+
+function formatPeriodeTanggal(value?: string | null): string {
+  const match = value?.match(/^(\d{2})-(\d{2})$/);
+  if (match) return `${match[2]}/${match[1]}`;
+  return value ? new Date(value).toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit' }) : '-';
+}
 
 export default function MasterGelombangPage() {
   const router = useRouter();
@@ -211,17 +218,9 @@ export default function MasterGelombangPage() {
         <div className="flex items-center gap-1.5 text-xs text-slate-700">
           <Calendar size={13} className="text-slate-400 shrink-0" />
           <span>
-            {new Date(row.tanggal_buka).toLocaleDateString('id-ID', {
-              day: '2-digit',
-              month: 'short',
-              year: 'numeric',
-            })}{' '}
+            {formatPeriodeTanggal(row.tanggal_buka)}{' '}
             -{' '}
-            {new Date(row.tanggal_tutup).toLocaleDateString('id-ID', {
-              day: '2-digit',
-              month: 'short',
-              year: 'numeric',
-            })}
+            {formatPeriodeTanggal(row.tanggal_tutup)}
           </span>
         </div>
       ),
@@ -266,7 +265,11 @@ export default function MasterGelombangPage() {
           ditutup: { variant: 'amber', label: 'Ditutup' },
           selesai: { variant: 'blue', label: 'Selesai' },
         };
-        const config = statusMap[row.status] || { variant: 'gray', label: row.status };
+        const config = row.status === 'aktif'
+          ? row.pendaftaran_dibuka
+            ? { variant: 'green' as const, label: 'Sedang Dibuka' }
+            : { variant: 'amber' as const, label: 'Di luar periode' }
+          : statusMap[row.status] || { variant: 'gray' as const, label: row.status };
         return <Badge variant={config.variant}>{config.label}</Badge>;
       },
     },
@@ -369,18 +372,16 @@ export default function MasterGelombangPage() {
           />
 
           {/* 3. Periode Pendaftaran (Tanggal Buka & Tutup) */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Input
-              type="date"
-              label="Tanggal Buka (Mulai)"
+          <div className="grid grid-cols-1 gap-4">
+            <PeriodeTanggalInput
+              label="Periode Buka (Mulai)"
               value={filterTanggalBuka}
-              onChange={(e) => setFilterTanggalBuka(e.target.value)}
+              onChange={setFilterTanggalBuka}
             />
-            <Input
-              type="date"
-              label="Tanggal Tutup (Sampai)"
+            <PeriodeTanggalInput
+              label="Periode Tutup (Sampai)"
               value={filterTanggalTutup}
-              onChange={(e) => setFilterTanggalTutup(e.target.value)}
+              onChange={setFilterTanggalTutup}
             />
           </div>
 

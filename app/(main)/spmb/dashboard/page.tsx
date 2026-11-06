@@ -41,6 +41,11 @@ import { spmbService, PendaftaranCalonMhs, GelombangPenerimaan } from '@/service
 import { moduleService } from '@/services/module.service';
 import { DataTable, type ColumnDef } from '@/components/ui/DataTable';
 
+const formatPeriodeTanggal = (value?: string | null) => {
+  const match = value?.match(/^(\d{2})-(\d{2})$/);
+  return match ? `${match[2]}/${match[1]}` : value ? formatDate(value) : '-';
+};
+
 export default function SPMBDashboardPage() {
   const { user, isSuperAdmin, isAdmin } = useAuth();
   const [pendaftaran, setPendaftaran] = useState<PendaftaranCalonMhs | null>(null);
@@ -207,7 +212,7 @@ export default function SPMBDashboardPage() {
   }
 
   // Active wave info
-  const activeGelombang = pendaftaran?.gelombang_penerimaan || gelombangList.find(g => g.status === 'aktif') || gelombangList[0];
+  const activeGelombang = pendaftaran?.gelombang_penerimaan || gelombangList.find(g => g.pendaftaran_dibuka) || gelombangList[0];
 
   // Document uploaded count
   const uploadedDocs = pendaftaran?.dokumen_pendaftaran || [];
@@ -464,7 +469,7 @@ export default function SPMBDashboardPage() {
             {activeGelombang?.nama || 'Gelombang 1'}
           </div>
           <div className="spmb-kpi-sub">
-            {activeGelombang?.status === 'aktif' ? 'Sedang Dibuka' : 'Status: Off'}
+            {activeGelombang?.pendaftaran_dibuka ? 'Sedang Dibuka' : 'Status: Off'}
           </div>
         </div>
 
@@ -722,7 +727,7 @@ export default function SPMBDashboardPage() {
                 <span className="font-bold text-sm">Informasi Gelombang</span>
               </div>
               <span className="badge badge-cyan text-xs">
-                {activeGelombang?.status === 'aktif' ? 'Aktif' : 'Tutup'}
+                {activeGelombang?.pendaftaran_dibuka ? 'Sedang Dibuka' : 'Tutup'}
               </span>
             </div>
 
@@ -740,13 +745,13 @@ export default function SPMBDashboardPage() {
                 <div>
                   <span className="text-xs text-slate-400 block">Tanggal Buka</span>
                   <span className="font-semibold text-slate-700 text-xs">
-                    {activeGelombang?.tanggal_buka ? formatDate(activeGelombang.tanggal_buka) : '1 Agu 2026'}
+                    {activeGelombang?.tanggal_buka ? formatPeriodeTanggal(activeGelombang.tanggal_buka) : '-'}
                   </span>
                 </div>
                 <div>
                   <span className="text-xs text-slate-400 block">Tanggal Tutup</span>
                   <span className="font-semibold text-slate-700 text-xs">
-                    {activeGelombang?.tanggal_tutup ? formatDate(activeGelombang.tanggal_tutup) : '30 Sep 2026'}
+                    {activeGelombang?.tanggal_tutup ? formatPeriodeTanggal(activeGelombang.tanggal_tutup) : '-'}
                   </span>
                 </div>
               </div>
@@ -817,7 +822,7 @@ function SPMBAdminDashboardView({
   const verifiedCount = adminPendaftarList.filter(
     (p) => p.status === 'verified' || p.status === 'lulus_administrasi'
   ).length;
-  const activeGelombang = gelombangList.find((g) => g.status === 'aktif') || gelombangList[0];
+  const activeGelombang = gelombangList.find((g) => g.pendaftaran_dibuka) || gelombangList[0];
   const columns: ColumnDef<PendaftaranCalonMhs>[] = [
     {
       key: 'nama_lengkap',
@@ -979,7 +984,7 @@ function SPMBAdminDashboardView({
             {isLoading ? <div className="h-7 w-28 bg-slate-100 animate-pulse rounded-md" /> : activeGelombang?.nama || 'Gelombang 1'}
           </div>
           <p className="text-2xs sm:text-xs text-slate-500 font-medium mt-1">
-            Status: {activeGelombang?.status === 'aktif' ? 'Sedang Dibuka' : 'Off / Belum Dibuka'}
+            Status: {activeGelombang?.pendaftaran_dibuka ? 'Sedang Dibuka' : 'Off / Belum Dibuka'}
           </p>
         </div>
       </div>

@@ -6,13 +6,9 @@ import {
   ArrowLeft, 
   Save, 
   Sparkles, 
-  Calendar, 
-  AlertCircle, 
   CheckCircle2, 
   Clock, 
   Info, 
-  DollarSign, 
-  Layers
 } from 'lucide-react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -24,8 +20,8 @@ import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import { AsyncSelect } from '@/components/ui/AsyncSelect';
 import { Button } from '@/components/ui/Button';
-import { Badge } from '@/components/ui/Badge';
 import { PageHeader } from '@/components/layout/PageHeader';
+import { PeriodeTanggalInput } from '@/components/spmb/PeriodeTanggalInput';
 
 // ============================================================
 // VALIDATION SCHEMA (MANDATORY ZOD STANDARD)
@@ -36,18 +32,10 @@ const gelombangFormSchema = z.object({
   biaya_pendaftaran: z.number().min(0, 'Biaya pendaftaran minimal 0').optional(),
   potongan_biaya_daftar_ulang: z.number().min(0, 'Potongan biaya daftar ulang minimal 0').max(100, 'Potongan biaya daftar ulang maksimal 100').optional(),
   kuota_total: z.number().min(1, 'Kuota pendaftar minimal 1'),
-  tanggal_buka: z.string().min(1, 'Tanggal buka pendaftaran wajib diisi'),
-  tanggal_tutup: z.string().min(1, 'Tanggal tutup pendaftaran wajib diisi'),
+  tanggal_buka: z.string().regex(/^\d{2}-\d{2}$/, 'Periode buka pendaftaran wajib diisi'),
+  tanggal_tutup: z.string().regex(/^\d{2}-\d{2}$/, 'Periode tutup pendaftaran wajib diisi'),
   tanggal_pengumuman: z.string().optional().nullable(),
   status: z.enum(['draft', 'aktif', 'ditutup', 'selesai']),
-}).refine((data) => {
-  if (data.tanggal_buka && data.tanggal_tutup) {
-    return new Date(data.tanggal_tutup) >= new Date(data.tanggal_buka);
-  }
-  return true;
-}, {
-  message: 'Tanggal tutup pendaftaran harus setelah tanggal buka',
-  path: ['tanggal_tutup'],
 });
 
 type GelombangFormValues = z.infer<typeof gelombangFormSchema>;
@@ -78,8 +66,8 @@ function StatusAlert({ status }: { status?: string }) {
       <div className="p-3.5 bg-emerald-50 border border-emerald-200/90 rounded-xl flex items-start gap-2.5 text-emerald-900 text-xs font-semibold animate-fade-in shadow-2xs">
         <CheckCircle2 size={16} className="text-emerald-600 shrink-0 mt-0.5" />
         <div>
-          <span className="font-bold block text-emerald-950">Status: Aktif (Sedang Berjalan)</span>
-          <span>Gelombang ini sedang dibuka dan otomatis menjadi default pendaftaran bagi calon mahasiswa baru.</span>
+          <span className="font-bold block text-emerald-950">Jadwal Aktif (Otomatis)</span>
+          <span>Backend membuka pendaftaran saat tanggal saat ini masuk ke periode tahunan yang disetel.</span>
         </div>
       </div>
     );
@@ -149,9 +137,6 @@ export default function EditGelombangPage({ params }: { params: Promise<{ id: st
   });
 
   const selectedStatus = watch('status');
-  const tglBuka = watch('tanggal_buka');
-  const tglTutup = watch('tanggal_tutup');
-
   const loadJalurMasuk = useCallback(async (input: string) => {
     try {
       const res = await spmbService.getJalurMasuk();
@@ -199,8 +184,8 @@ export default function EditGelombangPage({ params }: { params: Promise<{ id: st
           potongan_biaya_daftar_ulang: Number(row.potongan_biaya_daftar_ulang || 0),
           kuota_total: row.kuota_total,
           status: row.status,
-          tanggal_buka: row.tanggal_buka ? new Date(row.tanggal_buka).toISOString().split('T')[0] : '',
-          tanggal_tutup: row.tanggal_tutup ? new Date(row.tanggal_tutup).toISOString().split('T')[0] : '',
+          tanggal_buka: row.tanggal_buka || '',
+          tanggal_tutup: row.tanggal_tutup || '',
           tanggal_pengumuman: row.tanggal_pengumuman ? new Date(row.tanggal_pengumuman).toISOString().split('T')[0] : '',
         });
       } catch (error: any) {
@@ -216,11 +201,6 @@ export default function EditGelombangPage({ params }: { params: Promise<{ id: st
 
   // Submit Handler
   const onSubmit = async (data: Partial<GelombangPenerimaan>) => {
-    if (data.tanggal_buka && data.tanggal_tutup && new Date(data.tanggal_tutup) < new Date(data.tanggal_buka)) {
-      toast.error('Tanggal tutup pendaftaran harus setelah tanggal buka');
-      return;
-    }
-
     try {
       setLoading(true);
       const payload = {
@@ -238,8 +218,6 @@ export default function EditGelombangPage({ params }: { params: Promise<{ id: st
       setLoading(false);
     }
   };
-
-  const isDateInvalid = Boolean(tglBuka && tglTutup && new Date(tglTutup) < new Date(tglBuka));
 
   if (fetching) {
     return (
@@ -357,13 +335,13 @@ export default function EditGelombangPage({ params }: { params: Promise<{ id: st
                       required
                       options={[
                         { value: 'draft', label: 'Draft (Belum Dipublikasikan)' },
-                        { value: 'aktif', label: 'Aktif (Sedang Berjalan / Dibuka)' },
+                        { value: 'aktif', label: 'Aktifkan Jadwal (Dibuka Otomatis pada Periode)' },
                         { value: 'ditutup', label: 'Ditutup (Pendaftaran Berakhir)' },
                         { value: 'selesai', label: 'Selesai (Sudah Pengumuman)' }
                       ]}
                       value={field.value}
                       onChange={field.onChange}
-                      hint="Status keaktifan gelombang."
+                      hint="Jadwal aktif akan membuka pendaftaran otomatis sesuai tanggal dan bulan yang dipilih."
                       error={errors.status?.message}
                     />
                   )}
@@ -371,22 +349,34 @@ export default function EditGelombangPage({ params }: { params: Promise<{ id: st
               </div>
 
               <div>
-                <Input 
-                  type="date"
-                  label="Tanggal Buka Pendaftaran"
-                  required
-                  error={errors.tanggal_buka?.message}
-                  {...register('tanggal_buka')} 
+                <Controller
+                  name="tanggal_buka"
+                  control={control}
+                  render={({ field }) => (
+                    <PeriodeTanggalInput
+                      label="Periode Buka Pendaftaran"
+                      required
+                      value={field.value}
+                      onChange={field.onChange}
+                      error={errors.tanggal_buka?.message}
+                    />
+                  )}
                 />
               </div>
 
               <div>
-                <Input 
-                  type="date"
-                  label="Tanggal Tutup Pendaftaran"
-                  required
-                  error={errors.tanggal_tutup?.message || (isDateInvalid ? 'Tanggal tutup harus setelah tanggal buka' : undefined)}
-                  {...register('tanggal_tutup')} 
+                <Controller
+                  name="tanggal_tutup"
+                  control={control}
+                  render={({ field }) => (
+                    <PeriodeTanggalInput
+                      label="Periode Tutup Pendaftaran"
+                      required
+                      value={field.value}
+                      onChange={field.onChange}
+                      error={errors.tanggal_tutup?.message}
+                    />
+                  )}
                 />
               </div>
 
@@ -399,6 +389,10 @@ export default function EditGelombangPage({ params }: { params: Promise<{ id: st
                   {...register('tanggal_pengumuman')} 
                 />
               </div>
+            </div>
+
+            <div className="mt-4">
+              <StatusAlert status={selectedStatus} />
             </div>
 
             {/* ACTION AREA */}
@@ -416,7 +410,7 @@ export default function EditGelombangPage({ params }: { params: Promise<{ id: st
                 type="submit"
                 variant="primary"
                 loading={loading}
-                disabled={loading || isDateInvalid}
+                disabled={loading}
                 icon={<Save size={16} />}
               >
                 Simpan Perubahan

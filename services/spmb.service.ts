@@ -125,6 +125,16 @@ export interface PendaftaranCalonMhs {
   telepon_wali?: string;
   status: 'draft' | 'submitted' | 'verified' | 'lulus_administrasi' | 'gagal_administrasi' | string;
   status_pembayaran?: 'belum_bayar' | 'sebagian' | 'lunas' | 'gratis' | string;
+  sumber_pendaftaran?: 'online' | 'manual' | string;
+  diinput_oleh?: number | null;
+  admin_penginput?: { id: number; username: string; name?: string } | null;
+  pihak_ketiga?: Array<{ id: number; nama: string; urutan: number }>;
+  bukti_pembayaran_manual?: Array<{
+    id: number;
+    original_name: string;
+    status: 'menunggu_verifikasi' | 'terverifikasi' | 'ditolak' | string;
+    created_at?: string;
+  }>;
   catatan_verifikasi?: string;
   created_at?: string;
   updated_at?: string;
@@ -452,6 +462,33 @@ export const spmbService = {
   getPendaftaranDetail: async (id: number) => {
     const response = await api.get(`/spmb/pendaftaran/${id}`);
     return response.data;
+  },
+
+  getPendaftaranManualReferrers: async (search?: string) => {
+    const response = await api.get('/spmb/pendaftaran/manual/referrers', { params: { search } });
+    return response.data as { status: string; data: Array<{ id: number; name: string; username: string; email: string; referral_code: string }> };
+  },
+
+  getPendaftaranManualThirdParties: async (search?: string) => {
+    const response = await api.get('/spmb/pendaftaran/manual/third-parties', { params: { search } });
+    return response.data as { status: string; data: Array<{ id: number; name: string; username: string; email: string }> };
+  },
+
+  createPendaftaranManualThirdParty: async (data: { name: string; email: string; phone: string }) => {
+    const response = await api.post('/spmb/pendaftaran/manual/third-parties', data);
+    return response.data as { status: string; data: { id: number; name: string; username: string; email: string } };
+  },
+
+  createPendaftaranManual: async (data: FormData) => {
+    const response = await api.post('/spmb/pendaftaran/manual', data, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return response.data;
+  },
+
+  downloadBuktiTransferManual: async (pendaftaranId: number, proofId: number) => {
+    const response = await api.get(`/spmb/pendaftaran/${pendaftaranId}/bukti-transfer/${proofId}`, { responseType: 'blob' });
+    return response.data as Blob;
   },
 
   verifyBerkasPendaftaran: async (id: number, data: { is_verified: boolean; catatan?: string }) => {

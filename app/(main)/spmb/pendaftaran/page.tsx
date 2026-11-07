@@ -31,6 +31,7 @@ import {
   CreditCard,
   Download,
   UserCheck,
+  Plus,
 } from 'lucide-react';
 import { spmbService, PendaftaranCalonMhs, PendaftaranBerkas } from '@/services/spmb.service';
 import toast from 'react-hot-toast';
@@ -364,8 +365,14 @@ export default function DataPendaftarPage() {
               onClick={() => setShowFilter(true)}
               className="bg-white border-slate-300 text-slate-700 hover:bg-slate-50 font-bold shadow-2xs"
             >
-              Filter {appliedFilters.status || appliedFilters.search ? '•' : ''}
+              Filter
             </Button>
+
+            {canKonversiMahasiswa && (
+              <Button icon={<Plus size={16} />} onClick={() => router.push('/spmb/pendaftaran/manual/create')} style={{ backgroundColor: 'var(--module-primary)' }}>
+                Input Manual
+              </Button>
+            )}
           </div>
         }
       />
@@ -395,8 +402,11 @@ export default function DataPendaftarPage() {
               label: 'Nama Pendaftar', 
               render: (row) => (
                 <div className="flex flex-col">
-                  <span className="font-bold text-slate-900 text-sm">{row.nama_lengkap}</span>
-                  <span className="text-xs text-slate-500">NIK: {row.nik || '-'}</span>
+                  <span className="flex items-center gap-2 font-bold text-slate-900 text-xs">
+                    {row.nama_lengkap}
+                    {row.sumber_pendaftaran === 'manual' && <Badge variant="spmb" className="text-2xs">Manual</Badge>}
+                  </span>
+                  <span className="text-2xs text-slate-500">NIK: {row.nik || '-'}</span>
                 </div>
               )
             },

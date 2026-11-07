@@ -214,6 +214,7 @@ export default function DetailPendaftaranPage({ params }: { params: Promise<{ id
   // Status update state
   const [updateStatusLoading, setUpdateStatusLoading] = useState(false);
   const [downloadingSk, setDownloadingSk] = useState(false);
+  const [downloadingProofId, setDownloadingProofId] = useState<number | null>(null);
   const [newStatus, setNewStatus] = useState('');
   const [catatanVerifikasi, setCatatanVerifikasi] = useState('');
 
@@ -228,6 +229,27 @@ export default function DetailPendaftaranPage({ params }: { params: Promise<{ id
       toast.error(error?.response?.data?.message || 'Gagal mengunduh SK Tanda Lulus.');
     } finally {
       setDownloadingSk(false);
+    }
+  };
+
+  const handleDownloadManualProof = async (proof: NonNullable<PendaftaranCalonMhs['bukti_pembayaran_manual']>[number]) => {
+    if (!pendaftar?.id) return;
+    try {
+      setDownloadingProofId(proof.id);
+      const blob = await spmbService.downloadBuktiTransferManual(pendaftar.id, proof.id);
+      const url = window.URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = proof.original_name || 'bukti-transfer';
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (error: unknown) {
+      const response = error as { response?: { data?: { message?: string } } };
+      toast.error(response.response?.data?.message || 'Gagal mengunduh bukti transfer.');
+    } finally {
+      setDownloadingProofId(null);
     }
   };
 
@@ -893,6 +915,46 @@ export default function DetailPendaftaranPage({ params }: { params: Promise<{ id
               />
             </div>
           </DetailSection>
+
+          {canKonversiMahasiswa && <DetailSection title="Sumber Pendaftaran dan Bukti Transfer" icon={CreditCard} defaultOpen={false}>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3">
+              <MetadataItem label="Sumber Pendaftaran" value={pendaftar.sumber_pendaftaran === 'manual' ? 'Input Manual oleh Admin' : 'Form Online'} />
+              {pendaftar.sumber_pendaftaran === 'manual' && <MetadataItem label="Diinput Oleh" value={pendaftar.admin_penginput?.name || pendaftar.admin_penginput?.username} />}
+              <MetadataItem label="Status Pembayaran" value={<SpmbPaymentBadge status={pendaftar.status_pembayaran} />} />
+              <MetadataItem label="Email Akun Calon" value={pendaftar.user?.email || pendaftar.user?.username} />
+            </div>
+
+            {pendaftar.pihak_ketiga?.length ? (
+              <div className="mt-4 space-y-2">
+                <p className="text-2xs font-extrabold uppercase tracking-wider text-slate-400">Pihak Ketiga</p>
+                <ul className="list-inside list-disc space-y-1 text-xs text-slate-700">
+                  {pendaftar.pihak_ketiga.map((party) => <li key={party.id}>{party.nama}</li>)}
+                </ul>
+              </div>
+            ) : null}
+
+            {pendaftar.bukti_pembayaran_manual?.length ? (
+              <div className="mt-4 space-y-3">
+                <p className="text-2xs font-extrabold uppercase tracking-wider text-slate-400">Bukti Transfer</p>
+                {pendaftar.bukti_pembayaran_manual.map((proof) => (
+                  <div key={proof.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 p-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-xs font-semibold text-slate-800">{proof.original_name}</p>
+                      <Badge variant={proof.status === 'terverifikasi' ? 'green' : proof.status === 'ditolak' ? 'red' : 'amber'} className="mt-1 text-2xs">
+                        {proof.status === 'terverifikasi' ? 'Terverifikasi' : proof.status === 'ditolak' ? 'Ditolak' : 'Menunggu Verifikasi'}
+                      </Badge>
+                    </div>
+                    <Button type="button" variant="outline" size="sm" icon={<Download size={14} />} loading={downloadingProofId === proof.id} onClick={() => handleDownloadManualProof(proof)}>
+                      Unduh Bukti
+                    </Button>
+                  </div>
+                ))}
+                <p className="text-2xs text-slate-500">Bukti transfer tidak otomatis mengubah pembayaran menjadi lunas. Status hanya diperbarui melalui proses verifikasi pembayaran.</p>
+              </div>
+            ) : (
+              <p className="mt-4 text-xs text-slate-500">Belum ada bukti transfer manual.</p>
+            )}
+          </DetailSection>}
 
           {/* SECTION C3: PEMBAYARAN DAFTAR ULANG */}
           <DetailSection title="Pembayaran Daftar Ulang" icon={Wallet} defaultOpen={true}>

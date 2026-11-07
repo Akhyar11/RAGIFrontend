@@ -73,6 +73,7 @@ const PATH_STYLE_OPTIONS: SelectOption[] = [
 const settingsSchema = z.object({
   // Role & Permissions
   default_register_role: z.string().min(1, 'Role pendaftaran wajib dipilih'),
+  third_party_registration_role: z.string().min(1, 'Role pihak ketiga wajib dipilih'),
   superadmin_role: z.string().min(1, 'Role superadmin wajib dipilih'),
   restricted_role_ids: z.array(z.number().int().positive()),
 
@@ -139,6 +140,7 @@ const testSmtpEmailSchema = z
 
 const defaultValues: SettingsFormValues = {
   default_register_role: 'calon_mhs',
+  third_party_registration_role: '',
   superadmin_role: 'superadmin',
   restricted_role_ids: [],
   google_workspace_domain: 'student.campus.ac.id',
@@ -268,6 +270,8 @@ export default function SystemSettingsPage() {
       const loadedValues: SettingsFormValues = {
         default_register_role:
           settingsData?.default_register_role?.value || defaultValues.default_register_role,
+        third_party_registration_role:
+          settingsData?.third_party_registration_role?.value || defaultValues.third_party_registration_role,
         superadmin_role:
           settingsData?.superadmin_role?.value || defaultValues.superadmin_role,
         restricted_role_ids: parseRestrictedRoleIds(settingsData?.restricted_role_ids?.value),
@@ -377,6 +381,8 @@ export default function SystemSettingsPage() {
         );
       case 'registerRole':
         return currentValues.default_register_role !== initialValues.default_register_role;
+      case 'thirdPartyRole':
+        return currentValues.third_party_registration_role !== initialValues.third_party_registration_role;
       case 'superadminRole':
         return currentValues.superadmin_role !== initialValues.superadmin_role;
       case 'restrictedRoles':
@@ -444,6 +450,9 @@ export default function SystemSettingsPage() {
         break;
       case 'registerRole':
         setValue('default_register_role', initialValues.default_register_role);
+        break;
+      case 'thirdPartyRole':
+        setValue('third_party_registration_role', initialValues.third_party_registration_role);
         break;
       case 'superadminRole':
         setValue('superadmin_role', initialValues.superadmin_role);
@@ -519,6 +528,12 @@ export default function SystemSettingsPage() {
         { key: 'default_register_role', value: vals.default_register_role },
       ];
       successMessage = 'Role registrasi akun baru berhasil disimpan.';
+    } else if (section === 'thirdPartyRole') {
+      fieldsToValidate = ['third_party_registration_role'];
+      settingsToSave = [
+        { key: 'third_party_registration_role', value: vals.third_party_registration_role },
+      ];
+      successMessage = 'Role pihak ketiga berhasil disimpan.';
     } else if (section === 'superadminRole') {
       fieldsToValidate = ['superadmin_role'];
       settingsToSave = [
@@ -1548,6 +1563,36 @@ export default function SystemSettingsPage() {
             </div>
 
             {renderSectionFooter('registerRole', 'Simpan Role Registrasi')}
+          </div>
+
+          <div className="settings-section-card card">
+            <div className="settings-section-header">
+              <div className="settings-section-icon" style={{ backgroundColor: 'var(--module-primary-subtle)', color: 'var(--module-primary)' }}><Users size={18} /></div>
+              <div className="settings-section-title-group">
+                <h2 className="settings-section-title">Role Akun Pihak Ketiga</h2>
+                <p className="settings-section-desc">Role otomatis untuk akun pihak ketiga yang dibuat melalui pendaftaran manual SPMB.</p>
+              </div>
+            </div>
+            <div className="settings-section-divider" />
+            <div className="settings-section-body">
+              <Controller
+                name="third_party_registration_role"
+                control={control}
+                render={({ field }) => (
+                  <AsyncSelect
+                    label="Role Pihak Ketiga"
+                    loadOptions={loadRolesOptions}
+                    defaultOptions
+                    value={field.value}
+                    onChange={field.onChange}
+                    placeholder="Pilih role pihak ketiga..."
+                    error={errors.third_party_registration_role?.message}
+                    hint="Dropdown pihak ketiga pada formulir manual hanya menampilkan akun dengan role ini."
+                  />
+                )}
+              />
+            </div>
+            {renderSectionFooter('thirdPartyRole', 'Simpan Role Pihak Ketiga')}
           </div>
 
           {/* ════════ Section 5: Role Superadmin Utama ════════ */}

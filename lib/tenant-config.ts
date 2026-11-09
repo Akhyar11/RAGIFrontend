@@ -34,6 +34,24 @@ const DEFAULT_RESERVED_SUBDOMAINS = [
   'demo',
 ];
 
+function parseDomainMap(value?: string | null): Record<string, string> {
+  if (!value) return {};
+
+  try {
+    const parsed: unknown = JSON.parse(value);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
+
+    return Object.fromEntries(
+      Object.entries(parsed)
+        .filter((entry): entry is [string, string] => typeof entry[1] === 'string')
+        .map(([host, module]) => [host.trim().toLowerCase(), module.trim().toLowerCase()])
+        .filter(([host, module]) => Boolean(host && module)),
+    );
+  } catch {
+    return {};
+  }
+}
+
 function parseList(value?: string | null): string[] | null {
   if (!value) return null;
   const items = value
@@ -51,11 +69,12 @@ function staticConfig(): TenantConfig {
 
   const reserved =
     parseList(process.env.TENANT_RESERVED_SUBDOMAINS) ?? DEFAULT_RESERVED_SUBDOMAINS;
+  const domainMap = parseDomainMap(process.env.TENANT_DOMAIN_MAP);
 
   return {
     baseDomains,
     reservedSubdomains: reserved,
-    domainMap: {},
+    domainMap,
     enabledModules: SYSTEM_MODULES.map((m) => m.value),
   };
 }

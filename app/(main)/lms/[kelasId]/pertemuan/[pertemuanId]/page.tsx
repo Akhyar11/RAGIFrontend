@@ -58,6 +58,7 @@ import {
   FileCheck,
   RotateCw,
   Lock,
+  Maximize2,
   ListChecks,
   ClipboardList,
   MessagesSquare,
@@ -192,10 +193,15 @@ export default function LmsPertemuanDetailPage({ params }: PageProps) {
     per_page: 50,
     total: 0,
   });
+  const [liveAbsensiList, setLiveAbsensiList] = useState<LmsPertemuanDetail['absensi_list']>([]);
+  const [attendanceUpdatedAt, setAttendanceUpdatedAt] = useState<Date | null>(null);
+  const [isQrFullscreen, setIsQrFullscreen] = useState(false);
+  const attendancePollErrorRef = useRef(false);
 
   // Master Referensi State
   const [tipeKontenOptions, setTipeKontenOptions] = useState<Array<{ value: number; label: string }>>([]);
   const [statusAbsensiOptions, setStatusAbsensiOptions] = useState<Array<{ value: number; label: string }>>([]);
+  const [statusAbsensiLabels, setStatusAbsensiLabels] = useState<Record<string, string>>({});
   const [statusPersetujuanMap, setStatusPersetujuanMap] = useState<Record<string, number>>({});
   const [tipeIzinOptions, setTipeIzinOptions] = useState<Array<{ value: number; label: string }>>([]);
 
@@ -348,9 +354,16 @@ export default function LmsPertemuanDetailPage({ params }: PageProps) {
         setTipeKontenOptions(kontenList);
 
         const absensiList = res.data
-          .filter((r: MasterReferensiItem) => r.tipe === 'status_absensi')
+          .filter((r: MasterReferensiItem) => r.tipe === 'status_absensi' && r.is_active)
           .map((r: MasterReferensiItem) => ({ value: r.id, label: r.nama }));
         setStatusAbsensiOptions(absensiList);
+        setStatusAbsensiLabels(
+          Object.fromEntries(
+            res.data
+              .filter((r: MasterReferensiItem) => r.tipe === 'status_absensi' && r.kode)
+              .map((r: MasterReferensiItem) => [r.kode as string, r.nama])
+          )
+        );
 
         const izinList = res.data
           .filter((r: MasterReferensiItem) => r.tipe === 'tipe_izin_absensi')
@@ -366,7 +379,7 @@ export default function LmsPertemuanDetailPage({ params }: PageProps) {
         setStatusPersetujuanMap(persetujuanObj);
       }
     } catch {
-      // ignore
+      toast.error('Gagal memuat master referensi LMS.');
     }
   }, []);
 
@@ -376,6 +389,8 @@ export default function LmsPertemuanDetailPage({ params }: PageProps) {
       const res = await lmsService.getPertemuanDetail(pertemuanId);
       if (res.status === 'success' && res.data) {
         setDetail(res.data);
+        setLiveAbsensiList(res.data.absensi_list || []);
+        setAttendanceUpdatedAt(new Date());
         setAbsensiMeta({
           current_page: 1,
           last_page: 1,
@@ -389,10 +404,30 @@ export default function LmsPertemuanDetailPage({ params }: PageProps) {
             qr_payload: `RAG-PRESENSI:${pertemuanId}:${res.data.pertemuan.token_absensi}`,
             rotate_interval_seconds: 30,
           });
+        } else {
+          setTokenInfo(null);
         }
       }
     } catch (err: any) {
       toast.error(err.message || 'Gagal memuat detail pertemuan LMS');
+    }
+  }, [pertemuanId]);
+
+  const fetchLiveAttendance = useCallback(async () => {
+    try {
+      const res = await lmsService.getPertemuanAbsensi(pertemuanId);
+      if (res.status === 'success' && res.data) {
+        const roster = res.data;
+        setLiveAbsensiList(roster.absensi_list);
+        setAbsensiMeta((current) => ({ ...current, total: roster.total_peserta }));
+        setAttendanceUpdatedAt(new Date(roster.refreshed_at));
+        attendancePollErrorRef.current = false;
+      }
+    } catch {
+      if (!attendancePollErrorRef.current) {
+        toast.error('Daftar presensi otomatis gagal diperbarui. Coba muat ulang halaman.');
+        attendancePollErrorRef.current = true;
+      }
     }
   }, [pertemuanId]);
 
@@ -401,17 +436,52 @@ export default function LmsPertemuanDetailPage({ params }: PageProps) {
     fetchDetail();
   }, [fetchMasterReferensi, fetchDetail]);
 
-  // Render QR Code Data URL setiap kali token berubah
+  // Render QR beresolusi tinggi agar tetap tajam pada layar fullscreen.
   useEffect(() => {
     if (!tokenInfo?.token) {
       setQrDataUrl(null);
       return;
     }
     const payload = tokenInfo.qr_payload || `RAG-PRESENSI:${pertemuanId}:${tokenInfo.token}`;
-    QRCode.toDataURL(payload, { width: 180, margin: 1 })
+    QRCode.toDataURL(payload, { width: 512, margin: 2 })
       .then((url) => setQrDataUrl(url))
-      .catch(() => setQrDataUrl(null));
+      .catch(() => {
+        setQrDataUrl(null);
+        toast.error('QR presensi gagal dibuat.');
+      });
   }, [tokenInfo?.token, tokenInfo?.qr_payload, pertemuanId]);
+
+  useEffect(() => {
+    if (!isQrFullscreen) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setIsQrFullscreen(false);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isQrFullscreen]);
+
+  useEffect(() => {
+    if (!tokenInfo?.token || detail?.presensi_ditutup) {
+      setIsQrFullscreen(false);
+    }
+  }, [detail?.presensi_ditutup, tokenInfo?.token]);
+
+  useEffect(() => {
+    if (!canTeach || !tokenInfo?.token || detail?.presensi_ditutup) return;
+
+    let active = true;
+    let timer: ReturnType<typeof setTimeout>;
+    const refresh = async () => {
+      await fetchLiveAttendance();
+      if (active) timer = setTimeout(refresh, 8000);
+    };
+
+    void refresh();
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
+  }, [canTeach, detail?.presensi_ditutup, fetchLiveAttendance, tokenInfo?.token]);
 
   // Auto-rotasi token tiap 30 detik selama sesi presensi terbuka pada layar Dosen Pengampu
   useEffect(() => {
@@ -568,7 +638,7 @@ export default function LmsPertemuanDetailPage({ params }: PageProps) {
       if (res.status === 'success') {
         toast.success('Presensi mahasiswa berhasil disimpan');
         setAttendanceChanges({});
-        fetchDetail();
+        await fetchLiveAttendance();
       }
     } catch (err: any) {
       toast.error(err.message || 'Gagal menyimpan absensi');
@@ -835,14 +905,11 @@ export default function LmsPertemuanDetailPage({ params }: PageProps) {
     }
   };
 
-  // Sumber presensi murni tampilan dari data existing:
-  // "Otomatis" bila catatan mengandung kata token/mandiri atau hadir saat token aktif.
-  const isTokenActive = Boolean(detail?.token_aktif || detail?.pertemuan?.is_token_active || tokenInfo?.token);
-  const isAbsensiOtomatis = (row: any) =>
-    /token|mandiri/i.test(String(row?.catatan || '')) || (row?.status === 'hadir' && isTokenActive);
+  // Gunakan catatan rekam presensi, bukan status sesi, agar input manual tidak keliru dilabeli otomatis.
+  const isAbsensiOtomatis = (row: any) => /token|mandiri|qr scanner/i.test(String(row?.catatan || ''));
   const isBelumAbsen = (row: any) => !row?.status || row?.status === 'belum_absen';
   const presensiSummary = (() => {
-    const list = detail?.absensi_list || [];
+    const list = liveAbsensiList;
     let otomatis = 0;
     let manual = 0;
     let belum = 0;
@@ -884,7 +951,7 @@ export default function LmsPertemuanDetailPage({ params }: PageProps) {
               : undefined
           }
         >
-          {row.status ? String(row.status).toUpperCase() : 'BELUM ABSEN'}
+          {row.status ? (row.status_label || statusAbsensiLabels[row.status] || String(row.status).replaceAll('_', ' ').toUpperCase()) : 'BELUM ABSEN'}
         </Badge>
       ),
     },
@@ -1078,7 +1145,7 @@ export default function LmsPertemuanDetailPage({ params }: PageProps) {
   // Konfigurasi tab per peran
   const dosenTabs: Array<{ key: TabKey; label: string; icon: ReactNode }> = [
     { key: 'isian', label: 'Isian', icon: <ClipboardList size={16} /> },
-    { key: 'presensi', label: `Presensi Mahasiswa (${detail?.absensi_list?.length || 0})`, icon: <Users size={16} /> },
+    { key: 'presensi', label: `Presensi Mahasiswa (${liveAbsensiList.length})`, icon: <Users size={16} /> },
     { key: 'materi', label: `Materi Pembelajaran (${detail?.materi_list?.length || 0})`, icon: <BookOpen size={16} /> },
     { key: 'tugas', label: `Penugasan & Nilai OBE (${detail?.tugas_list?.length || 0})`, icon: <FileText size={16} /> },
     { key: 'kuis', label: `Kuis & Tryout Mini (${detail?.quiz_list?.length || 0})`, icon: <ListChecks size={16} /> },
@@ -1126,14 +1193,20 @@ export default function LmsPertemuanDetailPage({ params }: PageProps) {
       <div className="p-4 bg-slate-900 border border-slate-800 rounded-xl text-white shadow-md flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex items-center gap-4">
           {!isMahasiswa && tokenInfo?.token && qrDataUrl ? (
-            <div className="p-1.5 bg-white rounded-xl shrink-0 shadow-sm border border-emerald-400/40">
+            <button
+              type="button"
+              onClick={() => setIsQrFullscreen(true)}
+              className="p-1.5 bg-white rounded-xl shrink-0 shadow-sm border border-emerald-400/40 cursor-zoom-in"
+              aria-label="Tampilkan QR presensi fullscreen"
+              title="Tampilkan QR fullscreen"
+            >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={qrDataUrl}
                 alt="QR Presensi Pertemuan"
                 className="w-24 h-24 rounded-lg object-contain"
               />
-            </div>
+            </button>
           ) : (
             <div className="w-12 h-12 rounded-xl bg-white/10 flex items-center justify-center shrink-0 border border-white/20">
               <QrCode size={24} className="text-slate-200" />
@@ -1146,6 +1219,16 @@ export default function LmsPertemuanDetailPage({ params }: PageProps) {
                 : 'Presensi Realtime Mahasiswa (QR & Token Berputar Tiap 30 Detik)'}
             </div>
             <div className="flex items-center gap-2 flex-wrap">
+              {!isMahasiswa && tokenInfo?.token && qrDataUrl && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  icon={<Maximize2 size={16} />}
+                  onClick={() => setIsQrFullscreen(true)}
+                >
+                  QR Fullscreen
+                </Button>
+              )}
               {isMahasiswa ? (
                 detail?.my_absensi ? (
                   <div className="flex items-center gap-2">
@@ -1189,6 +1272,49 @@ export default function LmsPertemuanDetailPage({ params }: PageProps) {
             </div>
           </div>
         </div>
+
+        {isQrFullscreen && qrDataUrl && tokenInfo?.token && (
+          <div
+            className="fixed inset-0 z-[100] flex flex-col items-center justify-center gap-6 bg-slate-950 p-5 text-white sm:p-8"
+            role="dialog"
+            aria-modal="true"
+            aria-label="QR presensi fullscreen"
+          >
+            <Button
+              size="sm"
+              variant="outline"
+              icon={<X size={16} />}
+              onClick={() => setIsQrFullscreen(false)}
+              className="absolute right-4 top-4"
+            >
+              Tutup
+            </Button>
+            <div className="text-center">
+              <p className="text-sm font-semibold uppercase tracking-widest text-slate-300">
+                QR Presensi — Pertemuan Ke-{detail?.pertemuan.pertemuan_ke}
+              </p>
+              <p className="mt-2 text-xs text-slate-400">
+                Arahkan kamera ke QR. Kode diperbarui otomatis setiap 30 detik.
+              </p>
+            </div>
+            <div className="rounded-2xl bg-white p-3 shadow-2xl">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={qrDataUrl}
+                alt="QR Presensi Pertemuan"
+                className="h-[min(68vh,68vw)] w-[min(68vh,68vw)] max-h-[560px] max-w-[560px] rounded-lg object-contain"
+              />
+            </div>
+            <div className="flex flex-col items-center gap-2 text-center">
+              <span className="font-mono text-4xl font-bold tracking-[0.3em] text-emerald-400">
+                {tokenInfo.token}
+              </span>
+              <span className="rounded-md border border-amber-400/30 bg-amber-950/60 px-3 py-1 text-sm text-amber-300">
+                Kode berganti dalam {rotateCountdown} detik
+              </span>
+            </div>
+          </div>
+        )}
 
         <div className="flex items-center gap-2 flex-wrap">
           {isMahasiswa ? (
@@ -1581,6 +1707,9 @@ export default function LmsPertemuanDetailPage({ params }: PageProps) {
                     </p>
                     <p className="text-2xs text-slate-500">
                       Otomatis: {presensiSummary.otomatis} • Manual: {presensiSummary.manual} • Belum absen: {presensiSummary.belum}
+                      {attendanceUpdatedAt && (
+                        <span className="ml-2">• Diperbarui {attendanceUpdatedAt.toLocaleTimeString('id-ID')}</span>
+                      )}
                     </p>
                   </div>
 
@@ -1599,7 +1728,7 @@ export default function LmsPertemuanDetailPage({ params }: PageProps) {
 
                 <DataTable
                   columns={absensiColumns}
-                  data={detail?.absensi_list || []}
+                  data={liveAbsensiList}
                   meta={absensiMeta}
                   onPageChange={(page) => {
                     setAbsensiMeta((prev) => ({ ...prev, current_page: page }));

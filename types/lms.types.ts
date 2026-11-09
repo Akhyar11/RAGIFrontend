@@ -493,8 +493,11 @@ export interface LmsPertemuanDetail {
     mahasiswa_id: number;
     nim: string;
     nama_lengkap: string;
-    status: 'hadir' | 'sakit' | 'izin' | 'alfa' | 'belum_absen' | null;
+    status: string | null;
+    status_label?: string | null;
     catatan?: string | null;
+    is_submitted?: boolean;
+    waktu_absen?: string | null;
   }>;
   izin_list: LmsIzinAbsensiItem[];
   komponen_obe_list?: Array<{
@@ -514,6 +517,15 @@ export interface LmsPertemuanDetail {
   } | null;
   my_pengumpulan?: Record<number, LmsPengumpulanTugas>;
   my_izin?: LmsIzinAbsensiItem | null;
+}
+
+export interface LmsPertemuanAbsensiRoster {
+  pertemuan_id: number;
+  absensi_list: LmsPertemuanDetail['absensi_list'];
+  total_peserta: number;
+  total_sudah_absen: number;
+  total_belum_absen: number;
+  refreshed_at: string;
 }
 
 export interface LmsRekapAbsensi {
@@ -995,8 +1007,26 @@ export const LMS_NOTIFIKASI_READ_OPTIONS: SelectOption[] = [
 ];
 
 /** Ringkasan dashboard LMS (`GET /lms/dashboard/overview`). */
+export interface LmsDashboardClass {
+  id: number;
+  kode_kelas: string;
+  nama_kelas: string;
+  hari: string | null;
+  jam_mulai: string | null;
+  jam_selesai: string | null;
+  mata_kuliah: { id: number; kode: string; nama: string } | null;
+}
+
 export interface LmsDashboardOverview {
   role: 'mahasiswa' | 'dosen' | 'pengelola';
+  jadwal: {
+    hari_ini: string;
+    tanggal: string;
+    kelas: {
+      hari_ini: LmsDashboardClass[];
+      semua: LmsDashboardClass[];
+    };
+  };
   ringkasan: {
     kelas: number;
     tugas_aktif: number;
@@ -1006,6 +1036,41 @@ export interface LmsDashboardOverview {
   };
   tambahan: Record<string, number>;
   tren: Array<{ tanggal: string; pengumpulan: number; attempt: number }>;
+  preview: {
+    tugas: Array<{
+      id: number;
+      judul: string;
+      deadline_at: string | null;
+      pertemuan_id: number;
+      kelas_id: number;
+      kode_kelas: string;
+      nama_kelas: string;
+      mata_kuliah: { id: number; kode: string; nama: string } | null;
+      belum_dinilai: number | null;
+    }>;
+    kuis: Array<{
+      id: number;
+      judul: string;
+      tipe: 'kuis' | 'tryout';
+      dibuka_at: string | null;
+      deadline_at: string | null;
+      pertemuan_id: number | null;
+      kelas_id: number;
+      kode_kelas: string;
+      nama_kelas: string;
+      mata_kuliah: { id: number; kode: string; nama: string } | null;
+    }>;
+    materi: Array<{
+      id: number;
+      judul: string;
+      updated_at: string | null;
+      pertemuan_id: number;
+      kelas_id: number;
+      kode_kelas: string;
+      nama_kelas: string;
+      mata_kuliah: { id: number; kode: string; nama: string } | null;
+    }>;
+  };
 }
 
 /** Tipe nilai pengaturan modul LMS (mengikuti definisi backend). */

@@ -5,6 +5,7 @@ import {
   LmsKelasItem,
   LmsKelasOverview,
   LmsPertemuanDetail,
+  LmsPertemuanAbsensiRoster,
   LmsRekapAbsensi,
   LmsRekapMatrix,
   LmsKetercapaian,
@@ -109,6 +110,13 @@ export const lmsService = {
   // 2. Pertemuan
   getPertemuanDetail: async (pertemuanId: number): Promise<ApiResponse<LmsPertemuanDetail>> => {
     const response = await apiClient.get(`/v1/lms/pertemuan/${pertemuanId}`);
+    return response.data;
+  },
+
+  getPertemuanAbsensi: async (
+    pertemuanId: number
+  ): Promise<ApiResponse<LmsPertemuanAbsensiRoster>> => {
+    const response = await apiClient.get(`/v1/lms/pertemuan/${pertemuanId}/absensi`);
     return response.data;
   },
 

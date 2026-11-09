@@ -207,11 +207,11 @@ export default function LmsForumListPage() {
   return (
     <div className="w-full space-y-6">
       <PageHeader
-        title="Forum Diskusi"
+        title="Diskusi Perkuliahan"
         description="Topik diskusi perkuliahan dari seluruh kelas yang Anda ikuti atau ampu."
         breadcrumbs={[
           { label: 'LMS', href: '/lms' },
-          { label: 'Forum Diskusi' },
+          { label: 'Diskusi' },
         ]}
         action={
           <div className="flex items-center gap-2">

@@ -170,8 +170,8 @@ export default function LmsKelasListPage() {
   return (
     <div className="w-full space-y-4">
       <PageHeader
-        title="LMS Perkuliahan"
-        description="Pusat materi pembelajaran, tugas terintegrasi OBE, dan presensi realtime mahasiswa per pertemuan."
+        title="Kelas"
+        description="Daftar kelas dan aktivitas pembelajaran sesuai akses Anda."
         breadcrumbs={[{ label: 'LMS', href: '/lms' }, { label: isPengelola ? 'Daftar Kelas Perkuliahan' : 'Kelas Saya' }]}
         action={
           <div className="flex items-center gap-2">

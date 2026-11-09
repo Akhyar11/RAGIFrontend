@@ -301,8 +301,8 @@ export default function LmsPertemuanListPage() {
   return (
     <div className="w-full space-y-6">
       <PageHeader
-        title="Manajemen Pertemuan"
-        description="Daftar seluruh pertemuan perkuliahan dari semua kelas yang Anda miliki."
+        title="Agenda Pertemuan"
+        description="Jadwal pertemuan dari kelas yang dapat Anda akses."
         breadcrumbs={[
           { label: 'LMS', href: '/lms' },
           { label: 'Pertemuan' },

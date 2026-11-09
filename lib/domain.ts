@@ -159,7 +159,7 @@ export function resolveDomainContextWithConfig(
   }
 
   if (baseDomain) {
-    return buildContext(host, baseDomain, subdomain, false, false, reserved);
+    return buildContext(host, '', '', false, true, reserved);
   }
 
   // 3. Host platform Vercel (preview/production) -> portal default.

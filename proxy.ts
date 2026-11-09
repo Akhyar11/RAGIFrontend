@@ -92,20 +92,22 @@ function isSafeRedirect(target: string, host: string, baseDomain: string): boole
 // ============================================================
 
 export async function proxy(request: NextRequest) {
-  // 0. Cegah re-processing jika request sudah pernah di-rewrite secara internal
-  if (request.headers.get('x-proxy-rewritten') === '1') {
-    return NextResponse.next();
-  }
-
   const host =
     request.headers.get('x-forwarded-host') ||
     request.headers.get('host') ||
     '';
 
-  // Baca pemetaan domain dari Vercel Edge Config (fail-open ke konfigurasi statis).
   const config = await getTenantConfig();
   const ctx = resolveDomainContextWithConfig(host, config);
   const { pathname } = request.nextUrl;
+
+  if (ctx.isUnknownDomain) {
+    return new NextResponse('Not Found', { status: 404 });
+  }
+
+  if (request.headers.get('x-proxy-rewritten') === '1') {
+    return NextResponse.next();
+  }
 
   // Header tenant yang diteruskan ke Server Components (headers().get('x-tenant-*')).
   const tenantHeaders = new Headers(request.headers);
@@ -116,15 +118,6 @@ export async function proxy(request: NextRequest) {
   // 1. Abaikan API routes (dikelola oleh Sanctum / backend API langsung)
   if (pathname.startsWith('/api/')) {
     return NextResponse.next();
-  }
-
-  // 1b. Domain tak dikenal (bukan base domain, bukan dev/preview, tidak
-  //     dipetakan) -> arahkan ke portal utama agar tidak menyajikan portal
-  //     di domain pihak ketiga.
-  if (ctx.isUnknownDomain && config.baseDomains.length > 0) {
-    const portalUrl = new URL(pathname || '/', `https://sso.${config.baseDomains[0]}`);
-    portalUrl.search = request.nextUrl.search;
-    return NextResponse.redirect(portalUrl);
   }
 
   const tokenKey = getAuthTokenKey(ctx.isDemo, host);

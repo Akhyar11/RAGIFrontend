@@ -155,7 +155,7 @@ export default function LmsPengaturanModulPage() {
                   label={renderDefinitionLabel('lms_fitur_presensi', 'Fitur Presensi')}
                   description={renderDefinitionHint(
                     'lms_fitur_presensi',
-                    'Mengaktifkan presensi & integrasi PresensiV2 untuk dosen/mahasiswa.'
+                    'Mengaktifkan fitur presensi lokal LMS untuk dosen/mahasiswa.'
                   )}
                 />
               )}

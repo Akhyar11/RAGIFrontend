@@ -37,6 +37,9 @@ import type {
   AnnualSpMonitoringMeta,
   PresensiAnalyticsData,
   DemografiAnalyticsData,
+  PresensiPengajaranRow,
+  PresensiPengajaranCutoff,
+  PresensiPengajaranException,
 } from '@/types/simpeg.types';
 
 export const simpegService = {
@@ -467,6 +470,74 @@ export const simpegService = {
     year?: number;
   }): Promise<ApiResponse<AttendanceRecapData>> => {
     const { data } = await apiClient.get<ApiResponse<AttendanceRecapData>>('/simpeg/presensi/recap', { params });
+    return data;
+  },
+
+  getPresensiPengajaran: async (params: {
+    periode: string;
+    page?: number;
+    per_page?: number;
+    search?: string;
+    sort_by?: 'nama_lengkap' | 'nidn';
+    sort_order?: 'asc' | 'desc';
+  }): Promise<ApiResponse<PresensiPengajaranRow[]>> => {
+    const { data } = await apiClient.get<ApiResponse<PresensiPengajaranRow[]>>(
+      '/simpeg/presensi/pengajaran',
+      { params }
+    );
+    return data;
+  },
+
+  getPresensiPengajaranCutoff: async (periode: string): Promise<ApiResponse<PresensiPengajaranCutoff>> => {
+    const { data } = await apiClient.get<ApiResponse<PresensiPengajaranCutoff>>(
+      '/simpeg/presensi/pengajaran/cutoff',
+      { params: { periode } }
+    );
+    return data;
+  },
+
+  updatePresensiPengajaranCutoff: async (payload: {
+    periode: string;
+    cutoff_at: string;
+  }): Promise<ApiResponse<PresensiPengajaranCutoff>> => {
+    const { data } = await apiClient.put<ApiResponse<PresensiPengajaranCutoff>>(
+      '/simpeg/presensi/pengajaran/cutoff',
+      payload
+    );
+    return data;
+  },
+
+  getPresensiPengajaranExceptions: async (params: {
+    periode: string;
+    page?: number;
+    per_page?: number;
+    search?: string;
+  }): Promise<ApiResponse<PresensiPengajaranException[]>> => {
+    const { data } = await apiClient.get<ApiResponse<PresensiPengajaranException[]>>(
+      '/simpeg/presensi/pengajaran/exceptions',
+      { params }
+    );
+    return data;
+  },
+
+  grantPresensiPengajaranException: async (payload: {
+    dosen_id: number;
+    periode: string;
+    valid_until: string;
+    reason: string;
+  }): Promise<ApiResponse<PresensiPengajaranException>> => {
+    const { data } = await apiClient.post<ApiResponse<PresensiPengajaranException>>(
+      '/simpeg/presensi/pengajaran/exceptions',
+      payload
+    );
+    return data;
+  },
+
+  revokePresensiPengajaranException: async (id: number, reason: string): Promise<ApiResponse<PresensiPengajaranException>> => {
+    const { data } = await apiClient.patch<ApiResponse<PresensiPengajaranException>>(
+      `/simpeg/presensi/pengajaran/exceptions/${id}/revoke`,
+      { reason }
+    );
     return data;
   },
 
@@ -1136,4 +1207,3 @@ export const simpegService = {
     return response.data;
   },
 };
-

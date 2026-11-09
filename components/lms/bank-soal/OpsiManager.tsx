@@ -18,6 +18,7 @@ import toast from 'react-hot-toast';
 
 const opsiSchema = z.object({
   teks: z.string().min(1, 'Teks opsi wajib diisi.'),
+  gambar_path: z.string().optional().default(''),
   is_benar: z.boolean().default(false),
 });
 
@@ -31,7 +32,7 @@ export default function OpsiManager({ soalId, tipeSoal }: { soalId: number; tipe
 
   const form = useForm<OpsiValues>({
     resolver: zodResolver(opsiSchema) as any,
-    defaultValues: { teks: '', is_benar: false },
+    defaultValues: { teks: '', gambar_path: '', is_benar: false },
   });
 
   const fetchOpsi = async () => {
@@ -57,11 +58,12 @@ export default function OpsiManager({ soalId, tipeSoal }: { soalId: number; tipe
     try {
       await siakadService.saveOpsi(soalId, {
         teks: values.teks.trim(),
+        gambar_path: values.gambar_path?.trim() || null,
         is_benar: values.is_benar,
         urutan: opsiList.length + 1,
       });
       toast.success('Opsi berhasil ditambahkan.');
-      form.reset({ teks: '', is_benar: false });
+      form.reset({ teks: '', gambar_path: '', is_benar: false });
       fetchOpsi();
     } catch (err: any) {
       toast.error(err?.response?.data?.message || 'Gagal menambah opsi.');
@@ -90,8 +92,14 @@ export default function OpsiManager({ soalId, tipeSoal }: { soalId: number; tipe
       key: 'teks',
       label: 'OPSI',
       render: (row) => (
-        <div>
+        <div className="space-y-1">
           <span className="text-xs text-slate-800 block line-clamp-2">{row.teks}</span>
+          {row.gambar_path && (
+            <div className="max-w-xs rounded overflow-hidden border border-slate-200">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={row.gambar_path} alt="Gambar opsi" className="max-h-24 w-auto object-contain bg-slate-50" />
+            </div>
+          )}
           <span className="text-2xs text-slate-500 block">Urutan {row.urutan}</span>
         </div>
       ),
@@ -119,21 +127,25 @@ export default function OpsiManager({ soalId, tipeSoal }: { soalId: number; tipe
   return (
     <Card className="p-4 space-y-4">
       <h5 className="text-xs font-bold uppercase tracking-wider text-slate-700">Kelola Opsi</h5>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
-        <div className="md:col-span-2">
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-3">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <Input
             label="Teks Opsi"
             placeholder="Tulis teks opsi jawaban..."
             error={form.formState.errors.teks?.message}
             {...form.register('teks')}
           />
+          <Input
+            label="URL / Path Gambar Opsi (Opsional)"
+            placeholder="Contoh: https://domain.ac.id/opsi-a.png"
+            error={form.formState.errors.gambar_path?.message}
+            {...form.register('gambar_path')}
+          />
         </div>
-        <div className="flex gap-2 items-end">
-          <div className="flex-1">
-            <Checkbox label="Tandai benar" {...form.register('is_benar')} />
-          </div>
+        <div className="flex gap-2 items-center justify-between">
+          <Checkbox label="Tandai sebagai jawaban benar" {...form.register('is_benar')} />
           <Button type="submit" size="sm" icon={<Plus size={16} />} loading={form.formState.isSubmitting} disabled={form.formState.isSubmitting}>
-            Tambah
+            Tambah Opsi
           </Button>
         </div>
       </form>

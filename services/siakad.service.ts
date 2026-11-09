@@ -1026,7 +1026,7 @@ export const siakadService = {
 
   saveOpsi: async (
     soalId: number,
-    payload: { teks: string; is_benar: boolean; urutan?: number }
+    payload: { teks: string; gambar_path?: string | null; is_benar: boolean; urutan?: number }
   ): Promise<ApiResponse<any>> => {
     const response = await apiClient.post(`/v1/siakad/obe/soal/${soalId}/opsi`, payload);
     return response.data;

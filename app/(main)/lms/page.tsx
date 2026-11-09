@@ -120,6 +120,8 @@ export default function LmsKelasListPage() {
           sort_by: filterOrderBy || 'nama_kelas',
           sort_order: (filterOrderDir as 'asc' | 'desc') || 'asc',
           tahun_akademik_id: toTahunAkademikId(filterTahunAkademik),
+          program_studi_id: filterProdi ? Number(filterProdi) : undefined,
+          min_kapasitas: filterKapasitas ? Number(filterKapasitas) : undefined,
         });
 
         if (res.status === 'success' && res.data) {
@@ -136,7 +138,7 @@ export default function LmsKelasListPage() {
         setIsLoading(false);
       }
     },
-    [filterSearch, filterOrderBy, filterOrderDir, filterTahunAkademik, perPage]
+    [filterSearch, filterProdi, filterKapasitas, filterOrderBy, filterOrderDir, filterTahunAkademik, perPage]
   );
 
   useEffect(() => {

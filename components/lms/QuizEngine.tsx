@@ -293,6 +293,16 @@ export default function QuizEngine({ quizId }: QuizEngineProps) {
             <p className="text-xs font-semibold whitespace-pre-wrap">{soal.urutan}. {soal.pertanyaan}</p>
             <Badge>{soal.poin} poin</Badge>
           </div>
+          {soal.gambar_path && (
+            <div className="my-2 max-w-md rounded-lg overflow-hidden border border-slate-200">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={soal.gambar_path}
+                alt={`Gambar soal ${soal.urutan}`}
+                className="max-h-72 w-auto object-contain bg-slate-50"
+              />
+            </div>
+          )}
           {soal.tipe_soal === 'pilihan_ganda' ? (
             <div className="space-y-2">
               {soal.opsi.map((o) => (
@@ -304,7 +314,19 @@ export default function QuizEngine({ quizId }: QuizEngineProps) {
                     onChange={() => setJawaban(soal.quiz_soal_id, { bank_opsi_id: o.id })}
                     className="mt-1"
                   />
-                  <span>{o.teks}</span>
+                  <div className="flex-1 space-y-1">
+                    <span>{o.teks}</span>
+                    {o.gambar_path && (
+                      <div className="mt-1 max-w-xs rounded overflow-hidden border border-slate-200">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={o.gambar_path}
+                          alt="Gambar opsi"
+                          className="max-h-40 w-auto object-contain bg-slate-50"
+                        />
+                      </div>
+                    )}
+                  </div>
                 </label>
               ))}
             </div>

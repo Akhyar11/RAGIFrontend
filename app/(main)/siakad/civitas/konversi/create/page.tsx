@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Badge } from '@/components/ui/Badge';
 import { AsyncSelect } from '@/components/ui/AsyncSelect';
+import { useAuth } from '@/hooks/useAuth';
 import { siakadService } from '@/services/siakad.service';
 import { arsipService } from '@/services/arsip.service';
 import type { CheckSkResult } from '@/types/arsip.types';
@@ -30,7 +31,7 @@ const detailSchema = z.object({
 });
 
 const konversiCreateSchema = z.object({
-  mahasiswa_id: z.number().min(1, 'Pilih mahasiswa penerima konversi terlebih dahulu'),
+  mahasiswa_id: z.number().optional(),
   kampus_asal: z.string().min(1, 'Perguruan tinggi / kampus asal wajib diisi'),
   prodi_asal: z.string().min(1, 'Program studi asal wajib diisi'),
   nomor_sk: z.string().max(150, 'Nomor SK maksimal 150 karakter').optional().or(z.literal('')),
@@ -42,6 +43,8 @@ type KonversiCreateFormData = z.infer<typeof konversiCreateSchema>;
 
 export default function CreateKonversiTransferPage() {
   const router = useRouter();
+  const { isMahasiswa } = useAuth();
+  const [existingKonversi, setExistingKonversi] = useState<any | null>(null);
 
   const [skCheck, setSkCheck] = useState<{
     status: 'idle' | 'checking' | 'valid' | 'invalid';
@@ -56,6 +59,7 @@ export default function CreateKonversiTransferPage() {
     register,
     control,
     handleSubmit,
+    reset,
     formState: { errors, isSubmitting },
   } = useForm<KonversiCreateFormData>({
     resolver: zodResolver(konversiCreateSchema),
@@ -83,10 +87,44 @@ export default function CreateKonversiTransferPage() {
   });
 
   const watchNomorSk = useWatch({ control, name: 'nomor_sk' });
+  const canEditExisting = !existingKonversi || ['draft', 'diajukan'].includes(existingKonversi.status);
 
   useEffect(() => {
     setSkCheck((prev) => (prev.status === 'idle' ? prev : { status: 'idle', data: null }));
   }, [watchNomorSk]);
+
+  useEffect(() => {
+    if (!isMahasiswa) return;
+    let active = true;
+    siakadService.getKonversis({ per_page: 1 })
+      .then((response) => {
+        const rows = Array.isArray(response.data) ? response.data : [];
+        const existing = rows[0] || null;
+        if (!active) return;
+        setExistingKonversi(existing);
+        if (existing) {
+          reset({
+            mahasiswa_id: 0,
+            kampus_asal: existing.kampus_asal || '',
+            prodi_asal: existing.prodi_asal || '',
+            nomor_sk: existing.nomor_sk || '',
+            catatan: existing.catatan || '',
+            details: (existing.details || []).map((detail: any) => ({
+              mata_kuliah_diakui_id: Number(detail.mata_kuliah_diakui_id),
+              kode_mk_asal: detail.kode_mk_asal || '',
+              nama_mk_asal: detail.nama_mk_asal || '',
+              sks_asal: Number(detail.sks_asal || 1),
+              nilai_huruf_asal: detail.nilai_huruf_asal || '',
+            })),
+          });
+        }
+      })
+      .catch(() => toast.error('Gagal memuat status pengajuan konversi Anda'));
+
+    return () => {
+      active = false;
+    };
+  }, [isMahasiswa, reset]);
 
   const handleCheckSk = async () => {
     const nomor = (watchNomorSk || '').trim();
@@ -176,10 +214,28 @@ export default function CreateKonversiTransferPage() {
   };
 
   const onSubmit = async (data: KonversiCreateFormData) => {
+    if (!isMahasiswa && !data.mahasiswa_id) {
+      toast.error('Pilih mahasiswa penerima konversi terlebih dahulu.');
+      return;
+    }
     try {
-      await siakadService.createKonversi(data);
-      toast.success('Penyetaraan nilai mahasiswa transfer berhasil disimpan!');
-      router.push('/siakad/civitas/konversi');
+      const payload = {
+        ...data,
+        status: 'diajukan',
+        ...(isMahasiswa ? { mahasiswa_id: undefined } : {}),
+      };
+      if (isMahasiswa && existingKonversi) {
+        await siakadService.updateKonversi(existingKonversi.id, payload);
+      } else {
+        await siakadService.createKonversi(payload);
+      }
+      toast.success('Pengajuan konversi nilai berhasil dikirim untuk pemetaan program studi.');
+      if (isMahasiswa) {
+        const response = await siakadService.getKonversis({ per_page: 1 });
+        setExistingKonversi(Array.isArray(response.data) ? response.data[0] || null : null);
+      } else {
+        router.push('/siakad/civitas/konversi');
+      }
     } catch (err: any) {
       toast.error(err.response?.data?.message || err.message || 'Gagal menyimpan data konversi');
     }
@@ -188,19 +244,21 @@ export default function CreateKonversiTransferPage() {
   return (
     <div className="space-y-6 animate-fade-in">
       <PageHeader
-        title="Input Konversi Nilai Mahasiswa Transfer"
-        description="Penyetaraan dan mapping mata kuliah mahasiswa pindahan dari perguruan tinggi sebelumnya ke kurikulum aktif."
+        title={isMahasiswa ? 'Pengajuan Konversi Nilai' : 'Input Konversi Nilai Mahasiswa Transfer'}
+        description={isMahasiswa
+          ? 'Ajukan mata kuliah dari kampus sebelumnya. Pemetaan final mata kuliah lokal ditentukan oleh pengelola program studi.'
+          : 'Penyetaraan dan mapping mata kuliah mahasiswa pindahan dari perguruan tinggi sebelumnya ke kurikulum aktif.'}
         breadcrumbs={[
           { label: 'Portal SSO', href: '/dashboard' },
           { label: 'SIAKAD', href: '/siakad' },
-          { label: 'Konversi Nilai', href: '/siakad/civitas/konversi' },
-          { label: 'Input Penyetaraan' },
+          { label: 'Konversi Nilai', href: isMahasiswa ? '/siakad/konversi' : '/siakad/civitas/konversi' },
+          { label: isMahasiswa ? 'Pengajuan' : 'Input Penyetaraan' },
         ]}
         action={
           <Button
             variant="outline"
             icon={<ArrowLeft size={16} />}
-            onClick={() => router.push('/siakad/civitas/konversi')}
+            onClick={() => router.push(isMahasiswa ? '/siakad' : '/siakad/civitas/konversi')}
           >
             Kembali
           </Button>
@@ -208,14 +266,38 @@ export default function CreateKonversiTransferPage() {
       />
 
       <div className="card p-6 bg-white border border-slate-200 shadow-xs">
+        {isMahasiswa && existingKonversi && !canEditExisting ? (
+          <div className="space-y-4">
+            <div className="rounded-xl border border-blue-200 bg-blue-50 p-4">
+              <p className="font-bold text-slate-900">Pengajuan Anda sedang diproses</p>
+              <p className="mt-1 text-sm text-slate-700">
+                Status: <strong className="capitalize">{existingKonversi.status.replaceAll('_', ' ')}</strong>
+              </p>
+              <p className="mt-1 text-xs text-slate-600">
+                Anda dapat melihat hasil keputusan di sini. Perubahan data tidak tersedia setelah tahap verifikasi dimulai.
+              </p>
+            </div>
+            <ul className="divide-y divide-slate-100">
+              {(existingKonversi.details || []).map((detail: any) => (
+                <li key={detail.id} className="flex items-center justify-between gap-4 py-3 text-sm">
+                  <span>{detail.nama_mk_asal} ({detail.kode_mk_asal})</span>
+                  <span className="text-right font-semibold text-slate-700">
+                    {detail.mata_kuliah_diakui?.nama || 'Pemetaan belum tersedia'}
+                    <span className="ml-2 text-xs capitalize text-slate-500">{detail.status}</span>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : (
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
           <div className="border-b border-slate-100 pb-3">
-            <h3 className="font-extrabold text-sm text-slate-900">1. Mahasiswa & Asal Perguruan Tinggi</h3>
-            <p className="text-2xs text-slate-500">Pilih mahasiswa pindahan dan identitas kampus tempat studi sebelumnya.</p>
+            <h3 className="font-extrabold text-sm text-slate-900">1. Asal Perguruan Tinggi</h3>
+            <p className="text-2xs text-slate-500">Isi institusi dan program studi tempat Anda pernah menempuh mata kuliah.</p>
           </div>
 
           <div className="space-y-4">
-            <div>
+            {!isMahasiswa && (
               <Controller
                 control={control}
                 name="mahasiswa_id"
@@ -232,7 +314,13 @@ export default function CreateKonversiTransferPage() {
                   />
                 )}
               />
-            </div>
+            )}
+
+            {isMahasiswa && (
+              <div className="rounded-xl border border-indigo-100 bg-indigo-50 p-3 text-xs text-indigo-900">
+                Usulan mata kuliah lokal adalah kandidat. Kaprodi atau admin program studi menetapkan pemetaan resmi sebelum ditinjau Dosen PA.
+              </div>
+            )}
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <Input
@@ -252,7 +340,7 @@ export default function CreateKonversiTransferPage() {
               />
             </div>
 
-            {/* Field Nomor SK Penyetaraan dengan Tombol CEK ke Modul Arsip */}
+            {!isMahasiswa && (
             <div className="space-y-2">
               <div className="flex items-end gap-2">
                 <div className="flex-1">
@@ -334,6 +422,7 @@ export default function CreateKonversiTransferPage() {
                 </div>
               )}
             </div>
+            )}
 
             <div>
               <Input
@@ -348,9 +437,13 @@ export default function CreateKonversiTransferPage() {
           <div className="border-b border-slate-100 pb-3 pt-2 flex items-center justify-between">
             <div>
               <h3 className="font-extrabold text-sm text-slate-900">
-                2. Rincian Mata Kuliah yang Diakui ({fields.length} MK)
+                2. Mata Kuliah Asal ({fields.length} MK)
               </h3>
-              <p className="text-2xs text-slate-500">Mata kuliah dari kampus asal yang disetarakan dengan mata kuliah kurikulum lokal.</p>
+              <p className="text-2xs text-slate-500">
+                {isMahasiswa
+                  ? 'Cantumkan riwayat mata kuliah dan kandidat padanan lokal. Program studi dapat mengubah atau menetapkan padanan resmi.'
+                  : 'Cantumkan mata kuliah asal dan tentukan pemetaan kurikulum lokal untuk ditinjau PA.'}
+              </p>
             </div>
             <Button
               type="button"
@@ -430,13 +523,15 @@ export default function CreateKonversiTransferPage() {
                   </div>
 
                   <div className="space-y-4 bg-white p-4 rounded-xl border border-slate-200">
-                    <span className="text-2xs font-bold text-slate-500 block uppercase">Disetarakan Ke MK Lokal</span>
+                    <span className="text-2xs font-bold text-slate-500 block uppercase">
+                      {isMahasiswa ? 'Usulan Padanan MK Lokal' : 'Pemetaan MK Lokal'}
+                    </span>
                     <Controller
                       control={control}
                       name={`details.${idx}.mata_kuliah_diakui_id`}
                       render={({ field: selectField }) => (
                         <AsyncSelect
-                          label="Pilih MK Kurikulum Lokal *"
+                          label={isMahasiswa ? 'Usulan MK Kurikulum Lokal *' : 'Pilih MK Kurikulum Lokal *'}
                           required
                           placeholder="Cari kode atau nama mata kuliah..."
                           loadOptions={loadMataKuliahOptions}
@@ -457,7 +552,7 @@ export default function CreateKonversiTransferPage() {
             <Button
               type="button"
               variant="secondary"
-              onClick={() => router.push('/siakad/civitas/konversi')}
+              onClick={() => router.push(isMahasiswa ? '/siakad' : '/siakad/civitas/konversi')}
             >
               Batal
             </Button>
@@ -466,12 +561,13 @@ export default function CreateKonversiTransferPage() {
               variant="primary"
               icon={<Save size={16} />}
               loading={isSubmitting}
-              disabled={isSubmitting}
+              disabled={isSubmitting || !canEditExisting}
             >
-              {isSubmitting ? 'Menyimpan...' : 'Simpan Konversi Transfer'}
+              {isSubmitting ? 'Mengirim...' : isMahasiswa ? 'Kirim Pengajuan' : 'Simpan Konversi Transfer'}
             </Button>
           </div>
         </form>
+        )}
       </div>
     </div>
   );

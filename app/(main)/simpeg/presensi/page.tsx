@@ -1387,6 +1387,15 @@ export default function PresensiPage() {
                 Pengaturan Presensi
               </Button>
             )}
+            {hasPermission('simpeg.presensi.pengajaran.read') && (
+              <Button
+                variant="outline"
+                icon={<UserCheck size={16} />}
+                onClick={() => router.push('/simpeg/presensi/pengajaran')}
+              >
+                Monitoring Pengajaran
+              </Button>
+            )}
             {activeTab === 'realtime' && canManage && (
               <Button variant="outline" icon={<Clock size={16} />} onClick={handleOpenCutoffModal}>
                 Jalankan Cut-off Harian
@@ -1450,6 +1459,17 @@ export default function PresensiPage() {
             <AlertTriangle size={16} /> Monitoring SP Tahunan (12 Bulan)
           </button>
         )}
+        <button
+          type="button"
+          onClick={() => setActiveTab('riwayat')}
+          className={`flex items-center gap-2 px-4 py-2.5 text-xs font-semibold rounded-t-lg transition-all border-b-2 cursor-pointer whitespace-nowrap ${
+            activeTab === 'riwayat'
+              ? 'border-[var(--module-primary)] text-[var(--module-primary)] bg-[var(--module-primary-subtle)]'
+              : 'border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800'
+          }`}
+        >
+          <CalendarDays size={16} /> Riwayat Bulanan
+        </button>
       </div>
 
       {/* ── TAB 1: LOG REALTIME BIOMETRIK ── */}

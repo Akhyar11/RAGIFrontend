@@ -34,6 +34,7 @@ export default function BankSoalEditPage() {
       tingkat_kesulitan: 'sedang' as any,
       bobot: 0,
       pertanyaan: '',
+      gambar_path: '',
       kunci_jawaban: '',
       pembahasan: '',
     },
@@ -66,6 +67,7 @@ export default function BankSoalEditPage() {
           tingkat_kesulitan: row.tingkat_kesulitan || 'sedang',
           bobot: Number(row.bobot ?? 0),
           pertanyaan: String(row.pertanyaan || '').replace(/<[^>]*>/g, ''),
+          gambar_path: row.gambar_path || '',
           kunci_jawaban: String(row.kunci_jawaban || '').replace(/<[^>]*>/g, ''),
           pembahasan: String(row.pembahasan || '').replace(/<[^>]*>/g, ''),
         });
@@ -98,6 +100,7 @@ export default function BankSoalEditPage() {
         tingkat_kesulitan: values.tingkat_kesulitan,
         bobot: Number(values.bobot) || 0,
         pertanyaan: values.pertanyaan.trim(),
+        gambar_path: values.gambar_path?.trim() || null,
         kunci_jawaban: values.kunci_jawaban?.trim() || null,
         pembahasan: values.pembahasan?.trim() || null,
       });

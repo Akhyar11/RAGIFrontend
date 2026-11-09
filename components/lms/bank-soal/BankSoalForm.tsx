@@ -26,6 +26,7 @@ export const bankSoalSchema = z.object({
   tingkat_kesulitan: z.enum(TINGKAT_KESULITAN_VALUES, { message: 'Tingkat kesulitan wajib dipilih.' }),
   bobot: z.coerce.number({ message: 'Bobot harus berupa angka.' }).min(0, 'Bobot minimal 0.').max(100, 'Bobot maksimal 100.'),
   pertanyaan: z.string().min(1, 'Pertanyaan wajib diisi.'),
+  gambar_path: z.string().optional().default(''),
   kunci_jawaban: z.string().optional().default(''),
   pembahasan: z.string().optional().default(''),
 });
@@ -202,6 +203,16 @@ export default function BankSoalForm({ form, disabled }: Props) {
             disabled={disabled}
             error={errors.pertanyaan?.message}
             {...register('pertanyaan')}
+          />
+        </div>
+
+        <div className="md:col-span-2 lg:col-span-3">
+          <Input
+            label="URL / Path Gambar Soal (Opsional)"
+            placeholder="Contoh: https://domain.ac.id/gambar-soal.png atau /storage/soal/img1.jpg"
+            disabled={disabled}
+            error={errors.gambar_path?.message}
+            {...register('gambar_path')}
           />
         </div>
 

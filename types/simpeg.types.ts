@@ -249,6 +249,62 @@ export interface PresensiPegawai {
   updated_at?: string;
 }
 
+export type StatusPresensiPengajaran = 'terisi' | 'belum_diisi' | 'belum_terlaksana' | 'tanpa_peserta';
+
+export interface PresensiPengajaranPertemuan {
+  id: number;
+  pertemuan_ke: number;
+  tanggal: string;
+  status_pertemuan: string;
+  total_absensi: number;
+  total_mahasiswa: number;
+  status_presensi: StatusPresensiPengajaran;
+}
+
+export interface PresensiPengajaranKelas {
+  kelas_id: number;
+  kode_kelas: string;
+  nama_kelas: string;
+  mata_kuliah: string | null;
+  total_mahasiswa: number;
+  pertemuans: PresensiPengajaranPertemuan[];
+}
+
+export interface PresensiPengajaranRow {
+  dosen_id: number;
+  user_id: number | null;
+  nama_dosen: string;
+  nidn: string | null;
+  kelas: PresensiPengajaranKelas[];
+  total_pertemuan: number;
+  pertemuan_terlaksana: number;
+  presensi_terisi: number;
+  presensi_belum_diisi: number;
+  status_pemenuhan: 'lengkap' | 'perlu_dilengkapi';
+}
+
+export interface PresensiPengajaranCutoff {
+  periode: string;
+  cutoff_at: string | null;
+  is_closed: boolean;
+}
+
+export interface PresensiPengajaranException {
+  id: number;
+  dosen_id: number;
+  periode: string;
+  valid_until: string;
+  reason: string;
+  granted_by: number | null;
+  revoked_at: string | null;
+  revoked_by: number | null;
+  revocation_reason: string | null;
+  is_active: boolean;
+  dosen?: { id: number; nama_lengkap: string; nidn: string | null; user_id: number | null } | null;
+  grantor?: { id: number; name: string } | null;
+  revoker?: { id: number; name: string } | null;
+}
+
 export type StatusTransferGaji = 'draft' | 'submitted_to_sikeu' | 'paid' | 'cancelled';
 
 export interface GajiPegawai {
@@ -826,7 +882,6 @@ export interface DemografiAnalyticsData {
     total_mpp_pensiun: number;
   };
 }
-
 // ── ANALITIK PEGAWAI & JAD ──────────────────────────────────
 export interface AnalitikPegawaiItem {
   id: number;
@@ -908,5 +963,3 @@ export interface AnalitikFilterParams {
   page?: number;
   per_page?: number;
 }
-
-

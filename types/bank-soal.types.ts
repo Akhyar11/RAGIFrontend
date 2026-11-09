@@ -45,6 +45,7 @@ export interface BankSoalOpsi {
   id: number;
   bank_soal_id?: number;
   teks: string;
+  gambar_path?: string | null;
   is_benar: boolean;
   urutan: number;
 }
@@ -70,6 +71,7 @@ export interface BankSoal {
   tingkat_kesulitan?: TingkatKesulitan | null;
   bobot?: number | null;
   pertanyaan: string;
+  gambar_path?: string | null;
   kunci_jawaban?: string | null;
   pembahasan?: string | null;
   opsi?: BankSoalOpsi[];
@@ -99,6 +101,7 @@ export interface BankSoalPayload {
   tingkat_kesulitan?: TingkatKesulitan;
   bobot?: number;
   pertanyaan: string;
+  gambar_path?: string | null;
   kunci_jawaban?: string | null;
   pembahasan?: string | null;
 }

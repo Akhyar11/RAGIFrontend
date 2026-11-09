@@ -32,13 +32,9 @@ import {
   LmsExportFormat,
   MetodeAbsensi,
   PengaturanStatus,
-  LmsPresensiStatus,
   LmsPresensiKelasItem,
   LmsPresensiRekapItem,
-  LmsPresensiSyncLogItem,
-  LmsPresensiSyncPayload,
-  LmsPresensiSyncResult,
-  LmsPresensiTarikResult,
+  LmsKeaktifanDosenItem,
   LmsNotifikasiItem,
   LmsNotifikasiUnreadCount,
   LmsDashboardOverview,
@@ -55,6 +51,8 @@ export const lmsService = {
     sort_by?: string;
     sort_order?: 'asc' | 'desc';
     tahun_akademik_id?: number;
+    program_studi_id?: number;
+    min_kapasitas?: number;
   }): Promise<ApiResponse<LmsKelasItem[]>> => {
     const response = await apiClient.get('/v1/lms/kelas/my', { params });
     return response.data;
@@ -663,14 +661,7 @@ export const lmsService = {
     return buildExportFile(response.data, response.headers['content-disposition'], 'Hasil_Tryout');
   },
 
-  // 14. Integrasi PresensiV2 (panel administrasi presensi LMS)
-  // Semua endpoint berada di bawah gate `lms.presensi.*` dan hanya dapat
-  // diakses admin/superadmin.
-  getStatusPresensi: async (): Promise<ApiResponse<LmsPresensiStatus>> => {
-    const response = await apiClient.get<ApiResponse<LmsPresensiStatus>>('/v1/lms/admin/presensi/status');
-    return response.data;
-  },
-
+  // Monitoring presensi lokal RAG/SIAKAD.
   indexKelasPresensi: async (params?: {
     page?: number;
     per_page?: number;
@@ -693,23 +684,9 @@ export const lmsService = {
     kelas_id?: number;
     pertemuan_ke?: number;
     status?: string;
-    sync_status?: string;
   }): Promise<ApiResponse<LmsPresensiRekapItem[]>> => {
     const response = await apiClient.get<ApiResponse<LmsPresensiRekapItem[]>>(
       '/v1/lms/admin/presensi/rekap',
-      { params }
-    );
-    return response.data;
-  },
-
-  logSinkronisasiPresensi: async (params?: {
-    page?: number;
-    per_page?: number;
-    status?: string;
-    kelas_id?: number;
-  }): Promise<ApiResponse<LmsPresensiSyncLogItem[]>> => {
-    const response = await apiClient.get<ApiResponse<LmsPresensiSyncLogItem[]>>(
-      '/v1/lms/admin/presensi/log',
       { params }
     );
     return response.data;
@@ -721,7 +698,6 @@ export const lmsService = {
     kelas_id?: number;
     pertemuan_ke?: number;
     status?: string;
-    sync_status?: string;
   }): Promise<LmsExportFile> => {
     const response = await apiClient.get('/v1/lms/admin/presensi/export', {
       params: { format: params?.format ?? 'csv', ...params },
@@ -730,24 +706,43 @@ export const lmsService = {
     return buildExportFile(response.data, response.headers['content-disposition'], 'Rekap_Presensi_LMS');
   },
 
-  syncPresensi: async (
-    payload: LmsPresensiSyncPayload
-  ): Promise<ApiResponse<LmsPresensiSyncResult>> => {
-    const response = await apiClient.post<ApiResponse<LmsPresensiSyncResult>>(
-      '/v1/lms/admin/presensi/sync',
-      payload
+  /**
+   * Monitoring keaktifan dosen mengajar & presensi perkuliahan (Super Admin & Admin).
+   */
+  getKeaktifanDosen: async (params?: {
+    page?: number;
+    per_page?: number;
+    search?: string;
+    prodi_id?: number | string;
+    dosen_id?: number | string;
+    status?: string;
+  }): Promise<ApiResponse<LmsKeaktifanDosenItem[]>> => {
+    const response = await apiClient.get<ApiResponse<LmsKeaktifanDosenItem[]>>(
+      '/v1/lms/admin/presensi/keaktifan-dosen',
+      { params }
     );
     return response.data;
   },
 
-  tarikPresensi: async (
-    kelasId: number
-  ): Promise<ApiResponse<LmsPresensiTarikResult>> => {
-    const response = await apiClient.post<ApiResponse<LmsPresensiTarikResult>>(
-      '/v1/lms/admin/presensi/tarik',
-      { kelas_id: kelasId }
+  /**
+   * Export laporan keaktifan dosen mengajar (CSV/XLSX).
+   */
+  exportKeaktifanDosen: async (params?: {
+    format?: LmsExportFormat;
+    search?: string;
+    prodi_id?: number | string;
+    dosen_id?: number | string;
+    status?: string;
+  }): Promise<LmsExportFile> => {
+    const response = await apiClient.get('/v1/lms/admin/presensi/keaktifan-dosen/export', {
+      params: { format: params?.format ?? 'xlsx', ...params },
+      responseType: 'blob',
+    });
+    return buildExportFile(
+      response.data,
+      response.headers['content-disposition'],
+      'Laporan_Keaktifan_Mengajar_Dosen'
     );
-    return response.data;
   },
 
   // 15. Notifikasi In-App LMS

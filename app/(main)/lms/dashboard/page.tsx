@@ -6,13 +6,20 @@ import { PageHeader } from '@/components/layout/PageHeader';
 import { StatCard } from '@/components/ui/StatCard';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { Button } from '@/components/ui/Button';
+import { Drawer } from '@/components/ui/Drawer';
+import PeriodeAkademikSelect, { useActivePeriodeAkademik } from '@/components/lms/PeriodeAkademikSelect';
+import { toTahunAkademikId } from '@/lib/kelas';
 import { lmsService } from '@/services/lms.service';
 import { getApiErrorMessage } from '@/lib/utils';
+import { useAuth } from '@/hooks/useAuth';
 import type { LmsDashboardOverview } from '@/types/lms.types';
 import {
   BookOpen,
+  Calendar,
   CalendarClock,
   ClipboardList,
+  Filter,
   Users,
   Bell,
   CheckCircle2,
@@ -27,15 +34,30 @@ const TREN_LEGEND = [
 ];
 
 export default function LmsDashboardPage() {
+  const { hasPermission } = useAuth();
+  const canMonitorPresensi = hasPermission('lms.presensi.read');
   const [data, setData] = useState<LmsDashboardOverview | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [showFilter, setShowFilter] = useState<boolean>(false);
+  const [filterTahunAkademik, setFilterTahunAkademik] = useState<string>('');
+  const { activePeriodeId, periodeReady } = useActivePeriodeAkademik();
 
   useEffect(() => {
+    if (activePeriodeId && !filterTahunAkademik) {
+      setFilterTahunAkademik(activePeriodeId);
+    }
+  }, [activePeriodeId, filterTahunAkademik]);
+
+  useEffect(() => {
+    if (!periodeReady) return;
     let active = true;
+    setIsLoading(true);
 
     const fetchOverview = async () => {
       try {
-        const res = await lmsService.getDashboardOverview();
+        const res = await lmsService.getDashboardOverview({
+          tahun_akademik_id: toTahunAkademikId(filterTahunAkademik),
+        });
         if (active) setData(res.data ?? null);
       } catch (err: unknown) {
         toast.error(getApiErrorMessage(err, 'Gagal memuat ringkasan LMS'));
@@ -49,9 +71,10 @@ export default function LmsDashboardPage() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [periodeReady, filterTahunAkademik]);
 
   const isMahasiswa = data?.role === 'mahasiswa';
+  const isPengelola = data?.role === 'pengelola';
   const maxTren = Math.max(1, ...(data?.tren ?? []).map((t) => Math.max(t.pengumpulan, t.attempt)));
 
   return (
@@ -59,6 +82,15 @@ export default function LmsDashboardPage() {
       <PageHeader
         title="Ringkasan LMS"
         description="Statistik kelas, tugas, tryout, dan aktivitas terbaru sesuai peran Anda."
+        action={
+          <Button
+            variant="outline"
+            icon={<Filter size={16} />}
+            onClick={() => setShowFilter(true)}
+          >
+            Filter
+          </Button>
+        }
       />
 
       {isLoading ? (
@@ -159,7 +191,11 @@ export default function LmsDashboardPage() {
             <div className="space-y-4">
               <div className="p-4 bg-white rounded-xl border border-slate-200/80 shadow-xs space-y-3">
                 <h5 className="text-xs font-bold uppercase tracking-wider text-slate-700">
-                  {isMahasiswa ? 'Tugas Anda' : 'Menunggu Penilaian'}
+                  {isMahasiswa
+                    ? 'Tugas Anda'
+                    : isPengelola
+                    ? 'Status Operasional & Evaluasi Kelas'
+                    : 'Menunggu Penilaian'}
                 </h5>
                 {isMahasiswa ? (
                   <div className="grid grid-cols-2 gap-3">
@@ -170,6 +206,27 @@ export default function LmsDashboardPage() {
                     <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200">
                       <span className="text-2xs text-emerald-700 font-medium block">Tryout Selesai</span>
                       <span className="text-lg font-bold text-emerald-800">{data.tambahan.tryout_selesai ?? 0}</span>
+                    </div>
+                  </div>
+                ) : isPengelola ? (
+                  <div className="grid grid-cols-3 gap-2">
+                    <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200">
+                      <span className="text-2xs text-slate-600 font-medium block">Belum Dikonfigurasi</span>
+                      <span className="text-lg font-bold text-slate-800">
+                        {data.tambahan.kelas_belum_dikonfigurasi ?? 0}
+                      </span>
+                    </div>
+                    <div className="p-2.5 rounded-xl bg-amber-50 border border-amber-200">
+                      <span className="text-2xs text-amber-700 font-medium block">Tugas Belum Dinilai</span>
+                      <span className="text-lg font-bold text-amber-800">
+                        {data.tambahan.pengumpulan_belum_dinilai ?? 0}
+                      </span>
+                    </div>
+                    <div className="p-2.5 rounded-xl bg-blue-50 border border-blue-200">
+                      <span className="text-2xs text-blue-700 font-medium block">Attempt Belum Dinilai</span>
+                      <span className="text-lg font-bold text-blue-800">
+                        {data.tambahan.attempt_belum_dinilai ?? 0}
+                      </span>
                     </div>
                   </div>
                 ) : (
@@ -195,18 +252,30 @@ export default function LmsDashboardPage() {
                 <p className="text-2xs text-slate-500">
                   {isMahasiswa
                     ? 'Segera kumpulkan tugas sebelum deadline agar tidak terlambat.'
+                    : isPengelola
+                    ? 'Ringkasan pengawasan operasional kelas dan progres penilaian dosen pengampu.'
                     : 'Buka tab Hasil pada kelas/tryout untuk memberi nilai.'}
                 </p>
               </div>
 
               <div className="p-4 bg-white rounded-xl border border-slate-200/80 shadow-xs space-y-2">
                 <h5 className="text-xs font-bold uppercase tracking-wider text-slate-700">Akses Cepat</h5>
-                {[
-                  { href: '/lms', label: 'Daftar Kelas' },
-                  { href: '/lms/tryout', label: 'Tryout' },
-                  { href: '/lms/forum', label: 'Forum Diskusi' },
-                  { href: '/lms/notifikasi', label: 'Notifikasi' },
-                ].map((link) => (
+                {(isPengelola
+                  ? [
+                      ...(canMonitorPresensi
+                        ? [{ href: '/lms/presensi?tab=keaktifan', label: 'Monitoring Keaktifan Mengajar' }]
+                        : []),
+                      { href: '/lms', label: 'Daftar Kelas Perkuliahan' },
+                      { href: '/lms/pengaturan', label: 'Pengaturan Kelas LMS' },
+                      { href: '/lms/pengaturan/modul', label: 'Pengaturan Modul LMS' },
+                    ]
+                  : [
+                      { href: '/lms', label: 'Daftar Kelas' },
+                      { href: '/lms/tryout', label: 'Tryout' },
+                      { href: '/lms/forum', label: 'Forum Diskusi' },
+                      { href: '/lms/notifikasi', label: 'Notifikasi' },
+                    ]
+                ).map((link) => (
                   <Link
                     key={link.href}
                     href={link.href}
@@ -221,6 +290,38 @@ export default function LmsDashboardPage() {
           </div>
         </div>
       )}
+
+      <Drawer
+        open={showFilter}
+        onClose={() => setShowFilter(false)}
+        title="Filter"
+        footer={
+          <div className="grid grid-cols-2 gap-2 w-full">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setFilterTahunAkademik(activePeriodeId);
+                setShowFilter(false);
+              }}
+            >
+              Reset
+            </Button>
+            <Button onClick={() => setShowFilter(false)}>
+              Terapkan
+            </Button>
+          </div>
+        }
+      >
+        <div className="space-y-4">
+          <PeriodeAkademikSelect
+            label="Tahun Akademik"
+            placeholder="Pilih periode akademik..."
+            value={filterTahunAkademik}
+            onChange={(val) => setFilterTahunAkademik(val || '')}
+            isClearable={false}
+          />
+        </div>
+      </Drawer>
     </>
   );
 }

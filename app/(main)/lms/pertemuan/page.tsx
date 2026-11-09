@@ -99,10 +99,9 @@ export default function LmsPertemuanListPage() {
   const [filterOrderBy, setFilterOrderBy] = useState<string>('tanggal');
   const [filterOrderDir, setFilterOrderDir] = useState<string>('desc');
 
-  const { hasPermission } = useAuth();
-  // Pertemuan dibuat oleh pengelola kelas (dosen/kaprodi/admin); mahasiswa hanya
-  // mengikuti pertemuan, absensi, dan materi.
-  const canManagePertemuan = hasPermission('siakad.kelas.manage');
+  const { hasRole, isDosen } = useAuth();
+  // Pertemuan hanya dibuat/diubah/dihapus oleh Dosen Pengampu; pengelola memonitor secara read-only.
+  const canManagePertemuan = isDosen || hasRole('dosen_pengajar');
   const [isTambahOpen, setIsTambahOpen] = useState<boolean>(false);
   const pertemuanForm = useForm<PertemuanFormValues>({
     resolver: zodResolver(pertemuanSchema),
@@ -277,17 +276,21 @@ export default function LmsPertemuanListPage() {
                 icon: <Eye size={16} />,
                 onClick: () => router.push(`/lms/${row.kelas_id}/pertemuan/${row.id}`),
               },
-              {
-                label: 'Ubah Pertemuan',
-                icon: <Pencil size={16} />,
-                onClick: () => router.push(`/lms/pertemuan/${row.id}/edit`),
-              },
-              {
-                label: 'Hapus Pertemuan',
-                icon: <Trash2 size={16} />,
-                variant: 'danger',
-                onClick: () => setTargetHapus(row),
-              },
+              ...(canManagePertemuan
+                ? [
+                    {
+                      label: 'Ubah Pertemuan',
+                      icon: <Pencil size={16} />,
+                      onClick: () => router.push(`/lms/pertemuan/${row.id}/edit`),
+                    },
+                    {
+                      label: 'Hapus Pertemuan',
+                      icon: <Trash2 size={16} />,
+                      variant: 'danger' as const,
+                      onClick: () => setTargetHapus(row),
+                    },
+                  ]
+                : []),
             ]}
           />
         </div>

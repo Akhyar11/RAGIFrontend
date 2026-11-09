@@ -46,6 +46,7 @@ interface PertemuanQuizTabProps {
   quizList: LmsQuizItem[];
   komponenObeList: Array<{ id: number; nama_komponen: string; bobot: number }>;
   isMahasiswa: boolean;
+  canTeach?: boolean;
   onRefresh: () => void;
 }
 
@@ -55,6 +56,7 @@ export default function PertemuanQuizTab({
   quizList,
   komponenObeList,
   isMahasiswa,
+  canTeach = !isMahasiswa,
   onRefresh,
 }: PertemuanQuizTabProps) {
   const [showQuizModal, setShowQuizModal] = useState(false);
@@ -151,21 +153,23 @@ export default function PertemuanQuizTab({
     );
   }
 
-  // ── Tampilan dosen ──
+  // ── Tampilan dosen / pengelola ──
   return (
     <div className="space-y-4">
-      <div className="flex justify-end">
-        <Button size="sm" icon={<Plus size={16} />} onClick={openCreate}>
-          Buat Quiz
-        </Button>
-      </div>
+      {canTeach && (
+        <div className="flex justify-end">
+          <Button size="sm" icon={<Plus size={16} />} onClick={openCreate}>
+            Buat Quiz
+          </Button>
+        </div>
+      )}
 
       {quizList.length === 0 ? (
-        <EmptyState title="Belum ada quiz" description="Buat quiz lalu lampirkan soal dari bank soal SIAKAD." />
+        <EmptyState title="Belum ada quiz" description="Belum ada quiz pada pertemuan ini." />
       ) : (
         <DataTable
           columns={[
-            { key: 'judul', label: 'Judul', render: (q: LmsQuizItem) => <span className="text-xs font-semibold">{q.judul}</span> },
+            { key: 'judul', label: 'JUDUL', render: (q: LmsQuizItem) => <span className="text-xs font-semibold">{q.judul}</span> },
             { key: 'obe', label: 'OBE', render: (q: LmsQuizItem) =>
                 q.komponen_penilaian_id ? (
                   <Badge variant="green"><LinkIcon size={16} /> Terhubung</Badge>
@@ -173,19 +177,35 @@ export default function PertemuanQuizTab({
                   <Badge variant="gray">Tanpa link</Badge>
                 ),
             },
-            { key: 'status', label: 'Status', render: (q: LmsQuizItem) =>
+            { key: 'status', label: 'STATUS', render: (q: LmsQuizItem) =>
                 q.is_published ? <Badge variant="green">Published</Badge> : <Badge variant="yellow">Draft</Badge>,
             },
-            { key: 'aksi', label: 'Aksi', render: (q: LmsQuizItem) => (
-                <DropdownMenu
-                  items={[
-                    { label: manageQuizId === q.id ? 'Tutup Kelola' : 'Kelola Soal & Nilai', icon: <ListChecks size={16} />, onClick: () => setManageQuizId(manageQuizId === q.id ? null : q.id) },
-                    { label: 'Edit', icon: <Save size={16} />, onClick: () => openEdit(q) },
-                    { label: 'Hapus', icon: <Trash2 size={16} />, onClick: () => setDeleteConfirm({ isOpen: true, id: q.id, name: q.judul }) },
-                  ]}
-                />
-              ),
-            },
+            ...(canTeach
+              ? [
+                  {
+                    key: 'aksi',
+                    label: 'AKSI',
+                    align: 'right' as const,
+                    render: (q: LmsQuizItem) => (
+                      <DropdownMenu
+                        items={[
+                          {
+                            label: manageQuizId === q.id ? 'Tutup Kelola' : 'Kelola Soal & Nilai',
+                            icon: <ListChecks size={16} />,
+                            onClick: () => setManageQuizId(manageQuizId === q.id ? null : q.id),
+                          },
+                          { label: 'Edit', icon: <Save size={16} />, onClick: () => openEdit(q) },
+                          {
+                            label: 'Hapus',
+                            icon: <Trash2 size={16} />,
+                            onClick: () => setDeleteConfirm({ isOpen: true, id: q.id, name: q.judul }),
+                          },
+                        ]}
+                      />
+                    ),
+                  },
+                ]
+              : []),
           ] as ColumnDef<LmsQuizItem>[]}
           data={quizList}
           meta={{ current_page: 1, last_page: 1, per_page: quizList.length || 10, total: quizList.length }}

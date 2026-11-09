@@ -318,8 +318,12 @@ export function Sidebar() {
       '/sikeu/master', '/siakad/master', '/simpeg/master',
     ];
     let best: string | null = null;
-    const consider = (url: string) => {
+    const consider = (url: string, isTopLevel = false) => {
       if (!url || url.startsWith('#')) return;
+      if (url === '/lms' && pathname === '/lms/dashboard' && isTopLevel) {
+        if (!best || best.length < url.length) best = url;
+        return;
+      }
       if (moduleRoots.includes(url)) {
         if (pathname === url && (!best || best.length < url.length)) best = url;
         return;
@@ -328,7 +332,7 @@ export function Sidebar() {
       if (!best || best.length < url.length) best = url;
     };
     menus.forEach((m) => {
-      consider(m.url);
+      consider(m.url, true);
       m.children?.forEach((c) => consider(c.url));
     });
     return best;
@@ -345,7 +349,9 @@ export function Sidebar() {
     const consider = (url: string, id: string | number, depth: number) => {
       if (!url || url.startsWith('#')) return;
       let exact = false;
-      if (moduleRoots.includes(url)) {
+      if (url === '/lms' && pathname === '/lms/dashboard' && depth === 0) {
+        exact = true;
+      } else if (moduleRoots.includes(url)) {
         if (pathname !== url) return;
         exact = true;
       } else if (pathname === url) {

@@ -10,12 +10,14 @@ import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import { Badge } from '@/components/ui/Badge';
 import { Modal } from '@/components/ui/Modal';
+import PeriodeAkademikSelect, { useActivePeriodeAkademik } from '@/components/lms/PeriodeAkademikSelect';
+import { toTahunAkademikId } from '@/lib/kelas';
 import { lmsService } from '@/services/lms.service';
 import { useAuth } from '@/hooks/useAuth';
 import { downloadBlobFile } from '@/lib/download';
 import { formatDateTime, getApiErrorMessage } from '@/lib/utils';
 import { SORT_ORDER_OPTIONS } from '@/lib/constants';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import {
   LMS_EXPORT_FORMAT_OPTIONS,
   LMS_PRESENSI_ABSEN_STATUS_LABEL,
@@ -29,6 +31,7 @@ import {
 import type { PaginationMeta } from '@/types/api.types';
 import {
   Building2,
+  CalendarDays,
   Check,
   ClipboardList,
   Download,
@@ -53,17 +56,18 @@ const TABS: { key: TabKey; label: string; icon: typeof Building2 }[] = [
   { key: 'rekap', label: 'Rekap Kehadiran', icon: ClipboardList },
 ];
 
+const getTabFromQuery = (value: string | null): TabKey =>
+  value === 'kelas' || value === 'rekap' ? value : 'keaktifan';
+
 /**
  * Monitoring keaktifan mengajar dan rekap presensi lokal RAG/SIAKAD.
  */
 export default function LmsPresensiPage() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const { hasPermission } = useAuth();
   const canManage = hasPermission('lms.presensi.manage');
-  const initialTab = searchParams.get('tab') as TabKey;
-  const [tab, setTab] = useState<TabKey>(
-    initialTab && ['keaktifan', 'kelas', 'rekap'].includes(initialTab) ? initialTab : 'keaktifan'
-  );
+  const tab = getTabFromQuery(searchParams.get('tab'));
 
   const [keaktifanRows, setKeaktifanRows] = useState<LmsKeaktifanDosenItem[]>([]);
   const [kelasRows, setKelasRows] = useState<LmsPresensiKelasItem[]>([]);
@@ -80,11 +84,20 @@ export default function LmsPresensiPage() {
   // Filter
   const [showFilter, setShowFilter] = useState(false);
   const [filterSearch, setFilterSearch] = useState('');
+  const [filterTahunAkademik, setFilterTahunAkademik] = useState('');
   const [filterKelasId, setFilterKelasId] = useState('');
   const [filterPertemuanKe, setFilterPertemuanKe] = useState('');
   const [filterStatusAbsen, setFilterStatusAbsen] = useState('');
   const [filterOrderBy, setFilterOrderBy] = useState('kode_kelas');
   const [filterOrderDir, setFilterOrderDir] = useState<'asc' | 'desc'>('asc');
+  const { activePeriodeId, periodeReady } = useActivePeriodeAkademik();
+
+  useEffect(() => {
+    if (activePeriodeId && !filterTahunAkademik) {
+      setFilterTahunAkademik(activePeriodeId);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activePeriodeId]);
 
   // Opsi kelas untuk filter (diambil dari endpoint panel, bukan hardcode).
   const [kelasOptions, setKelasOptions] = useState<{ value: string; label: string }[]>([]);
@@ -94,6 +107,15 @@ export default function LmsPresensiPage() {
   const [exportFormat, setExportFormat] = useState<LmsExportFormat>('xlsx');
   const [isExporting, setIsExporting] = useState(false);
 
+  const handleTabChange = useCallback(
+    (nextTab: TabKey) => {
+      const params = new URLSearchParams(searchParams.toString());
+      params.set('tab', nextTab);
+      router.replace(`/lms/presensi?${params.toString()}`, { scroll: false });
+    },
+    [router, searchParams]
+  );
+
   const fetchKeaktifan = useCallback(
     async (page: number, perPage: number) => {
       setIsLoadingKeaktifan(true);
@@ -102,6 +124,7 @@ export default function LmsPresensiPage() {
           page,
           per_page: perPage,
           search: filterSearch || undefined,
+          tahun_akademik_id: toTahunAkademikId(filterTahunAkademik),
         });
 
         if (res.status === 'success') {
@@ -117,12 +140,16 @@ export default function LmsPresensiPage() {
         setIsLoadingKeaktifan(false);
       }
     },
-    [filterSearch]
+    [filterSearch, filterTahunAkademik]
   );
 
   const fetchKelasOptions = useCallback(async () => {
     try {
-      const res = await lmsService.indexKelasPresensi({ per_page: 100, sort_order: 'asc' });
+      const res = await lmsService.indexKelasPresensi({
+        per_page: 100,
+        sort_order: 'asc',
+        tahun_akademik_id: toTahunAkademikId(filterTahunAkademik),
+      });
       const options = (res.data || []).map((row) => ({
         value: String(row.id),
         label: `${row.kode_kelas} — ${row.mata_kuliah?.nama || row.nama_kelas}`,
@@ -132,7 +159,7 @@ export default function LmsPresensiPage() {
       toast.error(getApiErrorMessage(err, 'Gagal memuat opsi kelas.'));
       setKelasOptions([]);
     }
-  }, []);
+  }, [filterTahunAkademik]);
 
   const fetchKelas = useCallback(
     async (page: number, perPage: number) => {
@@ -144,6 +171,7 @@ export default function LmsPresensiPage() {
           search: filterSearch || undefined,
           sort_by: filterOrderBy,
           sort_order: filterOrderDir,
+          tahun_akademik_id: toTahunAkademikId(filterTahunAkademik),
         });
 
         if (res.status === 'success') {
@@ -159,7 +187,7 @@ export default function LmsPresensiPage() {
         setIsLoadingKelas(false);
       }
     },
-    [filterSearch, filterOrderBy, filterOrderDir]
+    [filterSearch, filterOrderBy, filterOrderDir, filterTahunAkademik]
   );
 
   const fetchRekap = useCallback(
@@ -173,6 +201,7 @@ export default function LmsPresensiPage() {
           kelas_id: filterKelasId ? Number(filterKelasId) : undefined,
           pertemuan_ke: filterPertemuanKe ? Number(filterPertemuanKe) : undefined,
           status: filterStatusAbsen || undefined,
+          tahun_akademik_id: toTahunAkademikId(filterTahunAkademik),
         });
 
         if (res.status === 'success') {
@@ -188,15 +217,17 @@ export default function LmsPresensiPage() {
         setIsLoadingRekap(false);
       }
     },
-    [filterSearch, filterKelasId, filterPertemuanKe, filterStatusAbsen]
+    [filterSearch, filterKelasId, filterPertemuanKe, filterStatusAbsen, filterTahunAkademik]
   );
 
   useEffect(() => {
+    if (!periodeReady) return;
     // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchKelasOptions();
-  }, [fetchKelasOptions]);
+  }, [fetchKelasOptions, periodeReady]);
 
   useEffect(() => {
+    if (!periodeReady) return;
     if (tab === 'keaktifan') {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       fetchKeaktifan(metaKeaktifan.current_page, metaKeaktifan.per_page);
@@ -208,7 +239,7 @@ export default function LmsPresensiPage() {
       fetchRekap(1, metaRekap.per_page);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab, fetchKeaktifan, fetchKelas, fetchRekap]);
+  }, [tab, fetchKeaktifan, fetchKelas, fetchRekap, periodeReady]);
 
   const handleApplyFilter = () => {
     setShowFilter(false);
@@ -219,6 +250,7 @@ export default function LmsPresensiPage() {
 
   const handleResetFilter = () => {
     setFilterSearch('');
+    setFilterTahunAkademik(activePeriodeId);
     setFilterKelasId('');
     setFilterPertemuanKe('');
     setFilterStatusAbsen('');
@@ -235,6 +267,7 @@ export default function LmsPresensiPage() {
         const file = await lmsService.exportKeaktifanDosen({
           format: exportFormat,
           search: filterSearch || undefined,
+          tahun_akademik_id: toTahunAkademikId(filterTahunAkademik),
         });
         downloadBlobFile(file.blob, file.filename);
         toast.success('Laporan keaktifan mengajar dosen berhasil diunduh.');
@@ -245,6 +278,7 @@ export default function LmsPresensiPage() {
           kelas_id: filterKelasId ? Number(filterKelasId) : undefined,
           pertemuan_ke: filterPertemuanKe ? Number(filterPertemuanKe) : undefined,
           status: filterStatusAbsen || undefined,
+          tahun_akademik_id: toTahunAkademikId(filterTahunAkademik),
         });
         downloadBlobFile(file.blob, file.filename);
         toast.success('Rekap presensi berhasil diunduh.');
@@ -257,11 +291,14 @@ export default function LmsPresensiPage() {
     }
   };
 
-  const lihatRekapKelas = (row: LmsPresensiKelasItem) => {
-    setFilterKelasId(String(row.id));
-    setTab('rekap');
-    setShowFilter(false);
-  };
+  const lihatRekapKelas = useCallback(
+    (row: LmsPresensiKelasItem) => {
+      setFilterKelasId(String(row.id));
+      handleTabChange('rekap');
+      setShowFilter(false);
+    },
+    [handleTabChange]
+  );
 
   /* ---------------------------------------------------------------------
    | Kolom tabel
@@ -419,7 +456,7 @@ export default function LmsPresensiPage() {
         ),
       },
     ],
-    []
+    [lihatRekapKelas]
   );
 
   const rekapColumns: ColumnDef<LmsPresensiRekapItem>[] = useMemo(
@@ -519,7 +556,7 @@ export default function LmsPresensiPage() {
       </div>
 
       <div className="card">
-        <div className="card-header flex items-center gap-1 overflow-x-auto border-b border-slate-200">
+        <div className="card-header !justify-start flex items-center gap-2 overflow-x-auto border-b border-slate-200">
           {TABS.map((item) => {
             const Icon = item.icon;
             const isActive = tab === item.key;
@@ -527,7 +564,7 @@ export default function LmsPresensiPage() {
               <button
                 key={item.key}
                 type="button"
-                onClick={() => setTab(item.key)}
+                onClick={() => handleTabChange(item.key)}
                 className={`flex items-center gap-2 px-4 py-2 text-xs font-semibold transition ${
                   isActive
                     ? 'border-[var(--module-primary)] text-[var(--module-primary)] bg-[var(--module-primary-subtle,#f8fafc)] rounded-t-lg border-b-2'
@@ -603,6 +640,13 @@ export default function LmsPresensiPage() {
             placeholder="Cari NIM, nama mahasiswa, materi, atau kode kelas..."
             value={filterSearch}
             onChange={(e) => setFilterSearch(e.target.value)}
+          />
+
+          <PeriodeAkademikSelect
+            label="Tahun Akademik"
+            placeholder="Pilih periode akademik..."
+            value={filterTahunAkademik}
+            onChange={(val) => setFilterTahunAkademik(val)}
           />
 
           {tab !== 'kelas' && tab !== 'keaktifan' ? (

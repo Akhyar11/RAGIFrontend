@@ -13,7 +13,8 @@ import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { lmsService } from '@/services/lms.service';
 import { siakadService } from '@/services/siakad.service';
 import { getApiErrorMessage } from '@/lib/utils';
-import { Plus, Trash2, Lock } from 'lucide-react';
+import type { LmsQuizKolaborator } from '@/types/lms.types';
+import { Plus, Trash2, Lock, Users } from 'lucide-react';
 import { extractOptionValue } from './tryoutHelpers';
 
 interface TryoutSoalTabProps {
@@ -22,10 +23,21 @@ interface TryoutSoalTabProps {
   totalSoal: number;
   totalPoin: number;
   totalAttempt: number;
+  kolaborators?: LmsQuizKolaborator[];
   onChanged: () => void;
 }
 
-export default function TryoutSoalTab({ quizId, soal, totalSoal, totalPoin, totalAttempt, onChanged }: TryoutSoalTabProps) {
+export default function TryoutSoalTab({
+  quizId,
+  soal,
+  totalSoal,
+  totalPoin,
+  totalAttempt,
+  kolaborators = [],
+  onChanged,
+}: TryoutSoalTabProps) {
+  const [filterDosenId, setFilterDosenId] = useState<string>('');
+  const [onlyTimDosen, setOnlyTimDosen] = useState<boolean>(false);
   const [selectedBankSoal, setSelectedBankSoal] = useState<string>('');
   const [poinSoal, setPoinSoal] = useState<number>(10);
   const [attaching, setAttaching] = useState(false);
@@ -97,12 +109,23 @@ export default function TryoutSoalTab({ quizId, soal, totalSoal, totalPoin, tota
     {
       key: 'soal',
       label: 'SOAL',
-      render: (s) => (
-        <div>
-          <span className="text-xs text-slate-800 block line-clamp-2">{s.bank_soal?.pertanyaan || '-'}</span>
-          {s.bank_soal?.gambar_path ? <span className="text-2xs text-slate-400">+ gambar</span> : null}
-        </div>
-      ),
+      render: (s) => {
+        const dosenNama =
+          s.bank_soal?.rps?.dosen_pengembang?.nama_lengkap ||
+          s.bank_soal?.pembuat?.username ||
+          null;
+        return (
+          <div>
+            <span className="text-xs text-slate-800 block line-clamp-2">{s.bank_soal?.pertanyaan || '-'}</span>
+            <div className="flex flex-wrap items-center gap-2 mt-0.5">
+              {dosenNama ? (
+                <span className="text-2xs text-slate-500">Pembuat: {dosenNama}</span>
+              ) : null}
+              {s.bank_soal?.gambar_path ? <span className="text-2xs text-slate-400">+ gambar</span> : null}
+            </div>
+          </div>
+        );
+      },
     },
     {
       key: 'tipe',
@@ -157,38 +180,98 @@ export default function TryoutSoalTab({ quizId, soal, totalSoal, totalPoin, tota
       </Card>
 
       <Card className="p-4 space-y-4">
-        <h5 className="text-xs font-bold uppercase tracking-wider text-slate-700">Lampirkan dari Bank Soal</h5>
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <div>
+            <h5 className="text-xs font-bold uppercase tracking-wider text-slate-700">Lampirkan dari Bank Soal Dosen</h5>
+            <p className="text-2xs text-slate-500">
+              Ambil pertanyaan dari bank soal yang telah diinput oleh dosen pengampu maupun tim dosen kolaborator.
+            </p>
+          </div>
+          {kolaborators.length > 0 ? (
+            <Button
+              size="sm"
+              type="button"
+              variant={onlyTimDosen ? 'primary' : 'outline'}
+              icon={<Users size={14} />}
+              onClick={() => {
+                setOnlyTimDosen((prev) => !prev);
+                setFilterDosenId('');
+                setSelectedBankSoal('');
+              }}
+            >
+              {onlyTimDosen ? 'Filter: Tim Dosen Tryout Aktif' : `Hanya Bank Soal Tim Dosen (${kolaborators.length})`}
+            </Button>
+          ) : null}
+        </div>
+
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+          <div>
+            <AsyncSelect
+              label="Filter Dosen Pembuat Soal (Opsional)"
+              placeholder="Semua dosen..."
+              value={filterDosenId}
+              isClearable
+              loadOptions={async (inputValue: string) => {
+                try {
+                  const res: any = await siakadService.getDosens({ search: inputValue || undefined, per_page: 20 });
+                  const items = Array.isArray(res.data) ? res.data : res.data?.data || [];
+                  return items.map((d: any) => ({
+                    value: String(d.id),
+                    label: `${d.nidn || d.nip || ''} — ${d.nama_lengkap || d.nama}`.trim(),
+                  }));
+                } catch {
+                  return [];
+                }
+              }}
+              onChange={(val: unknown) => {
+                setFilterDosenId(extractOptionValue(val));
+                setOnlyTimDosen(false);
+                setSelectedBankSoal('');
+              }}
+            />
+          </div>
           <div className="md:col-span-2">
             <AsyncSelect
-              label="Soal Bank Soal"
-              placeholder="Cari soal bank soal..."
+              key={`bank-soal-${filterDosenId}-${onlyTimDosen ? 'tim' : 'all'}`}
+              label="Pilih Pertanyaan dari Bank Soal"
+              placeholder="Ketik kata kunci pertanyaan..."
               value={selectedBankSoal}
-              onChange={(val) => setSelectedBankSoal(extractOptionValue(val))}
+              onChange={(val: unknown) => setSelectedBankSoal(extractOptionValue(val))}
               loadOptions={async (input) => {
                 try {
-                  const res: any = await siakadService.getSoalList({ search: input, per_page: 20 } as any);
+                  const timDosenIds = kolaborators.map((k) => k.dosen_id).filter(Boolean).join(',');
+                  const dosenParam = filterDosenId || (onlyTimDosen && timDosenIds ? timDosenIds : undefined);
+                  const res: any = await siakadService.getSoalList({
+                    search: input,
+                    dosen_id: dosenParam,
+                    per_page: 25,
+                  } as any);
                   const items = Array.isArray(res.data) ? res.data : res.data?.data || [];
-                  return items.map((s: any) => ({
-                    value: String(s.id),
-                    label: `[${s.tipe_soal}] ${(s.pertanyaan || '').slice(0, 80)}`,
-                  }));
+                  return items.map((s: any) => {
+                    const dosenNama = s.rps?.dosen_pengembang?.nama_lengkap || s.pembuat?.username || '';
+                    const mkNama = s.rps?.mata_kuliah?.nama || s.kategori?.nama || '';
+                    const metaInfo = [dosenNama, mkNama].filter(Boolean).join(' • ');
+                    return {
+                      value: String(s.id),
+                      label: `[${s.tipe_soal}] ${(s.pertanyaan || '').slice(0, 75)}${metaInfo ? ` — (${metaInfo})` : ''}`,
+                    };
+                  });
                 } catch {
                   return [];
                 }
               }}
               isClearable
             />
-            <a href="/lms/bank-soal/create" className="text-2xs mt-1 inline-block" style={{ color: 'var(--module-primary)' }}>Buat soal baru →</a>
+            <a href="/lms/bank-soal/create" className="text-2xs mt-1 inline-block" style={{ color: 'var(--module-primary)' }}>Buat soal baru di Bank Soal →</a>
           </div>
-          <div className="flex gap-2 items-end">
-            <div className="flex-1">
-              <Input type="number" label="Poin" min={1} value={poinSoal} onChange={(e) => setPoinSoal(Number(e.target.value))} />
-            </div>
-            <Button size="sm" icon={<Plus size={16} />} onClick={handleAttach} loading={attaching} disabled={!selectedBankSoal || attaching}>
-              Tambah
-            </Button>
+        </div>
+        <div className="flex justify-end gap-2 items-end pt-1">
+          <div className="w-32">
+            <Input type="number" label="Poin Soal" min={1} value={poinSoal} onChange={(e) => setPoinSoal(Number(e.target.value))} />
           </div>
+          <Button size="sm" icon={<Plus size={16} />} onClick={handleAttach} loading={attaching} disabled={!selectedBankSoal || attaching}>
+            Lampirkan ke Tryout
+          </Button>
         </div>
       </Card>
 

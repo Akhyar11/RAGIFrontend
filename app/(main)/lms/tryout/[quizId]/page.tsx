@@ -57,8 +57,8 @@ export default function KelolaTryoutPage({ params }: PageProps) {
   const { quizId } = use(params);
   const id = Number(quizId);
   const searchParams = useSearchParams();
-  const { hasPermission } = useAuth();
-  const canManage = hasPermission('siakad.kelas.manage');
+  const { hasPermission, hasRole, isDosen } = useAuth();
+  const canManage = isDosen || hasRole('dosen_pengajar') || hasPermission('siakad.kelas.manage');
 
   const initialTab: KelolaTab = isValidTab(searchParams.get('tab')) ? (searchParams.get('tab') as KelolaTab) : 'soal';
   const [activeTab, setActiveTab] = useState<KelolaTab>(initialTab);
@@ -163,7 +163,13 @@ export default function KelolaTryoutPage({ params }: PageProps) {
         title={quiz ? `Kelola Tryout — ${quiz.judul}` : 'Kelola Tryout'}
         description={
           quiz
-            ? `${quiz.kelas?.nama_kelas || ''}${quiz.kelas?.mata_kuliah?.nama ? ` • ${quiz.kelas.mata_kuliah.nama}` : ''} • ${totalSoal} soal • Buka: ${formatJadwal(quiz.dibuka_at)} • Tutup: ${formatJadwal(quiz.ditutup_at)}`
+            ? `${
+                quiz.kelas
+                  ? `${quiz.kelas.nama_kelas || ''}${quiz.kelas.mata_kuliah?.nama ? ` • ${quiz.kelas.mata_kuliah.nama}` : ''}`
+                  : 'Ujian Khusus (Di Luar Mata Kuliah)'
+              } • ${totalSoal} soal${
+                quiz.kolaborators?.length ? ` • ${quiz.kolaborators.length} Dosen` : ''
+              } • Buka: ${formatJadwal(quiz.dibuka_at)} • Tutup: ${formatJadwal(quiz.ditutup_at)}`
             : 'Memuat detail tryout...'
         }
         breadcrumbs={[{ label: 'LMS', href: '/lms' }, { label: 'Tryout', href: '/lms/tryout' }, { label: 'Kelola' }]}
@@ -229,6 +235,7 @@ export default function KelolaTryoutPage({ params }: PageProps) {
               totalSoal={totalSoal}
               totalPoin={totalPoin}
               totalAttempt={totalAttempt}
+              kolaborators={quiz.kolaborators || []}
               onChanged={refreshAll}
             />
           )}

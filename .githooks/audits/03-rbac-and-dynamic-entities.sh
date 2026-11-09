@@ -8,12 +8,12 @@
 # 2. RBAC Policy: Pengecekan izin/role murni, dilarang atribut statis 'user_type'
 # ==============================================================================
 
-echo "🛡️ [Audit 3/3: RBAC & Dynamic Entities] Memeriksa kebijakan Zero Hardcode & RBAC frontend dengan AI (AI Muse Spark 1.3)..."
+echo "🛡️ [Audit 3/3: RBAC & Dynamic Entities] Memeriksa kebijakan Zero Hardcode & RBAC frontend dengan AI (Big Pickle)..."
 
 export PATH="$HOME/.local/bin:$HOME/.opencode/bin:/usr/local/bin:$PATH"
 AI_ENGINE="opencode"
 OPENCODE_BIN=$(command -v opencode || echo "$HOME/.opencode/bin/opencode")
-MODEL="${OPENCODE_MODEL:-opencode/muse-spark-1.3-contributor-free}"
+MODEL="${OPENCODE_MODEL:-opencode/big-pickle}"
 
 if [ -n "$DIFF_TARGET" ]; then
     STAGED_DIFF=$(git diff "$DIFF_TARGET" -- "app/**" "components/**" "services/**" "types/**")
@@ -65,7 +65,7 @@ fi
 PROMPT_FILE=$(mktemp)
 
 cat << 'EOF' > "$PROMPT_FILE"
-Kamu adalah Senior Frontend Security & Data Architecture Reviewer (AI Muse Spark 1.3).
+Kamu adalah Senior Frontend Security & Data Architecture Reviewer (Big Pickle).
 Tugasmu adalah memeriksa FULL Git Diff frontend berikut secara SANGAT KETAT terhadap Kebijakan Zero Hardcode dan Sistem RBAC.
 Evaluasi HANYA baris baru (+) yang ditambahkan atau diubah. Abaikan baris konteks tanpa tanda (+).
 
@@ -153,5 +153,5 @@ elif ! echo "$RESULT" | grep -qi "PASSED"; then
     exit 1
 fi
 
-echo "✅ [Audit 3/3: RBAC & Dynamic Entities] PASSED (Divalidasi AI Muse Spark 1.3)."
+echo "✅ [Audit 3/3: RBAC & Dynamic Entities] PASSED (Divalidasi Big Pickle)."
 exit 0

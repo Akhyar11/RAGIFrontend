@@ -50,8 +50,11 @@ function extractOptionValue(val: unknown): string {
 
 export default function LmsKelasListPage() {
   const router = useRouter();
-  const { hasRole } = useAuth();
+  const { hasRole, hasPermission, isDosen: isAuthDosen, is_loading: isAuthLoading } = useAuth();
   const isMahasiswa = hasRole('mahasiswa');
+  const isDosen = isAuthDosen || hasRole('dosen_pengajar');
+  const canMonitorPresensi = hasPermission('lms.presensi.read');
+  const isPengelola = !isMahasiswa && !isDosen && canMonitorPresensi;
 
   const [kelasList, setKelasList] = useState<LmsKelasItem[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -72,6 +75,7 @@ export default function LmsKelasListPage() {
   const [filterOrderBy, setFilterOrderBy] = useState<string>('nama_kelas');
   const [filterOrderDir, setFilterOrderDir] = useState<string>('asc');
   const [periodeReady, setPeriodeReady] = useState<boolean>(false);
+  const [activePeriodeId, setActivePeriodeId] = useState<string>('');
 
   const loadProdiOptions = useCallback(async (inputValue: string) => {
     try {
@@ -94,8 +98,10 @@ export default function LmsKelasListPage() {
         const res = await siakadService.getTahunAkademiks();
         const rows: any[] = Array.isArray(res.data) ? res.data : (res.data as any)?.data || [];
         const aktif = rows.find((t: any) => t.is_aktif || t.is_active);
-        if (!cancelled && aktif && !filterTahunAkademik) {
-          setFilterTahunAkademik(String(aktif.id));
+        if (!cancelled && aktif) {
+          const idStr = String(aktif.id);
+          setActivePeriodeId(idStr);
+          setFilterTahunAkademik((prev) => prev || idStr);
         }
       } catch {
         // abaikan — user bisa pilih manual via PeriodeSwitcher
@@ -142,9 +148,9 @@ export default function LmsKelasListPage() {
   );
 
   useEffect(() => {
-    if (!periodeReady) return;
+    if (!periodeReady || isAuthLoading) return;
     fetchKelas(1);
-  }, [fetchKelas, periodeReady]);
+  }, [fetchKelas, isAuthLoading, periodeReady]);
 
   const handleApplyFilter = () => {
     setShowFilter(false);
@@ -154,7 +160,7 @@ export default function LmsKelasListPage() {
   const handleResetFilter = () => {
     setFilterSearch('');
     setFilterProdi('');
-    setFilterTahunAkademik('');
+    setFilterTahunAkademik(activePeriodeId);
     setFilterKapasitas('');
     setFilterOrderBy('nama_kelas');
     setFilterOrderDir('asc');
@@ -166,7 +172,7 @@ export default function LmsKelasListPage() {
       <PageHeader
         title="LMS Perkuliahan"
         description="Pusat materi pembelajaran, tugas terintegrasi OBE, dan presensi realtime mahasiswa per pertemuan."
-        breadcrumbs={[{ label: 'LMS', href: '/lms' }, { label: 'Kelas Saya' }]}
+        breadcrumbs={[{ label: 'LMS', href: '/lms' }, { label: isPengelola ? 'Daftar Kelas Perkuliahan' : 'Kelas Saya' }]}
         action={
           <div className="flex items-center gap-2">
             <Button
@@ -189,7 +195,11 @@ export default function LmsKelasListPage() {
           </div>
           <div>
             <div className="text-xs text-slate-500">
-              {isMahasiswa ? 'Total Kelas Diikuti' : 'Total Kelas Diampu'}
+              {isMahasiswa
+                ? 'Total Kelas Diikuti'
+                : isPengelola
+                ? 'Total Kelas Terdaftar'
+                : 'Total Kelas Diampu'}
             </div>
             <div className="text-lg font-bold text-slate-800">{meta.total} Kelas Aktif</div>
           </div>
@@ -229,7 +239,9 @@ export default function LmsKelasListPage() {
           </div>
           <div>
             <div className="text-xs font-bold text-slate-800">Periode Akademik</div>
-            <div className="text-2xs text-slate-500">Kosongkan = semua periode</div>
+            <div className="text-2xs text-slate-500">
+              Default menampilkan periode aktif. Ubah pilihan di samping untuk membuka periode lama.
+            </div>
           </div>
         </div>
         <div className="flex-1 min-w-0">

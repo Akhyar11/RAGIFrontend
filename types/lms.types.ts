@@ -235,9 +235,23 @@ export interface LmsKelasItem {
   mahasiswa_count?: number;
 }
 
+export type LmsViewerMode = 'dosen' | 'mahasiswa' | 'pengelola';
+
+export interface LmsViewerContext {
+  viewer_mode: LmsViewerMode;
+  is_pengampu: boolean;
+  is_peserta_krs: boolean;
+  is_pengelola: boolean;
+  can_teach: boolean;
+  can_configure_kelas: boolean;
+  can_participate: boolean;
+  can_export: boolean;
+}
+
 export interface LmsKelasOverview {
   kelas: LmsKelasItem;
   lms_setting: LmsKelasSetting;
+  viewer_context?: LmsViewerContext;
   komponen_obe?: Array<{
     id: number;
     nama_komponen: string;
@@ -412,7 +426,10 @@ export interface LmsPertemuanItem {
 
 export interface LmsTokenGenerate {
   pertemuan_id: number;
+  kelas_id?: number;
   token: string;
+  qr_payload?: string;
+  rotate_interval_seconds?: number;
   ttl_menit: number;
   window_menit: number;
   expired_at: string;
@@ -421,14 +438,53 @@ export interface LmsTokenGenerate {
 
 export interface LmsTokenRotate {
   pertemuan_id: number;
+  kelas_id?: number;
   token: string;
+  qr_payload?: string;
+  rotate_interval_seconds?: number;
   ttl_detik: number;
   expired_at: string;
   sisa_detik: number;
 }
 
+export interface LmsBukaSesiPresensiResponse extends LmsTokenRotate {
+  window_menit?: number;
+  pertemuan?: LmsPertemuanItem;
+}
+
+export interface LmsScanPresensiResult {
+  pertemuan_id: number;
+  pertemuan_ke: number;
+  tanggal: string;
+  materi?: string | null;
+  kelas_id: number;
+  kode_kelas?: string | null;
+  nama_kelas?: string | null;
+  mata_kuliah?: string | null;
+  status: string;
+  waktu_absen: string;
+}
+
+export interface LmsSesiPresensiAktifItem {
+  pertemuan_id: number;
+  pertemuan_ke: number;
+  tanggal: string;
+  jam_mulai?: string | null;
+  jam_selesai?: string | null;
+  materi?: string | null;
+  kelas_id: number;
+  kode_kelas?: string | null;
+  nama_kelas?: string | null;
+  mata_kuliah?: string | null;
+  ruangan?: string | null;
+  sudah_absen: boolean;
+  status_absensi?: string | null;
+  waktu_absen?: string | null;
+}
+
 export interface LmsPertemuanDetail {
   pertemuan: LmsPertemuanItem;
+  viewer_context?: LmsViewerContext;
   materi_list: LmsMateriItem[];
   tugas_list: LmsTugasItem[];
   quiz_list: LmsQuizItem[];
@@ -506,6 +562,9 @@ export interface LmsQuizItem {
   is_archived: boolean;
   kode_akses?: string | null;
   soal_count?: number;
+  tryout_peserta_count?: number;
+  kolaborator_dosen_ids?: number[];
+  kolaborators?: LmsQuizKolaborator[];
   /** Hanya terisi pada endpoint agregat `/lms/tryout`. */
   kelas?: LmsKelasRingkas | null;
 }
@@ -556,7 +615,15 @@ export interface LmsTryoutPeserta {
   id: number;
   quiz_id: number;
   mahasiswa_id: number;
-  mahasiswa?: { id: number; nim: string; nama_lengkap: string };
+  mahasiswa?: {
+    id: number;
+    nim: string;
+    nama_lengkap: string;
+    kelas?: string | null;
+    angkatan?: number | null;
+    program_studi_id?: number | null;
+    program_studi?: { id: number; kode_prodi: string; nama: string; jenjang?: string } | null;
+  };
 }
 
 /** Hasil pencarian mahasiswa untuk pemilih peserta tryout (`GET /lms/mahasiswa/search`). */
@@ -565,6 +632,7 @@ export interface LmsMahasiswaRingkas {
   nim: string;
   nama_lengkap: string;
   program_studi_id?: number | null;
+  angkatan?: number | null;
   kelas?: string | null;
   status?: string | null;
   program_studi?: { id: number; kode_prodi: string; nama: string; jenjang?: string } | null;

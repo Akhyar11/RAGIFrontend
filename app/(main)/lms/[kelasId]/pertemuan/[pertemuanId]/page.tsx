@@ -1,10 +1,11 @@
 'use client';
 
-import { useState, useEffect, useCallback, use, type ReactNode } from 'react';
+import { useState, useEffect, useCallback, useRef, use, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
+import QRCode from 'qrcode';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -16,9 +17,11 @@ import { Modal } from '@/components/ui/Modal';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { DataTable, ColumnDef } from '@/components/ui/DataTable';
 import { DropdownMenu } from '@/components/ui/DropdownMenu';
+import { Alert } from '@/components/ui/Alert';
 import PertemuanQuizTab from '@/components/lms/PertemuanQuizTab';
 import PertemuanDiskusi from '@/components/lms/PertemuanDiskusi';
 import ExportLaporanModal from '@/components/lms/ExportLaporanModal';
+import { LmsQrScanner } from '@/components/lms/LmsQrScanner';
 import { lmsService } from '@/services/lms.service';
 import { referensiService, MasterReferensiItem } from '@/services/referensi.service';
 import {
@@ -98,6 +101,12 @@ const inputTokenSchema = z.object({
 
 type InputTokenFormValues = z.infer<typeof inputTokenSchema>;
 
+const qrScanSchema = z.object({
+  payload: z.string().min(1, 'Kode QR atau payload scanner wajib diisi'),
+});
+
+type QrScanFormValues = z.infer<typeof qrScanSchema>;
+
 const kumpulTugasSchema = z.object({
   catatan_mahasiswa: z.string().optional().default(''),
 });
@@ -134,20 +143,25 @@ export default function LmsPertemuanDetailPage({ params }: PageProps) {
   const kelasId = Number(resolvedParams.kelasId);
   const pertemuanId = Number(resolvedParams.pertemuanId);
   const router = useRouter();
-  const { hasPermission, hasRole } = useAuth();
-  // Samakan dengan halaman detail kelas: dosen dikenali via role ATAU
-  // permission kelola. Slug `lms.kelas.manage` tidak ada di DB — yang tersedia
-  // `siakad.kelas.manage`; cek itu saja agar dosen tak jatuh ke tampilan mhs.
-  const isDosen =
-    hasRole(['dosen', 'admin', 'superadmin', 'kaprodi', 'wakil_prodi', 'admin_siakad']) ||
-    hasPermission('siakad.kelas.manage');
-  const canManageKelas = isDosen;
-  const canInputPresensi = isDosen;
-  const canProsesIzin = isDosen;
-  const isMahasiswa = !isDosen;
-
+  const { hasPermission, hasRole, isDosen: isAuthDosen, isSuperAdmin, isAdmin } = useAuth();
   // State Utama
   const [detail, setDetail] = useState<LmsPertemuanDetail | null>(null);
+  const viewerContext = detail?.viewer_context;
+  const fallbackCanTeach = isAuthDosen || hasRole('dosen_pengajar');
+  const fallbackIsPengelola =
+    !fallbackCanTeach &&
+    (isSuperAdmin || isAdmin || hasRole('admin_siakad') || hasPermission('siakad.kelas.manage'));
+  const canTeach = viewerContext ? viewerContext.can_teach : fallbackCanTeach;
+  const isPengelolaReadOnly = viewerContext
+    ? viewerContext.is_pengelola && !viewerContext.can_teach
+    : fallbackIsPengelola;
+  const isDosen = canTeach;
+  const canManageKelas = canTeach;
+  const canInputPresensi = canTeach;
+  const canProsesIzin = canTeach;
+  const isMahasiswa = viewerContext
+    ? viewerContext.viewer_mode === 'mahasiswa'
+    : !canTeach && !isPengelolaReadOnly;
   type TabKey =
     | 'isian'
     | 'presensi'
@@ -186,9 +200,20 @@ export default function LmsPertemuanDetailPage({ params }: PageProps) {
   const [tipeIzinOptions, setTipeIzinOptions] = useState<Array<{ value: number; label: string }>>([]);
 
   // Token Absensi State
-  const [tokenInfo, setTokenInfo] = useState<{ token: string; expired_at: string } | null>(null);
+  const [tokenInfo, setTokenInfo] = useState<{
+    token: string;
+    expired_at: string;
+    qr_payload?: string;
+    rotate_interval_seconds?: number;
+  } | null>(null);
+  const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
+  const [rotateCountdown, setRotateCountdown] = useState<number>(30);
+  const [showBukaSesiModal, setShowBukaSesiModal] = useState<boolean>(false);
   const [isGeneratingToken, setIsGeneratingToken] = useState<boolean>(false);
   const [tutupConfirm, setTutupConfirm] = useState<boolean>(false);
+  const [presensiInputMode, setPresensiInputMode] = useState<'scanner' | 'token'>('scanner');
+  const [qrScanInput, setQrScanInput] = useState<string>('');
+  const [isScanningQr, setIsScanningQr] = useState<boolean>(false);
 
   // File Upload State untuk Materi
   const [materiFile, setMateriFile] = useState<File | null>(null);
@@ -277,6 +302,13 @@ export default function LmsPertemuanDetailPage({ params }: PageProps) {
     },
   });
 
+  const qrScanFormHook = useForm<QrScanFormValues>({
+    resolver: zodResolver(qrScanSchema) as any,
+    defaultValues: {
+      payload: '',
+    },
+  });
+
   const kumpulFormHook = useForm<KumpulTugasFormValues>({
     resolver: zodResolver(kumpulTugasSchema) as any,
     defaultValues: {
@@ -354,6 +386,8 @@ export default function LmsPertemuanDetailPage({ params }: PageProps) {
           setTokenInfo({
             token: res.data.pertemuan.token_absensi,
             expired_at: res.data.pertemuan.token_expired_at,
+            qr_payload: `RAG-PRESENSI:${pertemuanId}:${res.data.pertemuan.token_absensi}`,
+            rotate_interval_seconds: 30,
           });
         }
       }
@@ -366,6 +400,53 @@ export default function LmsPertemuanDetailPage({ params }: PageProps) {
     fetchMasterReferensi();
     fetchDetail();
   }, [fetchMasterReferensi, fetchDetail]);
+
+  // Render QR Code Data URL setiap kali token berubah
+  useEffect(() => {
+    if (!tokenInfo?.token) {
+      setQrDataUrl(null);
+      return;
+    }
+    const payload = tokenInfo.qr_payload || `RAG-PRESENSI:${pertemuanId}:${tokenInfo.token}`;
+    QRCode.toDataURL(payload, { width: 180, margin: 1 })
+      .then((url) => setQrDataUrl(url))
+      .catch(() => setQrDataUrl(null));
+  }, [tokenInfo?.token, tokenInfo?.qr_payload, pertemuanId]);
+
+  // Auto-rotasi token tiap 30 detik selama sesi presensi terbuka pada layar Dosen Pengampu
+  useEffect(() => {
+    if (!canTeach || !tokenInfo?.token || detail?.presensi_ditutup) {
+      return;
+    }
+    const intervalSec = tokenInfo.rotate_interval_seconds || 30;
+    setRotateCountdown(intervalSec);
+
+    const timer = setInterval(() => {
+      setRotateCountdown((prev) => {
+        if (prev <= 1) {
+          lmsService
+            .rotateTokenAbsensi(pertemuanId)
+            .then((res) => {
+              if (res.status === 'success' && res.data) {
+                setTokenInfo({
+                  token: res.data.token,
+                  expired_at: res.data.expired_at,
+                  qr_payload: res.data.qr_payload || `RAG-PRESENSI:${pertemuanId}:${res.data.token}`,
+                  rotate_interval_seconds: res.data.rotate_interval_seconds || 30,
+                });
+              }
+            })
+            .catch(() => {
+              // Abaikan kegagalan jaringan sementara pada background rotation
+            });
+          return intervalSec;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [canTeach, tokenInfo?.token, tokenInfo?.rotate_interval_seconds, detail?.presensi_ditutup, pertemuanId]);
 
   // Sinkronkan form Isian dari detail (dosen) — jangan timpa saat sedang mengedit.
   useEffect(() => {
@@ -382,6 +463,35 @@ export default function LmsPertemuanDetailPage({ params }: PageProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [detail, isEditingIsian]);
 
+  // Buka Sesi Presensi sekaligus Simpan Jurnal Mengajar Dosen (Rotasi QR 30 Detik)
+  const onBukaSesiDenganJurnal = async (values: IsianFormValues) => {
+    setIsGeneratingToken(true);
+    try {
+      const res = await lmsService.bukaSesiPresensi(pertemuanId, {
+        materi: values.materi,
+        catatan_pertemuan: values.catatan_pertemuan || null,
+        tanggal: values.tanggal || undefined,
+        jam_mulai: values.jam_mulai || null,
+        jam_selesai: values.jam_selesai || null,
+      });
+      if (res.status === 'success' && res.data) {
+        setTokenInfo({
+          token: res.data.token,
+          expired_at: res.data.expired_at,
+          qr_payload: res.data.qr_payload,
+          rotate_interval_seconds: res.data.rotate_interval_seconds || 30,
+        });
+        setShowBukaSesiModal(false);
+        toast.success(`Jurnal disimpan & sesi presensi dibuka! Kode berputar otomatis tiap ${res.data.rotate_interval_seconds || 30} detik.`);
+        fetchDetail();
+      }
+    } catch (err: any) {
+      toast.error(err.message || 'Gagal membuka sesi presensi dengan jurnal');
+    } finally {
+      setIsGeneratingToken(false);
+    }
+  };
+
   // Generate Token Absensi Realtime
   const handleGenerateToken = async () => {
     setIsGeneratingToken(true);
@@ -391,8 +501,10 @@ export default function LmsPertemuanDetailPage({ params }: PageProps) {
         setTokenInfo({
           token: res.data.token,
           expired_at: res.data.expired_at,
+          qr_payload: res.data.qr_payload || `RAG-PRESENSI:${pertemuanId}:${res.data.token}`,
+          rotate_interval_seconds: res.data.rotate_interval_seconds || 30,
         });
-        toast.success(`Token berhasil diaktifkan: ${res.data.token} (${res.data.ttl_menit} Menit)`);
+        toast.success(`Token berhasil diaktifkan: ${res.data.token} (rotasi tiap 30 detik)`);
         fetchDetail();
       }
     } catch (err: any) {
@@ -402,7 +514,7 @@ export default function LmsPertemuanDetailPage({ params }: PageProps) {
     }
   };
 
-  // Putar ulang token umur pendek (anti titip-hadir)
+  // Putar ulang token umur pendek (anti titip-hadir, 30 detik)
   const handleRotateToken = async () => {
     setIsGeneratingToken(true);
     try {
@@ -411,6 +523,8 @@ export default function LmsPertemuanDetailPage({ params }: PageProps) {
         setTokenInfo({
           token: res.data.token,
           expired_at: res.data.expired_at,
+          qr_payload: res.data.qr_payload || `RAG-PRESENSI:${pertemuanId}:${res.data.token}`,
+          rotate_interval_seconds: res.data.rotate_interval_seconds || 30,
         });
         toast.success(`Token baru: ${res.data.token} (berlaku ${res.data.ttl_detik} detik)`);
         fetchDetail();
@@ -591,6 +705,36 @@ export default function LmsPertemuanDetailPage({ params }: PageProps) {
     }
   };
 
+  // Scan QR / Token Presensi (mendukung format RAG-PRESENSI:{pertemuanId}:{token} atau 6-digit token)
+  const submitQrPayload = useCallback(
+    async (rawPayload: string) => {
+      const cleaned = rawPayload.trim();
+      if (!cleaned) {
+        toast.error('Masukkan atau scan kode QR presensi terlebih dahulu.');
+        return;
+      }
+      setIsScanningQr(true);
+      try {
+        const res = await lmsService.scanPresensi({
+          qr_payload: cleaned,
+          pertemuan_id: pertemuanId,
+          device_info: typeof navigator !== 'undefined' ? navigator.userAgent : 'web-scanner',
+        });
+        if (res.status === 'success') {
+          toast.success(res.message || 'Presensi via QR Scanner berhasil dicatat!');
+          setShowTokenModal(false);
+          setQrScanInput('');
+          fetchDetail();
+        }
+      } catch (err: any) {
+        toast.error(err.message || 'Gagal memproses scan QR presensi');
+      } finally {
+        setIsScanningQr(false);
+      }
+    },
+    [pertemuanId, fetchDetail]
+  );
+
   // Submit Pengumpulan Tugas oleh Mahasiswa
   // Bila sudah ada pengumpulan sebelumnya → gunakan endpoint perbarui;
   // bila belum ada → gunakan endpoint kirim pengumpulan.
@@ -753,25 +897,29 @@ export default function LmsPertemuanDetailPage({ params }: PageProps) {
         </Badge>
       ),
     },
-    {
-      key: 'ubah_status',
-      label: 'UBAH STATUS (MANUAL DOSEN)',
-      render: (row) => (
-        <div className="w-48">
-          <Select
-            placeholder="Pilih status..."
-            options={statusAbsensiOptions}
-            value={attendanceChanges[row.mahasiswa_id]}
-            onChange={(val) => {
-              setAttendanceChanges((prev) => ({
-                ...prev,
-                [row.mahasiswa_id]: Number(val),
-              }));
-            }}
-          />
-        </div>
-      ),
-    },
+    ...(canInputPresensi
+      ? [
+          {
+            key: 'ubah_status',
+            label: 'UBAH STATUS (MANUAL DOSEN)',
+            render: (row: any) => (
+              <div className="w-48">
+                <Select
+                  placeholder="Pilih status..."
+                  options={statusAbsensiOptions}
+                  value={attendanceChanges[row.mahasiswa_id]}
+                  onChange={(val) => {
+                    setAttendanceChanges((prev) => ({
+                      ...prev,
+                      [row.mahasiswa_id]: Number(val),
+                    }));
+                  }}
+                />
+              </div>
+            ),
+          },
+        ]
+      : []),
     {
       key: 'catatan',
       label: 'CATATAN',
@@ -829,26 +977,30 @@ export default function LmsPertemuanDetailPage({ params }: PageProps) {
         </span>
       ),
     },
-    {
-      key: 'aksi',
-      label: 'AKSI',
-      align: 'right',
-      render: (p) => (
-        <DropdownMenu
-          items={[
-            {
-              label: p.nilai !== null ? 'Koreksi Nilai' : 'Beri Nilai',
-              icon: <Award size={16} />,
-              onClick: () => {
-                setSelectedPengumpulan(p);
-                nilaiFormHook.setValue('nilai', p.nilai ?? 85);
-                nilaiFormHook.setValue('feedback_dosen', p.feedback_dosen || '');
-              },
-            },
-          ]}
-        />
-      ),
-    },
+    ...(canTeach
+      ? [
+          {
+            key: 'aksi',
+            label: 'AKSI',
+            align: 'right' as const,
+            render: (p: LmsPengumpulanTugas) => (
+              <DropdownMenu
+                items={[
+                  {
+                    label: p.nilai !== null ? 'Koreksi Nilai' : 'Beri Nilai',
+                    icon: <Award size={16} />,
+                    onClick: () => {
+                      setSelectedPengumpulan(p);
+                      nilaiFormHook.setValue('nilai', p.nilai ?? 85);
+                      nilaiFormHook.setValue('feedback_dosen', p.feedback_dosen || '');
+                    },
+                  },
+                ]}
+              />
+            ),
+          },
+        ]
+      : []),
   ];
 
   // Pemetaan komponen OBE -> tugas/kuis yang terhubung (via komponen_penilaian_id)
@@ -962,15 +1114,36 @@ export default function LmsPertemuanDetailPage({ params }: PageProps) {
         }
       />
 
+      {isPengelolaReadOnly && (
+        <Alert variant="info" icon={<FileCheck size={18} className="shrink-0 text-slate-600 mt-0.5" />}>
+          <div>
+            <strong>Mode Monitoring Pengelola (Read-Only):</strong> Anda melihat sesi pertemuan ini sebagai pengelola institusi/prodi. Pengelolaan materi, tugas, kuis, penilaian, dan presensi hanya dapat dilakukan oleh Dosen Pengampu kelas ini.
+          </div>
+        </Alert>
+      )}
+
       {/* Top Banner: Realtime Token Absensi Widget (Slate Netral Theme) */}
       <div className="p-4 bg-slate-900 border border-slate-800 rounded-xl text-white shadow-md flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex items-center gap-4">
-          <div className="w-12 h-12 rounded-xl bg-white/10 flex items-center justify-center shrink-0 border border-white/20">
-            <QrCode size={24} className="text-slate-200" />
-          </div>
+          {!isMahasiswa && tokenInfo?.token && qrDataUrl ? (
+            <div className="p-1.5 bg-white rounded-xl shrink-0 shadow-sm border border-emerald-400/40">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={qrDataUrl}
+                alt="QR Presensi Pertemuan"
+                className="w-24 h-24 rounded-lg object-contain"
+              />
+            </div>
+          ) : (
+            <div className="w-12 h-12 rounded-xl bg-white/10 flex items-center justify-center shrink-0 border border-white/20">
+              <QrCode size={24} className="text-slate-200" />
+            </div>
+          )}
           <div className="flex flex-col gap-2">
             <div className="text-2xs text-slate-300 uppercase tracking-wider font-semibold">
-              {isMahasiswa ? 'Presensi Mandiri Sesi Pertemuan' : 'Presensi Realtime Mahasiswa'}
+              {isMahasiswa
+                ? 'Presensi Mandiri Sesi Pertemuan (Scanner QR / Token 30 Detik)'
+                : 'Presensi Realtime Mahasiswa (QR & Token Berputar Tiap 30 Detik)'}
             </div>
             <div className="flex items-center gap-2 flex-wrap">
               {isMahasiswa ? (
@@ -987,32 +1160,37 @@ export default function LmsPertemuanDetailPage({ params }: PageProps) {
                   </div>
                 ) : (
                   <span className="text-xs text-slate-300">
-                    Masukkan 6-digit token yang diberikan dosen untuk mencatat kehadiran Anda.
+                    Scan QR di layar dosen (atau via Aplikasi Mobile) atau masukkan 6-digit token yang berubah tiap 30 detik.
                   </span>
                 )
               ) : tokenInfo?.token ? (
-                <>
-                  <span className="text-2xl font-mono font-bold tracking-widest text-emerald-400 bg-emerald-950/60 p-2 rounded-lg border border-emerald-500/30">
-                    {tokenInfo.token}
+                <div className="flex flex-col gap-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-2xl font-mono font-bold tracking-widest text-emerald-400 bg-emerald-950/60 p-2 rounded-lg border border-emerald-500/30">
+                      {tokenInfo.token}
+                    </span>
+                    <span className="text-2xs font-semibold text-amber-300 bg-amber-950/60 px-2.5 py-1 rounded-md border border-amber-400/30">
+                      Rotasi kode otomatis dalam {rotateCountdown} detik
+                    </span>
+                  </div>
+                  <span className="text-2xs text-slate-400 font-mono">
+                    Payload Scanner: {tokenInfo.qr_payload || `RAG-PRESENSI:${pertemuanId}:${tokenInfo.token}`}
                   </span>
-                  <span className="text-2xs text-slate-300">
-                    (Aktif s/d {tokenInfo.expired_at ? new Date(tokenInfo.expired_at).toLocaleTimeString('id-ID') : '15 mnt'})
-                  </span>
-                </>
+                </div>
               ) : detail?.presensi_ditutup ? (
                 <span className="text-xs font-semibold text-slate-300 bg-slate-700/60 p-2 rounded-lg border border-slate-500/30">
                   Sesi presensi sudah ditutup.
                 </span>
               ) : (
                 <span className="text-xs text-slate-300">
-                  Token belum diaktifkan untuk sesi pertemuan ini.
+                  Isi jurnal perkuliahan dan buka sesi presensi untuk menampilkan QR & token yang berputar tiap 30 detik.
                 </span>
               )}
             </div>
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           {isMahasiswa ? (
             !detail?.my_absensi && (
               <Button
@@ -1020,9 +1198,13 @@ export default function LmsPertemuanDetailPage({ params }: PageProps) {
                 icon={<QrCode size={16} />}
                 onClick={() => setShowTokenModal(true)}
               >
-                Input Token Presensi
+                Scan QR / Input Presensi
               </Button>
             )
+          ) : isPengelolaReadOnly ? (
+            <span className="text-2xs font-semibold text-slate-400">
+              Mode Monitoring Pengelola — aktivasi token oleh Dosen Pengampu.
+            </span>
           ) : detail?.presensi_ditutup ? (
             <span className="text-2xs font-semibold text-slate-400">
               Sesi presensi ditutup — input manual tetap bisa via tabel di bawah.
@@ -1034,9 +1216,9 @@ export default function LmsPertemuanDetailPage({ params }: PageProps) {
                 loading={isGeneratingToken}
                 disabled={isGeneratingToken}
                 icon={<QrCode size={16} />}
-                onClick={handleGenerateToken}
+                onClick={() => setShowBukaSesiModal(true)}
               >
-                {tokenInfo?.token ? 'Regenerate Token Baru' : 'Buka Token Presensi (15 Mnt)'}
+                {tokenInfo?.token ? 'Perbarui Jurnal & Putar Sesi' : 'Isi Jurnal & Buka Sesi (30d)'}
               </Button>
               {tokenInfo?.token && (
                 <Button
@@ -1048,7 +1230,7 @@ export default function LmsPertemuanDetailPage({ params }: PageProps) {
                   onClick={handleRotateToken}
                   style={{ borderColor: 'var(--module-primary)', color: 'var(--module-primary)' }}
                 >
-                  Putar Token (2 Mnt)
+                  Putar Kode (30d)
                 </Button>
               )}
               <Button
@@ -1100,7 +1282,7 @@ export default function LmsPertemuanDetailPage({ params }: PageProps) {
                   Kelola judul materi, catatan, jadwal, dan status penyelesaian sesi pertemuan.
                 </p>
               </div>
-              {!isEditingIsian && (
+              {canTeach && !isEditingIsian && (
                 <Button size="sm" variant="outline" icon={<Pencil size={16} />} onClick={() => setIsEditingIsian(true)}>
                   Ubah Isian
                 </Button>
@@ -1366,7 +1548,7 @@ export default function LmsPertemuanDetailPage({ params }: PageProps) {
                                   },
                                 ]
                               : []),
-                            ...(iz.status === 'pending' && statusPersetujuanMap['disetujui'] && statusPersetujuanMap['ditolak']
+                            ...(canProsesIzin && iz.status === 'pending' && statusPersetujuanMap['disetujui'] && statusPersetujuanMap['ditolak']
                               ? [
                                   {
                                     label: 'Setujui Permohonan',
@@ -1498,7 +1680,7 @@ export default function LmsPertemuanDetailPage({ params }: PageProps) {
           )}
           <div className="flex items-center justify-between">
             <h4 className="text-xs font-bold text-slate-800">Materi & Bahan Perkuliahan</h4>
-            {!isMahasiswa && (
+            {canTeach && (
               <Button
                 size="sm"
                 icon={<Plus size={16} />}
@@ -1530,7 +1712,7 @@ export default function LmsPertemuanDetailPage({ params }: PageProps) {
                       >
                         {m.tipe_konten}
                       </Badge>
-                      {!isMahasiswa && (
+                      {canTeach && (
                         <DropdownMenu
                           items={[
                             {
@@ -1611,7 +1793,7 @@ export default function LmsPertemuanDetailPage({ params }: PageProps) {
                   : 'Nilai yang diinputkan dosen akan otomatis tersinkronisasi ke sistem OBE (siakad_nilai_komponen_mhs).'}
               </p>
             </div>
-            {!isMahasiswa && (
+            {canTeach && (
               <Button
                 size="sm"
                 icon={<Plus size={16} />}
@@ -1652,7 +1834,7 @@ export default function LmsPertemuanDetailPage({ params }: PageProps) {
                       </div>
                     </div>
 
-                    {!isMahasiswa && (
+                    {!isMahasiswa && (canExportNilai || canTeach) && (
                       <DropdownMenu
                         items={[
                           ...(canExportNilai
@@ -1664,12 +1846,16 @@ export default function LmsPertemuanDetailPage({ params }: PageProps) {
                                 },
                               ]
                             : []),
-                          {
-                            label: 'Hapus Tugas',
-                            icon: <Trash2 size={16} />,
-                            variant: 'danger' as const,
-                            onClick: () => setDeleteConfirm({ isOpen: true, type: 'tugas', id: t.id, name: t.judul }),
-                          },
+                          ...(canTeach
+                            ? [
+                                {
+                                  label: 'Hapus Tugas',
+                                  icon: <Trash2 size={16} />,
+                                  variant: 'danger' as const,
+                                  onClick: () => setDeleteConfirm({ isOpen: true, type: 'tugas', id: t.id, name: t.judul }),
+                                },
+                              ]
+                            : []),
                         ]}
                       />
                     )}
@@ -1810,6 +1996,7 @@ export default function LmsPertemuanDetailPage({ params }: PageProps) {
             quizList={detail?.quiz_list || []}
             komponenObeList={detail?.komponen_obe_list || []}
             isMahasiswa={isMahasiswa}
+            canTeach={canTeach}
             onRefresh={fetchDetail}
           />
         </div>
@@ -2029,42 +2216,186 @@ export default function LmsPertemuanDetailPage({ params }: PageProps) {
         </form>
       </Modal>
 
-      {/* Modal Input Token Absensi Mahasiswa */}
+      {/* Modal Isi Jurnal & Buka Sesi Presensi Dosen (Rotasi QR 30 Detik) */}
+      <Modal
+        open={showBukaSesiModal}
+        onClose={() => setShowBukaSesiModal(false)}
+        title={`Isi Jurnal Mengajar & Buka Sesi Presensi — Pertemuan Ke-${detail?.pertemuan.pertemuan_ke || ''}`}
+        size="lg"
+        footer={
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" icon={<X size={16} />} onClick={() => setShowBukaSesiModal(false)}>
+              Batal
+            </Button>
+            <Button
+              type="submit"
+              form="form-buka-sesi-jurnal"
+              loading={isGeneratingToken}
+              disabled={isGeneratingToken}
+              icon={<QrCode size={16} />}
+            >
+              Simpan Jurnal & Buka QR Presensi (30d)
+            </Button>
+          </div>
+        }
+      >
+        <form
+          id="form-buka-sesi-jurnal"
+          onSubmit={isianFormHook.handleSubmit(onBukaSesiDenganJurnal)}
+          className="space-y-4"
+        >
+          <div className="p-3 rounded-lg bg-blue-50 border border-blue-200 text-2xs text-blue-800">
+            Saat Anda menyimpan jurnal ini, sesi presensi mahasiswa otomatis dibuka dengan <strong>QR Code & Token 6-Digit yang berputar otomatis setiap 30 detik</strong> untuk mencegah kecurangan titip absen.
+          </div>
+
+          <Input
+            label="Judul / Materi Pertemuan (Jurnal Perkuliahan)"
+            required
+            placeholder="Contoh: Arsitektur Microservices & API Gateway"
+            error={isianFormHook.formState.errors.materi?.message}
+            {...isianFormHook.register('materi')}
+          />
+
+          <Textarea
+            label="Catatan Jurnal / Pokok Bahasan"
+            placeholder="Tuliskan ringkasan pokok bahasan dan aktivitas belajar pada pertemuan ini..."
+            error={isianFormHook.formState.errors.catatan_pertemuan?.message}
+            {...isianFormHook.register('catatan_pertemuan')}
+          />
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <Input
+              type="date"
+              label="Tanggal Pertemuan"
+              error={isianFormHook.formState.errors.tanggal?.message}
+              {...isianFormHook.register('tanggal')}
+            />
+            <Input
+              type="time"
+              label="Jam Mulai"
+              error={isianFormHook.formState.errors.jam_mulai?.message}
+              {...isianFormHook.register('jam_mulai')}
+            />
+            <Input
+              type="time"
+              label="Jam Selesai"
+              error={isianFormHook.formState.errors.jam_selesai?.message}
+              {...isianFormHook.register('jam_selesai')}
+            />
+          </div>
+        </form>
+      </Modal>
+
+      {/* Modal Scan QR / Input Token Absensi Mahasiswa */}
       <Modal
         open={showTokenModal}
         onClose={() => setShowTokenModal(false)}
-        title="Input Token Presensi Realtime"
+        title="Presensi Mandiri Mahasiswa (Scanner QR / Token 30 Detik)"
         footer={
           <div className="flex justify-end gap-2">
             <Button variant="outline" icon={<X size={16} />} onClick={() => setShowTokenModal(false)}>
               Batal
             </Button>
-            <Button
-              type="submit"
-              form="form-input-token"
-              loading={tokenFormHook.formState.isSubmitting}
-              disabled={tokenFormHook.formState.isSubmitting}
-              icon={<Check size={16} />}
-            >
-              Kirim Token
-            </Button>
+            {presensiInputMode === 'scanner' ? (
+              <Button
+                type="button"
+                loading={isScanningQr}
+                disabled={isScanningQr || !qrScanInput.trim()}
+                icon={<Check size={16} />}
+                onClick={() => submitQrPayload(qrScanInput)}
+              >
+                Proses Hasil Scan QR
+              </Button>
+            ) : (
+              <Button
+                type="submit"
+                form="form-input-token"
+                loading={tokenFormHook.formState.isSubmitting}
+                disabled={tokenFormHook.formState.isSubmitting}
+                icon={<Check size={16} />}
+              >
+                Kirim Token
+              </Button>
+            )}
           </div>
         }
       >
-        <form id="form-input-token" onSubmit={tokenFormHook.handleSubmit(onInputToken)} className="space-y-4">
-          <p className="text-xs text-slate-600">
-            Masukkan 6-digit kode token presensi yang diaktifkan oleh dosen pengampu sesi perkuliahan ini.
-          </p>
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-2 p-1 bg-slate-100 rounded-lg">
+            <Button
+              type="button"
+              size="sm"
+              variant={presensiInputMode === 'scanner' ? 'primary' : 'ghost'}
+              onClick={() => setPresensiInputMode('scanner')}
+            >
+              Scan QR / Scanner
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant={presensiInputMode === 'token' ? 'primary' : 'ghost'}
+              onClick={() => setPresensiInputMode('token')}
+            >
+              Input Token 6-Digit
+            </Button>
+          </div>
 
-          <Input
-            label="6-Digit Token Presensi"
-            placeholder="Contoh: 849201"
-            className="text-center font-mono text-base tracking-widest uppercase"
-            maxLength={6}
-            error={tokenFormHook.formState.errors.token?.message}
-            {...tokenFormHook.register('token')}
-          />
-        </form>
+          {presensiInputMode === 'scanner' ? (
+            <div className="space-y-3">
+              <p className="text-xs text-slate-600">
+                Arahkan kamera ke QR Code di layar dosen atau tempel/scan kode QR (<code>RAG-PRESENSI:{pertemuanId}:XXXXXX</code>) yang berubah tiap 30 detik.
+              </p>
+
+              <LmsQrScanner
+                buttonText="Buka Kamera QR Scanner"
+                onScan={async (payload) => {
+                  qrScanFormHook.setValue('payload', payload);
+                  await submitQrPayload(payload);
+                }}
+              />
+
+              <form
+                id="form-scan-qr"
+                onSubmit={qrScanFormHook.handleSubmit(async (vals) => {
+                  await submitQrPayload(vals.payload);
+                })}
+                className="space-y-3 pt-1"
+              >
+                <Input
+                  label="Kode QR / Payload Scanner"
+                  placeholder={`Contoh: RAG-PRESENSI:${pertemuanId}:849201 atau 849201`}
+                  error={qrScanFormHook.formState.errors.payload?.message}
+                  {...qrScanFormHook.register('payload')}
+                />
+                <Button
+                  type="submit"
+                  size="sm"
+                  variant="primary"
+                  icon={<Send size={16} />}
+                  loading={isScanningQr}
+                  disabled={isScanningQr}
+                >
+                  Kirim Presensi
+                </Button>
+              </form>
+            </div>
+          ) : (
+            <form id="form-input-token" onSubmit={tokenFormHook.handleSubmit(onInputToken)} className="space-y-4">
+              <p className="text-xs text-slate-600">
+                Masukkan 6-digit kode token presensi yang tampil di layar dosen (kode diperbarui tiap 30 detik).
+              </p>
+
+              <Input
+                label="6-Digit Token Presensi"
+                placeholder="Contoh: 849201"
+                className="text-center font-mono text-base tracking-widest uppercase"
+                maxLength={6}
+                error={tokenFormHook.formState.errors.token?.message}
+                {...tokenFormHook.register('token')}
+              />
+            </form>
+          )}
+        </div>
       </Modal>
 
       {/* Modal Kumpulkan / Perbarui Tugas Mahasiswa */}

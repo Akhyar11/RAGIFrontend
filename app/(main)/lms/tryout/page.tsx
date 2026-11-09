@@ -10,10 +10,12 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Textarea } from '@/components/ui/Textarea';
 import { Select } from '@/components/ui/Select';
+import { AsyncSelect } from '@/components/ui/AsyncSelect';
 import { Badge } from '@/components/ui/Badge';
 import { DropdownMenu } from '@/components/ui/DropdownMenu';
 import { Modal } from '@/components/ui/Modal';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { Alert } from '@/components/ui/Alert';
 import KelasSelect from '@/components/lms/KelasSelect';
 import PeriodeAkademikSelect from '@/components/lms/PeriodeAkademikSelect';
 import { toTahunAkademikId } from '@/lib/kelas';
@@ -49,20 +51,32 @@ import {
   Settings,
   Eye,
   Lock,
+  Users,
+  X,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import toast from 'react-hot-toast';
 
 /**
- * Formulir AWAL pembuatan tryout — disengaja ramping (3 input, standar form:
- * ≤5 input dalam modal). Jadwal, durasi, soal, peserta, dan publikasi
- * dilengkapi di halaman Kelola Tryout setelah dibuat.
+ * Formulir AWAL pembuatan tryout — mendukung Tryout Kelas Perkuliahan
+ * maupun Ujian Khusus (Di Luar Mata Kuliah) dengan multi-dosen kolaborator.
  */
-const tryoutSchema = z.object({
-  kelas_id: z.string().min(1, 'Kelas wajib dipilih.'),
-  judul: z.string().min(1, 'Judul tryout wajib diisi.').max(255, 'Judul tryout maksimal 255 karakter.'),
-  deskripsi: z.string().max(2000, 'Deskripsi maksimal 2000 karakter.').optional().default(''),
-});
+const tryoutSchema = z
+  .object({
+    mode_tryout: z.enum(['kelas', 'standalone']).default('kelas'),
+    kelas_id: z.string().optional().default(''),
+    judul: z.string().min(1, 'Judul tryout wajib diisi.').max(255, 'Judul tryout maksimal 255 karakter.'),
+    deskripsi: z.string().max(2000, 'Deskripsi maksimal 2000 karakter.').optional().default(''),
+  })
+  .superRefine((val, ctx) => {
+    if (val.mode_tryout === 'kelas' && !val.kelas_id) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['kelas_id'],
+        message: 'Kelas wajib dipilih untuk tryout kelas perkuliahan.',
+      });
+    }
+  });
 
 type TryoutFormValues = z.infer<typeof tryoutSchema>;
 
@@ -92,17 +106,23 @@ export default function LmsTryoutListPage() {
   const [filterOrderBy, setFilterOrderBy] = useState<string>('id');
   const [filterOrderDir, setFilterOrderDir] = useState<string>('desc');
 
-  const { hasPermission } = useAuth();
-  const canManageTryout = hasPermission('siakad.kelas.manage');
+  const { hasPermission, hasRole, isDosen: isAuthDosen } = useAuth();
+  const isDosen = isAuthDosen || hasRole('dosen_pengajar');
+  const canViewTryoutTable = isDosen || hasPermission('siakad.kelas.manage');
+  const canCreateTryout = isDosen || hasPermission('siakad.kelas.manage');
   const [isTambahOpen, setIsTambahOpen] = useState<boolean>(false);
+  const [selectedKolaborators, setSelectedKolaborators] = useState<Array<{ id: number; label: string }>>([]);
+  const [pickerDosenId, setPickerDosenId] = useState<string>('');
   const tryoutForm = useForm<TryoutFormValues>({
     resolver: zodResolver(tryoutSchema) as any,
     defaultValues: {
+      mode_tryout: isDosen ? 'kelas' : 'standalone',
       kelas_id: '',
       judul: '',
       deskripsi: '',
     },
   });
+  const modeTryout = tryoutForm.watch('mode_tryout');
 
   // Preset filter kelas dari query (?kelas_id=..) — link dari tab Tryout mahasiswa
   useEffect(() => {
@@ -113,6 +133,7 @@ export default function LmsTryoutListPage() {
 
   // Default ke periode aktif SIAKAD (sama seperti halaman /lms).
   const [periodeReady, setPeriodeReady] = useState<boolean>(false);
+  const [activePeriodeId, setActivePeriodeId] = useState<string>('');
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -121,7 +142,9 @@ export default function LmsTryoutListPage() {
         const rows: any[] = Array.isArray(res.data) ? res.data : (res.data as any)?.data || [];
         const aktif = rows.find((t: any) => t.is_aktif || t.is_active);
         if (!cancelled && aktif) {
-          setFilterTahunAkademik((prev) => prev || String(aktif.id));
+          const idStr = String(aktif.id);
+          setActivePeriodeId(idStr);
+          setFilterTahunAkademik((prev) => prev || idStr);
         }
       } catch {
         // abaikan — user bisa pilih manual via PeriodeSwitcher
@@ -176,7 +199,7 @@ export default function LmsTryoutListPage() {
 
   const handleResetFilter = () => {
     setFilterSearch('');
-    setFilterTahunAkademik('');
+    setFilterTahunAkademik(activePeriodeId);
     setFilterKelas('');
     setFilterOrderBy('id');
     setFilterOrderDir('desc');
@@ -185,13 +208,18 @@ export default function LmsTryoutListPage() {
 
   const onSimpanTryout = async (values: TryoutFormValues) => {
     try {
-      const res = await lmsService.createTryout(Number(values.kelas_id), {
+      const kelasId = values.mode_tryout === 'kelas' && values.kelas_id ? Number(values.kelas_id) : null;
+      const res = await lmsService.createTryout(kelasId, {
         judul: values.judul,
         deskripsi: values.deskripsi || null,
-      } as any);
-      toast.success('Tryout dibuat sebagai Draft. Lengkapi jadwal, soal & peserta di halaman Kelola.');
+        kolaborator_dosen_ids: selectedKolaborators.map((d) => d.id),
+      });
+      toast.success('Tryout dibuat sebagai Draft. Lengkapi jadwal, bank soal & batch peserta di halaman Kelola.');
       setIsTambahOpen(false);
+      setSelectedKolaborators([]);
+      setPickerDosenId('');
       tryoutForm.reset({
+        mode_tryout: isDosen ? 'kelas' : 'standalone',
         kelas_id: '',
         judul: '',
         deskripsi: '',
@@ -217,28 +245,43 @@ export default function LmsTryoutListPage() {
           <span className="text-2xs text-slate-500 block line-clamp-1">
             {row.deskripsi || '-'}
           </span>
-          {(row as any).kode_akses ? (
-            <span className="text-2xs text-amber-600 inline-flex items-center gap-1 mt-1">
-              <Lock size={12} /> Berkode
-            </span>
-          ) : null}
+          <div className="flex flex-wrap items-center gap-2 mt-1">
+            {(row as any).kode_akses ? (
+              <span className="text-2xs text-amber-600 inline-flex items-center gap-1">
+                <Lock size={12} /> Berkode
+              </span>
+            ) : null}
+            {row.kolaborators && row.kolaborators.length > 0 ? (
+              <span className="text-2xs text-slate-500 inline-flex items-center gap-1">
+                <Users size={12} /> {row.kolaborators.length} Dosen
+              </span>
+            ) : null}
+          </div>
         </div>
       ),
     },
     {
       key: 'kelas',
-      label: 'KELAS',
-      render: (row) => (
-        <div>
-          <span className="text-xs font-medium text-slate-800 block">
-            {row.kelas?.nama_kelas || '-'}
-          </span>
-          <span className="text-2xs text-slate-500 font-mono block">
-            {row.kelas?.kode_kelas || '-'}
-            {row.kelas?.mata_kuliah?.nama ? ` • ${row.kelas.mata_kuliah.nama}` : ''}
-          </span>
-        </div>
-      ),
+      label: 'CAKUPAN / KELAS',
+      render: (row) =>
+        row.kelas ? (
+          <div>
+            <span className="text-xs font-medium text-slate-800 block">
+              {row.kelas.nama_kelas || '-'}
+            </span>
+            <span className="text-2xs text-slate-500 font-mono block">
+              {row.kelas.kode_kelas || '-'}
+              {row.kelas.mata_kuliah?.nama ? ` • ${row.kelas.mata_kuliah.nama}` : ''}
+            </span>
+          </div>
+        ) : (
+          <div className="space-y-1">
+            <Badge variant="blue">Ujian Khusus (Di Luar MK)</Badge>
+            <span className="text-2xs text-slate-500 block">
+              Peserta Batch: {row.tryout_peserta_count ?? 0} mahasiswa
+            </span>
+          </div>
+        ),
     },
     {
       key: 'soal',
@@ -325,8 +368,20 @@ export default function LmsTryoutListPage() {
             >
               Filter
             </Button>
-            {canManageTryout ? (
-              <Button variant="primary" icon={<Plus size={16} />} onClick={() => setIsTambahOpen(true)}>
+            {canCreateTryout ? (
+              <Button
+                variant="primary"
+                icon={<Plus size={16} />}
+                onClick={() => {
+                  tryoutForm.reset({
+                    mode_tryout: isDosen ? 'kelas' : 'standalone',
+                    kelas_id: '',
+                    judul: '',
+                    deskripsi: '',
+                  });
+                  setIsTambahOpen(true);
+                }}
+              >
                 Tambah Data
               </Button>
             ) : null}
@@ -346,31 +401,7 @@ export default function LmsTryoutListPage() {
         </div>
       </div>
 
-      {/* PeriodeSwitcher */}
-      <div className="p-4 bg-white rounded-xl border border-slate-200/80 shadow-xs flex flex-col sm:flex-row sm:items-center gap-4">
-        <div className="flex items-center gap-2 shrink-0">
-          <div
-            className="w-8 h-8 rounded-lg flex items-center justify-center"
-            style={{ backgroundColor: 'var(--module-primary-subtle)', color: 'var(--module-primary)' }}
-          >
-            <CalendarDays size={16} />
-          </div>
-          <div>
-            <div className="text-xs font-bold text-slate-800">Periode Akademik</div>
-            <div className="text-2xs text-slate-500">Kosongkan = semua periode</div>
-          </div>
-        </div>
-        <div className="flex-1 min-w-0">
-          <PeriodeAkademikSelect
-            label=""
-            placeholder="Semua periode SIAKAD..."
-            value={filterTahunAkademik}
-            onChange={(val) => setFilterTahunAkademik(val)}
-          />
-        </div>
-      </div>
-
-      {canManageTryout ? (
+      {canViewTryoutTable ? (
         <DataTable
           columns={columns}
           data={rows}
@@ -409,7 +440,7 @@ export default function LmsTryoutListPage() {
                   </Badge>
                 </div>
                 <p className="text-2xs text-slate-500">
-                  {t.kelas?.mata_kuliah?.nama || t.kelas?.nama_kelas || '-'}
+                  {t.kelas?.mata_kuliah?.nama || t.kelas?.nama_kelas || 'Ujian Khusus (Lintas Mata Kuliah)'}
                 </p>
                 <div className="flex items-center gap-4 text-2xs text-slate-500">
                   <span className="flex items-center gap-2">
@@ -437,7 +468,7 @@ export default function LmsTryoutListPage() {
                   </p>
                 ) : null}
                 {terbuka ? (
-                  <Link href={`/lms/${t.kelas_id}/quiz/${t.id}`}>
+                  <Link href={`/lms/${t.kelas_id || 0}/quiz/${t.id}`}>
                     <Button size="sm" className="w-full" icon={<Play size={16} />}>
                       Mulai
                     </Button>
@@ -527,24 +558,52 @@ export default function LmsTryoutListPage() {
       >
         <form onSubmit={tryoutForm.handleSubmit(onSimpanTryout)} className="grid grid-cols-1 gap-4">
           <Controller
-            name="kelas_id"
+            name="mode_tryout"
             control={tryoutForm.control}
             render={({ field }) => (
-              <KelasSelect
-                label="Kelas"
-                placeholder="Pilih kelas..."
-                required
+              <Select
+                label="Cakupan Tryout"
                 value={field.value}
-                onChange={(val) => field.onChange(extractOptionValue(val))}
-                error={tryoutForm.formState.errors.kelas_id?.message}
+                onChange={(val) => {
+                  const next = extractOptionValue(val) as 'kelas' | 'standalone';
+                  field.onChange(next);
+                  if (next === 'standalone') {
+                    tryoutForm.setValue('kelas_id', '');
+                  }
+                }}
+                options={[
+                  { value: 'kelas', label: 'Terikat Kelas Perkuliahan (Mata Kuliah)' },
+                  { value: 'standalone', label: 'Ujian Khusus / Di Luar Mata Kuliah (Batch Kelas, Prodi & Angkatan)' },
+                ]}
               />
             )}
           />
 
+          {modeTryout === 'kelas' ? (
+            <Controller
+              name="kelas_id"
+              control={tryoutForm.control}
+              render={({ field }) => (
+                <KelasSelect
+                  label="Kelas Perkuliahan"
+                  placeholder="Pilih kelas..."
+                  required
+                  value={field.value || ''}
+                  onChange={(val) => field.onChange(extractOptionValue(val))}
+                  error={tryoutForm.formState.errors.kelas_id?.message}
+                />
+              )}
+            />
+          ) : (
+            <Alert variant="info" className="text-2xs">
+              Tryout ini dibuat sebagai <strong>Ujian Khusus di luar mata kuliah</strong>. Setelah disimpan, Anda dapat menarik <strong>Batch Peserta Mahasiswa</strong> berdasarkan <strong>Kelas, Program Studi, dan Tahun Angkatan</strong> serta mengambil soal dari <strong>Bank Soal Dosen</strong>.
+            </Alert>
+          )}
+
           <Input
             label="Judul Tryout"
             required
-            placeholder="cth: Tryout UTS Genap"
+            placeholder="cth: Tryout Uji Kompetensi / Tryout UTS Genap"
             error={tryoutForm.formState.errors.judul?.message}
             {...tryoutForm.register('judul')}
           />
@@ -556,9 +615,63 @@ export default function LmsTryoutListPage() {
             {...tryoutForm.register('deskripsi')}
           />
 
-          <p className="text-2xs text-slate-500">
-            Jadwal, durasi, soal, peserta, dan publikasi diatur di halaman Kelola setelah tryout dibuat.
-          </p>
+          <div className="space-y-2 border-t border-slate-200 pt-3">
+            <div className="flex items-end gap-2">
+              <div className="flex-1">
+                <AsyncSelect
+                  label="Tim Dosen Kolaborator (Opsional — bisa lebih dari 1 dosen)"
+                  placeholder="Cari & tambah dosen kolaborator..."
+                  value={pickerDosenId}
+                  loadOptions={async (inputValue: string) => {
+                    try {
+                      const res: any = await siakadService.getDosens({ search: inputValue || undefined, per_page: 20 });
+                      const items = Array.isArray(res.data) ? res.data : res.data?.data || [];
+                      return items.map((d: any) => ({
+                        value: String(d.id),
+                        label: `${d.nidn || d.nip || ''} — ${d.nama_lengkap || d.nama}`.trim(),
+                      }));
+                    } catch {
+                      return [];
+                    }
+                  }}
+                  onChange={(val: unknown) => {
+                    const idNum = Number(extractOptionValue(val));
+                    if (!idNum) return;
+                    const optLabel =
+                      typeof val === 'object' && val !== null && 'label' in val
+                        ? String((val as { label: string }).label)
+                        : `Dosen #${idNum}`;
+                    if (!selectedKolaborators.some((d) => d.id === idNum)) {
+                      setSelectedKolaborators((prev) => [...prev, { id: idNum, label: optLabel }]);
+                    }
+                    setPickerDosenId('');
+                  }}
+                />
+              </div>
+            </div>
+            {selectedKolaborators.length > 0 ? (
+              <div className="flex flex-wrap gap-1.5 pt-1">
+                {selectedKolaborators.map((d) => (
+                  <span
+                    key={d.id}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-2xs font-medium bg-slate-100 text-slate-700 border border-slate-200"
+                  >
+                    {d.label}
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setSelectedKolaborators((prev) => prev.filter((x) => x.id !== d.id))}
+                      icon={<X size={12} />}
+                    />
+                  </span>
+                ))}
+              </div>
+            ) : null}
+            <p className="text-2xs text-slate-500">
+              Anda otomatis terdaftar sebagai dosen pengelola. Dosen kolaborator tambahan juga dapat diatur perannya (Penginput Soal / Pengawas / Pemantau) di halaman Kelola Tryout.
+            </p>
+          </div>
         </form>
       </Modal>
     </div>

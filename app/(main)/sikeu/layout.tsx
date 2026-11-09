@@ -22,6 +22,7 @@ export default function SikeuLayout({ children }: { children: React.ReactNode })
       hasPermission('sikeu.pemasukan.read') ||
       hasPermission('sikeu.kaskecil.read') ||
       hasPermission('sikeu.pajak.read') ||
+      hasPermission('sikeu.pajak_akun.manage') ||
       hasPermission('sikeu.master.manage') ||
       hasPermission('sikeu.kas.manage') ||
       hasPermission('sikeu.akuntansi.read') ||

@@ -139,6 +139,15 @@ export interface AkunKeuangan {
   is_active: boolean;
 }
 
+export interface PajakAkunAlias {
+  id: number;
+  kode_akun: string;
+  nama_akun: string;
+  nama_akun_pajak: string | null;
+}
+
+export type PajakPelaporanMode = 'dev' | 'publik';
+
 export interface PeriodeAkuntansi {
   id: number;
   nama_periode: string;

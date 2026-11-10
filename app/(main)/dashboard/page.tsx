@@ -20,6 +20,7 @@ import { Skeleton } from '@/components/ui/Skeleton';
 import { formatDateTime } from '@/lib/utils';
 import { moduleService, AppModule } from '@/services/module.service';
 import { getModuleUrl } from '@/lib/domain';
+import type { User } from '@/types/auth.types';
 
 interface SummaryItem {
   id: string;
@@ -43,14 +44,22 @@ export default function DashboardPage() {
       .finally(() => setIsLoading(false));
   }, []);
 
-  const displayUser = user || {
+  const displayUser: User = user || {
+    id: 0,
     username: 'Pengguna',
     email: 'user@kampus.ac.id',
     is_active: true,
     is_verified: true,
     last_login_at: new Date().toISOString(),
+    created_at: '',
+    updated_at: '',
     roles: [],
   };
+  const welcomeName =
+    [displayUser.name, displayUser.nama_lengkap, displayUser.pegawai?.nama_lengkap, displayUser.mahasiswa?.nama_lengkap]
+      .find((name) => typeof name === 'string' && name.trim())?.trim() ||
+    displayUser.username ||
+    'Pengguna';
 
   // Dynamic RBAC & Module Access Logic
   const allowedModules = new Set<string>();
@@ -143,7 +152,7 @@ export default function DashboardPage() {
             </div>
 
             <h2 className="text-xl md:text-2xl font-bold tracking-tight text-white">
-              Selamat Datang, {displayUser.username}! 👋
+              Selamat Datang, {welcomeName}! 👋
             </h2>
             <p className="text-sm text-slate-300 leading-relaxed">
               Akun Anda terhubung dengan modul akademik &amp; administratif.

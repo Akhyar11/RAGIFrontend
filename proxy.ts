@@ -120,6 +120,24 @@ export async function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
+  if (ctx.isDefault) {
+    const firstSegment = pathname.split('/')[1]?.toLowerCase();
+    const mappedModuleHost = firstSegment
+      ? Object.entries(config.domainMap).find(([, module]) => module === firstSegment)?.[0]
+      : undefined;
+
+    if (firstSegment && firstSegment in MODULE_LABELS) {
+      if (!mappedModuleHost) {
+        return new NextResponse('Not Found', { status: 404 });
+      }
+
+      const restPath = pathname.slice(firstSegment.length + 1);
+      const targetUrl = new URL(restPath || '/', `https://${mappedModuleHost}`);
+      targetUrl.search = request.nextUrl.search;
+      return NextResponse.redirect(targetUrl);
+    }
+  }
+
   const tokenKey = getAuthTokenKey(ctx.isDemo, host);
   const token = request.cookies.get(tokenKey)?.value;
   const envPrefix = ctx.isDemo ? 'demo-' : '';

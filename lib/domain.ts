@@ -135,7 +135,7 @@ export function resolveDomainContextWithConfig(
   // 1. Pemetaan eksplisit (custom domain).
   const mapped = config.domainMap[host];
   if (mapped) {
-    if (mapped === 'default' || reserved.has(mapped)) {
+    if (mapped === 'default' || mapped === 'sso' || reserved.has(mapped)) {
       return buildContext(host, '', '', true, false, reserved);
     }
     return buildContext(host, '', mapped, true, false, reserved);

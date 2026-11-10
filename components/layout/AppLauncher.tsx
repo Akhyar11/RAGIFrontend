@@ -19,7 +19,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { moduleService, AppModule } from '@/services/module.service';
-import { getModuleUrl } from '@/lib/domain';
+import { getAuthTokenKey, getCookie, getModuleUrl } from '@/lib/domain';
 import { useAuthStore } from '@/store/authStore';
 
 const MODULE_META: Record<string, { subpath: string; icon: LucideIcon }> = {
@@ -69,9 +69,18 @@ export function AppLauncher() {
   } | null>(null);
   const userId = useAuthStore((state) => state.user?.id);
   const accessToken = useAuthStore((state) => state.access_token);
-  const authIdentity = `${userId ?? ''}:${accessToken ?? ''}`;
+  const [cookieToken, setCookieToken] = useState<string | null>(null);
+  const authToken = accessToken || cookieToken;
+  const authIdentity = `${userId ?? ''}:${authToken ?? ''}`;
   const modules = moduleResult?.identity === authIdentity ? moduleResult.modules : [];
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const syncCookieToken = () => setCookieToken(getCookie(getAuthTokenKey()));
+    syncCookieToken();
+    window.addEventListener('focus', syncCookieToken);
+    return () => window.removeEventListener('focus', syncCookieToken);
+  }, [isOpen, accessToken]);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -86,7 +95,7 @@ export function AppLauncher() {
   useEffect(() => {
     let isCurrentUser = true;
 
-    if (!accessToken) {
+    if (!authToken) {
       return () => {
         isCurrentUser = false;
       };
@@ -112,12 +121,15 @@ export function AppLauncher() {
     return () => {
       isCurrentUser = false;
     };
-  }, [accessToken, authIdentity]);
+  }, [authToken, authIdentity]);
 
   return (
     <div className="relative inline-block" ref={dropdownRef}>
       <button
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={() => {
+          setCookieToken(getCookie(getAuthTokenKey()));
+          setIsOpen(!isOpen);
+        }}
         className={`btn btn-ghost btn-icon ${isOpen ? 'text-primary-600 bg-primary-50' : ''}`}
         title="Modul Switcher Terintegrasi"
         aria-haspopup="true"

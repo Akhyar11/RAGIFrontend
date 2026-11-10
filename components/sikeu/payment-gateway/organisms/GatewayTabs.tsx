@@ -12,6 +12,9 @@ interface GatewayTabsProps {
 
 const GATEWAY_LABELS: Record<string, string> = {
   bsn_h2h: 'H2H BSN',
+  midtrans: 'MIDTRANS',
+  xendit: 'XENDIT',
+  duitku: 'DUITKU',
   rekening_manual: 'REKENING MANUAL',
 };
 

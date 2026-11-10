@@ -712,6 +712,11 @@ export const sikeuService = {
     return data;
   },
 
+  trialMidtransPayment: async (payload: { tagihan_id?: number; nominal?: number; payment_type?: string }) => {
+    const { data } = await apiClient.post<ApiResponse<any>>('/v1/sikeu/payment-gateway/midtrans/trial', payload);
+    return data;
+  },
+
   // Master Unit Kas
   getUnitKasList: async () => {
     const { data } = await apiClient.get<ApiResponse<any[]>>('/v1/sikeu/master/unit-kas');

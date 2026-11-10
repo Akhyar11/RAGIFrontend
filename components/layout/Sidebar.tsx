@@ -69,6 +69,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { SYSTEM_MODULES, APP_NAME, ROUTES } from '@/lib/constants';
 import { menuService } from '@/services/menu.service';
 import { moduleService, AppModule } from '@/services/module.service';
+import { SystemLogo } from '@/components/layout/SystemLogo';
 import { Menu } from '@/types/menu';
 
 const getIconComponent = (iconName?: string | null) => {
@@ -545,9 +546,11 @@ export function Sidebar({ tenantModule }: { tenantModule: string }) {
           title={appName}
           aria-label={appName}
         >
-          <div className="sidebar-logo">
-            <GraduationCap size={22} color="white" />
-          </div>
+          <SystemLogo
+            className="sidebar-logo overflow-hidden"
+            imageClassName="h-full w-full object-contain"
+            fallback={<GraduationCap size={22} color="white" />}
+          />
         </button>
 
         <nav className="sidebar-rail-nav" aria-label="Navigasi utama">

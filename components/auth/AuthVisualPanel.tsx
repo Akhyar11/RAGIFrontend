@@ -3,8 +3,10 @@
 import { useState, useEffect } from 'react';
 import { Layers } from 'lucide-react';
 import apiClient from '@/lib/axios';
+import { SYSTEM_LOGO_UPDATED_EVENT } from '@/components/layout/SystemLogo';
 
 interface BrandingData {
+  system_logo_url: string;
   login_banner_url: string;
   login_banner_title: string;
   login_banner_subtitle: string;
@@ -12,6 +14,7 @@ interface BrandingData {
 
 export function AuthVisualPanel() {
   const [branding, setBranding] = useState<BrandingData>({
+    system_logo_url: '',
     login_banner_url: '',
     login_banner_title: 'SSO Campus',
     login_banner_subtitle: 'Enterprise Identity Platform',
@@ -21,11 +24,20 @@ export function AuthVisualPanel() {
 
   useEffect(() => {
     let isMounted = true;
+    const handleLogoUpdated = (event: Event) => {
+      const url = (event as CustomEvent<string>).detail;
+      if (typeof url === 'string') {
+        setBranding((current) => ({ ...current, system_logo_url: url }));
+      }
+    };
+    window.addEventListener(SYSTEM_LOGO_UPDATED_EVENT, handleLogoUpdated);
+
     apiClient
       .get('/auth/branding')
       .then((res) => {
         if (isMounted && res.data?.data) {
           setBranding({
+            system_logo_url: res.data.data.system_logo_url || '',
             login_banner_url: res.data.data.login_banner_url || '',
             login_banner_title: res.data.data.login_banner_title || 'SSO Campus',
             login_banner_subtitle: res.data.data.login_banner_subtitle || 'Enterprise Identity Platform',
@@ -41,6 +53,7 @@ export function AuthVisualPanel() {
 
     return () => {
       isMounted = false;
+      window.removeEventListener(SYSTEM_LOGO_UPDATED_EVENT, handleLogoUpdated);
     };
   }, []);
 
@@ -87,8 +100,17 @@ export function AuthVisualPanel() {
 
       {/* ── Branding Badge Card (Pojok Kanan Bawah) ── */}
       <div className="relative z-10 ml-auto flex items-center gap-4 bg-slate-900/60 backdrop-blur-xl px-6 py-4 rounded-2xl border border-white/15 shadow-2xl transition-all duration-300 hover:border-white/25 hover:bg-slate-900/75 max-w-md">
-        <div className="w-11 h-11 shrink-0 flex items-center justify-center bg-blue-600/80 rounded-xl text-white ring-1 ring-white/20 shadow-lg shadow-blue-600/30">
-          <Layers size={22} strokeWidth={2} />
+        <div className="w-11 h-11 shrink-0 flex items-center justify-center overflow-hidden bg-blue-600/80 rounded-xl text-white ring-1 ring-white/20 shadow-lg shadow-blue-600/30">
+          {branding.system_logo_url ? (
+            <img
+              src={branding.system_logo_url}
+              alt="Logo sistem"
+              className="h-full w-full object-contain bg-white p-1"
+              onError={() => setBranding((current) => ({ ...current, system_logo_url: '' }))}
+            />
+          ) : (
+            <Layers size={22} strokeWidth={2} />
+          )}
         </div>
         <div className="min-w-0">
           <div className="text-white font-semibold tracking-wide text-lg leading-tight truncate">

@@ -35,8 +35,10 @@ import {
   Layers,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { isAxiosError } from 'axios';
 import apiClient from '@/lib/axios';
 import { feederService } from '@/services/feeder.service';
+import { notifySystemLogoUpdated } from '@/components/layout/SystemLogo';
 
 const SCHEME_OPTIONS: SelectOption[] = [
   { value: 'smtps', label: 'SSL / SMTPS (Port 465)' },
@@ -125,6 +127,7 @@ const settingsSchema = z.object({
   lms_token_ttl_minutes: z.string().min(1, 'Masa berlaku token minimal 1 menit'),
 
   // Branding & Banner Login (SSO/IAM)
+  system_logo_url: z.string().optional(),
   login_banner_url: z.string().optional(),
   login_banner_title: z.string().optional(),
   login_banner_subtitle: z.string().optional(),
@@ -174,6 +177,7 @@ const defaultValues: SettingsFormValues = {
   lms_max_file_tugas_mb: '50',
   lms_allow_token_absensi: 'true',
   lms_token_ttl_minutes: '15',
+  system_logo_url: '',
   login_banner_url: '',
   login_banner_title: 'SSO Campus',
   login_banner_subtitle: 'Enterprise Identity Platform',
@@ -185,7 +189,10 @@ export default function SystemSettingsPage() {
   const [savingSection, setSavingSection] = useState<string | null>(null);
   const [savedSections, setSavedSections] = useState<Record<string, boolean>>({});
 
-  // Banner upload state
+  // Branding image upload state
+  const [isUploadingLogo, setIsUploadingLogo] = useState(false);
+  const [isDeletingLogo, setIsDeletingLogo] = useState(false);
+  const logoFileInputRef = useRef<HTMLInputElement>(null);
   const [isUploadingBanner, setIsUploadingBanner] = useState(false);
   const bannerFileInputRef = useRef<HTMLInputElement>(null);
 
@@ -318,6 +325,7 @@ export default function SystemSettingsPage() {
         lms_allow_token_absensi: settingsData?.lms_allow_token_absensi?.value ?? defaultValues.lms_allow_token_absensi,
         lms_token_ttl_minutes: String(settingsData?.lms_token_ttl_minutes?.value ?? defaultValues.lms_token_ttl_minutes),
 
+        system_logo_url: settingsData?.system_logo_url?.value ?? defaultValues.system_logo_url,
         login_banner_url: settingsData?.login_banner_url?.value ?? defaultValues.login_banner_url,
         login_banner_title: settingsData?.login_banner_title?.value ?? defaultValues.login_banner_title,
         login_banner_subtitle: settingsData?.login_banner_subtitle?.value ?? defaultValues.login_banner_subtitle,
@@ -395,6 +403,7 @@ export default function SystemSettingsPage() {
         );
       case 'loginBanner':
         return (
+          (currentValues.system_logo_url || '') !== (initialValues.system_logo_url || '') ||
           (currentValues.login_banner_url || '') !== (initialValues.login_banner_url || '') ||
           (currentValues.login_banner_title || '') !== (initialValues.login_banner_title || '') ||
           (currentValues.login_banner_subtitle || '') !== (initialValues.login_banner_subtitle || '')
@@ -408,6 +417,7 @@ export default function SystemSettingsPage() {
   const resetSection = (section: string) => {
     switch (section) {
       case 'loginBanner':
+        setValue('system_logo_url', initialValues.system_logo_url);
         setValue('login_banner_url', initialValues.login_banner_url);
         setValue('login_banner_title', initialValues.login_banner_title);
         setValue('login_banner_subtitle', initialValues.login_banner_subtitle);
@@ -554,6 +564,7 @@ export default function SystemSettingsPage() {
       successMessage = 'Konfigurasi Google Workspace berhasil disimpan.';
     } else if (section === 'loginBanner') {
       settingsToSave = [
+        { key: 'system_logo_url', value: vals.system_logo_url || '' },
         { key: 'login_banner_url', value: vals.login_banner_url || '' },
         { key: 'login_banner_title', value: vals.login_banner_title || 'SSO Campus' },
         { key: 'login_banner_subtitle', value: vals.login_banner_subtitle || 'Enterprise Identity Platform' },
@@ -588,6 +599,10 @@ export default function SystemSettingsPage() {
         return next;
       });
 
+      if (section === 'loginBanner') {
+        notifySystemLogoUpdated(vals.system_logo_url || '');
+      }
+
       setSavedSections((prev) => ({ ...prev, [section]: true }));
       toast.success(successMessage);
       setTimeout(() => {
@@ -598,6 +613,63 @@ export default function SystemSettingsPage() {
       toast.error(msg);
     } finally {
       setSavingSection(null);
+    }
+  };
+
+  const handleLogoFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) {
+      toast.error('Format logo harus PNG, JPEG, atau WebP.');
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error('Ukuran logo maksimal 2MB.');
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append('logo', file);
+    setIsUploadingLogo(true);
+
+    try {
+      const response = await apiClient.post('/admin/system-settings/upload-logo', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      const url = response.data?.data?.url;
+      if (url) {
+        setValue('system_logo_url', url);
+        setInitialValues((current) => ({ ...current, system_logo_url: url }));
+        notifySystemLogoUpdated(url);
+        toast.success('Logo sistem berhasil diperbarui.');
+      }
+    } catch (error: unknown) {
+      const message = isAxiosError<{ message?: string }>(error)
+        ? error.response?.data?.message
+        : undefined;
+      toast.error(message || 'Gagal mengunggah logo sistem.');
+    } finally {
+      setIsUploadingLogo(false);
+      if (logoFileInputRef.current) logoFileInputRef.current.value = '';
+    }
+  };
+
+  const handleDeleteLogo = async () => {
+    setIsDeletingLogo(true);
+    try {
+      await apiClient.delete('/admin/system-settings/logo');
+      setValue('system_logo_url', '');
+      setInitialValues((current) => ({ ...current, system_logo_url: '' }));
+      notifySystemLogoUpdated('');
+      toast.success('Logo sistem dihapus. Logo bawaan akan digunakan.');
+    } catch (error: unknown) {
+      const message = isAxiosError<{ message?: string }>(error)
+        ? error.response?.data?.message
+        : undefined;
+      toast.error(message || 'Gagal menghapus logo sistem.');
+    } finally {
+      setIsDeletingLogo(false);
     }
   };
 
@@ -801,6 +873,66 @@ export default function SystemSettingsPage() {
                 </div>
               ) : (
                 <>
+                  <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50/80 p-4 transition-colors hover:bg-slate-50 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <UploadCloud size={18} className="text-violet-600" />
+                        <span className="text-sm font-semibold text-slate-800">Unggah Logo Sistem</span>
+                      </div>
+                      <span className="text-xs text-slate-500">Maks. 2 MB</span>
+                    </div>
+                    <p className="text-xs leading-relaxed text-slate-500">
+                      Logo digunakan pada halaman autentikasi dan identitas utama aplikasi. Format yang didukung: PNG, JPEG, dan WebP.
+                    </p>
+                    <input
+                      type="file"
+                      ref={logoFileInputRef}
+                      accept="image/png,image/jpeg,image/webp"
+                      onChange={handleLogoFileSelect}
+                      className="hidden"
+                    />
+                    <div className="flex flex-wrap items-center gap-3 pt-1">
+                      <div className="flex h-16 w-24 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-slate-200 bg-white p-2">
+                        {currentValues.system_logo_url ? (
+                          <img src={currentValues.system_logo_url} alt="Pratinjau logo sistem" className="max-h-full max-w-full object-contain" />
+                        ) : (
+                          <Layers size={28} className="text-blue-600" />
+                        )}
+                      </div>
+                      <Button
+                        type="button"
+                        variant="primary"
+                        size="sm"
+                        onClick={() => logoFileInputRef.current?.click()}
+                        loading={isUploadingLogo}
+                        icon={<UploadCloud size={14} />}
+                      >
+                        Pilih & Unggah Logo
+                      </Button>
+                      {currentValues.system_logo_url && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={handleDeleteLogo}
+                          loading={isDeletingLogo}
+                          icon={<Trash2 size={14} className="text-rose-600" />}
+                          className="text-rose-600 hover:bg-rose-50 hover:text-rose-700"
+                        >
+                          Hapus Logo
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+
+                  <Input
+                    label="Tautan / URL Gambar Logo"
+                    placeholder="https://domain.com/logo.png"
+                    error={errors.system_logo_url?.message}
+                    hint="Terisi otomatis saat Anda mengunggah file di atas, atau masukkan tautan gambar langsung."
+                    {...register('system_logo_url')}
+                  />
+
                   {/* Hidden file input */}
                   <input
                     type="file"

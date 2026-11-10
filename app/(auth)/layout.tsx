@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { Layers } from 'lucide-react';
 import { DemoBanner } from '@/components/layout/DemoBanner';
 import { AuthVisualPanel } from '@/components/auth/AuthVisualPanel';
+import { SystemLogo } from '@/components/layout/SystemLogo';
 
 export const metadata: Metadata = {
   title: 'Autentikasi - SSO Campus',
@@ -15,11 +16,13 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
       {/* ── Left Panel: Form (45-50%) ── */}
       <div className="w-full lg:w-[45%] xl:w-[40%] flex flex-col px-6 sm:px-12 lg:px-16 xl:px-24 py-8 lg:py-10 min-h-screen relative">
         {/* Top Logo */}
-        <div className="flex items-center gap-3 mb-auto">
-          <div className="w-9 h-9 flex items-center justify-center bg-blue-600 rounded-lg shadow-sm text-white">
-            <Layers size={20} strokeWidth={2.5} />
-          </div>
-          <span className="font-bold text-xl tracking-tight text-slate-900">SSO Campus</span>
+        <div className="flex items-center gap-4 mb-auto">
+          <SystemLogo
+            className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-blue-600 text-white shadow-sm"
+            imageClassName="h-full w-full object-contain"
+            fallback={<Layers size={30} strokeWidth={2.25} />}
+          />
+          <span className="font-bold text-2xl tracking-tight text-slate-900">SSO Campus</span>
         </div>
 
         {/* Form Content */}

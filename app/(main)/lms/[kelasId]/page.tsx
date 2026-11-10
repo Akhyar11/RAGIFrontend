@@ -15,6 +15,7 @@ import { ToggleSwitch } from '@/components/ui/ToggleSwitch';
 import { Modal } from '@/components/ui/Modal';
 import { DataTable, ColumnDef } from '@/components/ui/DataTable';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { Alert } from '@/components/ui/Alert';
 import { lmsService } from '@/services/lms.service';
 import { siakadService } from '@/services/siakad.service';
 import KelasForumTab from '@/components/lms/KelasForumTab';
@@ -121,13 +122,24 @@ export default function LmsKelasDetailPage({ params }: PageProps) {
   const kelasId = Number(resolvedParams.kelasId);
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { hasRole, hasPermission } = useAuth();
-  // Dosen/kelola kelas dikenali lewat role ATAU permission `siakad.kelas.manage`
-  // (slug `lms.kelas.manage` tidak pernah dibuat di DB sehingga ceknya sia-sia).
-  const isDosen =
-    hasRole(['dosen', 'admin', 'superadmin', 'kaprodi', 'wakil_prodi', 'admin_siakad']) ||
-    hasPermission('siakad.kelas.manage');
-  const isMahasiswa = !isDosen;
+  const { hasRole, hasPermission, isDosen: isAuthDosen, isSuperAdmin, isAdmin } = useAuth();
+  const [overview, setOverview] = useState<LmsKelasOverview | null>(null);
+  const viewerContext = overview?.viewer_context;
+  const fallbackCanTeach = isAuthDosen || hasRole('dosen_pengajar');
+  const fallbackIsPengelola =
+    !fallbackCanTeach &&
+    (isSuperAdmin || isAdmin || hasRole('admin_siakad') || hasPermission('siakad.kelas.manage'));
+  const canTeach = viewerContext ? viewerContext.can_teach : fallbackCanTeach;
+  const canConfigureKelas = viewerContext
+    ? viewerContext.can_configure_kelas
+    : fallbackCanTeach || fallbackIsPengelola;
+  const isPengelolaReadOnly = viewerContext
+    ? viewerContext.is_pengelola && !viewerContext.can_teach
+    : fallbackIsPengelola;
+  const isDosen = canTeach || isPengelolaReadOnly;
+  const isMahasiswa = viewerContext
+    ? viewerContext.viewer_mode === 'mahasiswa'
+    : !isDosen;
 
   const initialTab: ActiveTab = (searchParams.get('tab') as ActiveTab) || 'pertemuan';
   const [activeTab, setActiveTab] = useState<ActiveTab>(
@@ -135,7 +147,6 @@ export default function LmsKelasDetailPage({ params }: PageProps) {
       ? initialTab
       : 'pertemuan'
   );
-  const [overview, setOverview] = useState<LmsKelasOverview | null>(null);
   const [matrix, setMatrix] = useState<LmsRekapMatrix | null>(null);
   const [matrixLoading, setMatrixLoading] = useState(false);
   const [ketercapaian, setKetercapaian] = useState<LmsKetercapaian | null>(null);
@@ -450,7 +461,7 @@ export default function LmsKelasDetailPage({ params }: PageProps) {
         ]}
         action={
           <div className="flex items-center gap-2">
-            {isDosen && (
+            {canTeach && (
               <Button size="sm" variant="outline" icon={<Upload size={16} />} onClick={() => setShowImport(true)}>
                 Import Materi
               </Button>
@@ -467,6 +478,14 @@ export default function LmsKelasDetailPage({ params }: PageProps) {
           </div>
         }
       />
+
+      {isPengelolaReadOnly && (
+        <Alert variant="info" icon={<ShieldCheck size={18} className="shrink-0 text-slate-600 mt-0.5" />}>
+          <div>
+            <strong>Mode Monitoring Pengelola:</strong> Anda melihat kelas ini sebagai pengelola institusi/prodi. Pengelolaan materi, tugas, nilai, dan presensi dilakukan oleh Dosen Pengampu kelas ini, sedangkan konfigurasi kebijakan kelas tersedia pada tab <strong>Pengaturan</strong>.
+          </div>
+        </Alert>
+      )}
 
       {/* Progress Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -538,10 +557,10 @@ export default function LmsKelasDetailPage({ params }: PageProps) {
 
       {/* Tab Menu */}
       <div className="flex border-b border-slate-200 gap-2 overflow-x-auto">
-        {tabBtn('pertemuan', isDosen ? 'Perkuliahan' : 'Perkuliahan', <Calendar size={16} />)}
+        {tabBtn('pertemuan', 'Perkuliahan', <Calendar size={16} />)}
         {isDosen && tabBtn('rekap', 'Rekap Presensi', <ShieldCheck size={16} />)}
         {tabBtn('forum', 'Forum Diskusi', <MessagesSquare size={16} />)}
-        {isDosen && tabBtn('setting', 'Pengaturan', <Settings size={16} />)}
+        {canConfigureKelas && tabBtn('setting', 'Pengaturan', <Settings size={16} />)}
         {isMahasiswa && tabBtn('tryout', 'Tryout', <ListChecks size={16} />)}
         {isMahasiswa && tabBtn('ketercapaian', 'Ketercapaian MK', <Target size={16} />)}
       </div>
@@ -549,7 +568,7 @@ export default function LmsKelasDetailPage({ params }: PageProps) {
       {/* Tab: Perkuliahan */}
       {activeTab === 'pertemuan' && (
         <div className="space-y-4">
-          {isDosen && (
+          {canTeach && (
             <div className="flex justify-end">
               <Button size="sm" icon={<Plus size={16} />} onClick={openTambah}>
                 Tambah Pertemuan
@@ -566,7 +585,7 @@ export default function LmsKelasDetailPage({ params }: PageProps) {
                   P{p.pertemuan_ke}
                 </div>
                 <div className="flex flex-col gap-2 flex-1 min-w-0">
-                  {isDosen && editingId === p.id ? (
+                  {canTeach && editingId === p.id ? (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <Input
                         label="Judul / Materi"
@@ -616,7 +635,7 @@ export default function LmsKelasDetailPage({ params }: PageProps) {
               </div>
 
               <div className="flex items-center gap-2 justify-end flex-wrap">
-                {isDosen && editingId === p.id ? (
+                {canTeach && editingId === p.id ? (
                   <>
                     <Button size="sm" variant="outline" icon={<X size={16} />} onClick={() => setEditingId(null)}>
                       Batal
@@ -633,7 +652,7 @@ export default function LmsKelasDetailPage({ params }: PageProps) {
                   </>
                 ) : (
                   <>
-                    {isDosen && (
+                    {canTeach && (
                       <Button size="sm" variant="outline" icon={<Pencil size={16} />} onClick={() => startEdit(p)}>
                         Ubah
                       </Button>
@@ -692,8 +711,8 @@ export default function LmsKelasDetailPage({ params }: PageProps) {
         </div>
       )}
 
-      {/* Tab: Pengaturan (dosen) */}
-      {activeTab === 'setting' && isDosen && (
+      {/* Tab: Pengaturan (dosen / pengelola) */}
+      {activeTab === 'setting' && canConfigureKelas && (
         <form
           onSubmit={handleSubmit(onSaveSetting)}
           className="p-6 bg-white rounded-xl border border-slate-200/80 shadow-xs max-w-2xl space-y-4"

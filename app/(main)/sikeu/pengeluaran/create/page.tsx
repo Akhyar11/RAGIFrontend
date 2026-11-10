@@ -18,6 +18,8 @@ interface UnitKas {
   id: number;
   nama_kas: string;
   kanal?: string;
+  status?: boolean;
+  akun_keuangan_id?: number | null;
 }
 
 const KANAL_LABEL: Record<string, string> = {
@@ -72,6 +74,7 @@ interface FormValues {
 export default function CreatePengeluaranPage() {
   const router = useRouter();
   const [unitKasList, setUnitKasList] = useState<UnitKas[]>([]);
+  const [unitKasLoaded, setUnitKasLoaded] = useState(false);
   const [akunBebanList, setAkunBebanList] = useState<AkunBebanOption[]>([]);
   const [submitting, setSubmitting] = useState(false);
 
@@ -85,7 +88,7 @@ export default function CreatePengeluaranPage() {
       npwp_vendor: '',
       jenis_pajak: 'tanpa_pajak',
       tarif_pajak_persen: 0,
-      unit_kas_id: 1,
+      unit_kas_id: 0,
       keterangan: '',
     },
   });
@@ -105,13 +108,19 @@ export default function CreatePengeluaranPage() {
     const fetchUnitKas = async () => {
       try {
         const res = await sikeuService.getUnitKasList();
-        const list = Array.isArray(res.data) ? res.data : [];
+        const list = (Array.isArray(res.data) ? res.data : [])
+          .filter((unit: UnitKas) => unit.status !== false && Boolean(unit.akun_keuangan_id));
         setUnitKasList(list);
         if (list.length > 0) {
           setValue('unit_kas_id', list[0].id);
+        } else {
+          setValue('unit_kas_id', 0);
         }
       } catch {
         setUnitKasList([]);
+        toast.error('Gagal memuat kas/rekening unit. Coba muat ulang halaman.');
+      } finally {
+        setUnitKasLoaded(true);
       }
     };
     const fetchAkunBeban = async () => {
@@ -121,6 +130,7 @@ export default function CreatePengeluaranPage() {
         setAkunBebanList(list);
       } catch {
         setAkunBebanList([]);
+        toast.error('Gagal memuat daftar COA beban.');
       }
     };
     fetchUnitKas();
@@ -137,6 +147,10 @@ export default function CreatePengeluaranPage() {
   );
 
   const onSubmitForm = async (formData: FormValues) => {
+    if (!formData.unit_kas_id) {
+      toast.error('Pilih unit kas yang aktif dan sudah dipetakan ke akun COA.');
+      return;
+    }
     setSubmitting(true);
     try {
       await sikeuService.storePengeluaran({
@@ -183,11 +197,19 @@ export default function CreatePengeluaranPage() {
 
             <Select
               label="Sumber Kas / Rekening Pembayar *"
-              options={unitKasList.map(u => ({ value: u.id.toString(), label: `${u.nama_kas}${kanalLabel(u.kanal)}` }))}
-              value={watch('unit_kas_id')?.toString() || '1'}
+              options={[
+                { value: '', label: 'Pilih kas/rekening yang sudah dipetakan' },
+                ...unitKasList.map(u => ({ value: u.id.toString(), label: `${u.nama_kas}${kanalLabel(u.kanal)}` })),
+              ]}
+              value={watch('unit_kas_id')?.toString() || ''}
               onChange={(val) => setValue('unit_kas_id', Number(val))}
             />
           </div>
+          {unitKasLoaded && unitKasList.length === 0 && (
+            <p role="alert" className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+              Belum ada unit kas aktif dengan COA kas/bank yang terpetakan. Minta admin keuangan menyiapkan pemetaan sebelum mencatat transaksi.
+            </p>
+          )}
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Select

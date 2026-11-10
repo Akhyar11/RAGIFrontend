@@ -13,7 +13,7 @@ import { Badge } from '@/components/ui/Badge';
 import { Modal } from '@/components/ui/Modal';
 import { Checkbox } from '@/components/ui/Checkbox';
 import KelasSelect from '@/components/lms/KelasSelect';
-import PeriodeAkademikSelect from '@/components/lms/PeriodeAkademikSelect';
+import PeriodeAkademikSelect, { useActivePeriodeAkademik } from '@/components/lms/PeriodeAkademikSelect';
 import { toTahunAkademikId } from '@/lib/kelas';
 import { lmsService } from '@/services/lms.service';
 import { LmsForumTopik, FORUM_SORT_BY_OPTIONS } from '@/types/lms.types';
@@ -22,7 +22,7 @@ import { PaginationMeta } from '@/types/api.types';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Filter, RotateCcw, Check, ArrowRight, Users, Plus } from 'lucide-react';
+import { Filter, RotateCcw, Check, ArrowRight, Users, Plus, CalendarDays } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import toast from 'react-hot-toast';
 
@@ -67,6 +67,15 @@ export default function LmsForumListPage() {
   // mahasiswa tetap dapat mengirim balasan pesan.
   const canManageForum = hasPermission('lms.forum.manage');
   const [isTambahOpen, setIsTambahOpen] = useState<boolean>(false);
+  const { activePeriodeId, periodeReady } = useActivePeriodeAkademik();
+
+  useEffect(() => {
+    if (activePeriodeId && !filterTahunAkademik) {
+      setFilterTahunAkademik(activePeriodeId);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activePeriodeId]);
+
   const topikForm = useForm<TopikFormValues>({
     resolver: zodResolver(topikSchema),
     defaultValues: { kelas_id: '', judul: '', is_pinned: false },
@@ -103,8 +112,9 @@ export default function LmsForumListPage() {
   );
 
   useEffect(() => {
+    if (!periodeReady) return;
     fetchData(meta.current_page, meta.per_page);
-  }, [fetchData, meta.current_page, meta.per_page]);
+  }, [fetchData, meta.current_page, meta.per_page, periodeReady]);
 
   const handleApplyFilter = () => {
     setShowFilter(false);
@@ -113,7 +123,7 @@ export default function LmsForumListPage() {
 
   const handleResetFilter = () => {
     setFilterSearch('');
-    setFilterTahunAkademik('');
+    setFilterTahunAkademik(activePeriodeId);
     setFilterKelas('');
     setFilterOrderBy('id');
     setFilterOrderDir('desc');
@@ -197,11 +207,11 @@ export default function LmsForumListPage() {
   return (
     <div className="w-full space-y-6">
       <PageHeader
-        title="Forum Diskusi"
+        title="Diskusi Perkuliahan"
         description="Topik diskusi perkuliahan dari seluruh kelas yang Anda ikuti atau ampu."
         breadcrumbs={[
           { label: 'LMS', href: '/lms' },
-          { label: 'Forum Diskusi' },
+          { label: 'Diskusi' },
         ]}
         action={
           <div className="flex items-center gap-2">

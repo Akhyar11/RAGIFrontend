@@ -32,12 +32,22 @@ interface TaxItem {
 
 interface SetorFormValues {
   ntpn: string;
+  unit_kas_id: number;
+}
+
+interface UnitKasOption {
+  id: number;
+  nama_kas: string;
+  kanal?: string;
+  status?: boolean;
+  akun_keuangan_id?: number | null;
 }
 
 
 
 export default function TaxReportPage() {
   const [data, setData] = useState<TaxItem[]>([]);
+  const [unitKasList, setUnitKasList] = useState<UnitKasOption[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Filter Drawer State — 2-stage
@@ -53,8 +63,8 @@ export default function TaxReportPage() {
   const [activeItem, setActiveItem] = useState<TaxItem | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  const { register, handleSubmit, reset, formState: { errors } } = useForm<SetorFormValues>({
-    defaultValues: { ntpn: '' },
+  const { register, handleSubmit, reset, watch, setValue, formState: { errors } } = useForm<SetorFormValues>({
+    defaultValues: { ntpn: '', unit_kas_id: 0 },
   });
 
   const fetchTaxes = async () => {
@@ -73,18 +83,34 @@ export default function TaxReportPage() {
 
   useEffect(() => {
     fetchTaxes();
+    sikeuService.getUnitKasList()
+      .then((res) => {
+        const units = Array.isArray(res.data) ? res.data : [];
+        setUnitKasList(units.filter((unit: UnitKasOption) => unit.status !== false && Boolean(unit.akun_keuangan_id)));
+      })
+      .catch(() => {
+        setUnitKasList([]);
+        toast.error('Gagal memuat unit kas untuk penyetoran pajak');
+      });
   }, []);
 
   const handleOpenSetor = (item: TaxItem) => {
     setActiveItem(item);
-    reset({ ntpn: '' });
+    reset({ ntpn: '', unit_kas_id: unitKasList[0]?.id ?? 0 });
   };
 
   const onSubmitSetor = async (formData: SetorFormValues) => {
     if (!activeItem) return;
+    if (!formData.unit_kas_id) {
+      toast.error('Pilih unit kas yang aktif dan sudah dipetakan ke akun COA.');
+      return;
+    }
     setSubmitting(true);
     try {
-      await sikeuService.setorPajak(activeItem.id, { ntpn: formData.ntpn });
+      await sikeuService.setorPajak(activeItem.id, {
+        ntpn: formData.ntpn,
+        unit_kas_id: formData.unit_kas_id,
+      });
       toast.success(`Bukti setor NTPN ${formData.ntpn} berhasil dicatat`);
       setActiveItem(null);
       fetchTaxes();
@@ -263,6 +289,19 @@ export default function TaxReportPage() {
           <Input label="Kode NTPN (Nomor Transaksi Penerimaan Negara) *" placeholder="Contoh: 81092830192830"
             {...register('ntpn', { required: 'Kode NTPN wajib diisi' })}
             error={errors.ntpn?.message} />
+
+          <Select
+            label="Unit Kas / Rekening Penyetor *"
+            options={[
+              { value: '', label: 'Pilih kas/rekening yang sudah dipetakan' },
+              ...unitKasList.map((unit) => ({
+                value: String(unit.id),
+                label: `${unit.nama_kas}${unit.kanal ? ` (${unit.kanal})` : ''}`,
+              })),
+            ]}
+            value={String(watch('unit_kas_id') || '')}
+            onChange={(value) => setValue('unit_kas_id', Number(value) || 0)}
+          />
 
           <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
             <Button type="button" variant="ghost" onClick={() => setActiveItem(null)} disabled={submitting} className="font-bold text-slate-600">

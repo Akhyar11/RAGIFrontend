@@ -67,7 +67,6 @@ import {
 import { useUiStore } from '@/store/uiStore';
 import { useAuth } from '@/hooks/useAuth';
 import { SYSTEM_MODULES, APP_NAME, ROUTES } from '@/lib/constants';
-import { resolveDomainContext } from '@/lib/domain';
 import { menuService } from '@/services/menu.service';
 import { moduleService, AppModule } from '@/services/module.service';
 import { Menu } from '@/types/menu';
@@ -210,7 +209,7 @@ const buildRailIconMap = (menus: Menu[]): Map<string | number, any> => {
   return map;
 };
 
-export function Sidebar() {
+export function Sidebar({ tenantModule }: { tenantModule: string }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const currentTab = searchParams.get('tab');
@@ -258,12 +257,8 @@ export function Sidebar() {
     persistFavorites(favorites.includes(url) ? favorites.filter((u) => u !== url) : [...favorites, url]);
   };
 
-  // Determine module based on pathname or hostname dynamically without hardcoding
   const getModule = () => {
-    if (typeof window !== 'undefined') {
-      const ctx = resolveDomainContext(window.location.hostname);
-      if (ctx.isModule && ctx.moduleSlug) return ctx.moduleSlug;
-    }
+    if (tenantModule !== 'default') return tenantModule;
     let mod = 'sso';
     if (pathname.startsWith('/simpeg')) mod = 'simpeg';
     else if (pathname.startsWith('/sippm')) mod = 'sippm';
@@ -308,7 +303,7 @@ export function Sidebar() {
       setMenuError(null);
       setLoading(false);
     }
-  }, [user?.id, pathname]);
+  }, [user?.id, pathname, tenantModule]);
 
   // Satu-satunya URL menu yang boleh aktif: exact match menang, lalu prefix TERPANJANG.
   // Mencegah dua menu beda fitur menyala bersamaan (mis. /siakad/obe + /siakad/obe/cpl).
@@ -318,8 +313,12 @@ export function Sidebar() {
       '/sikeu/master', '/siakad/master', '/simpeg/master',
     ];
     let best: string | null = null;
-    const consider = (url: string) => {
+    const consider = (url: string, isTopLevel = false) => {
       if (!url || url.startsWith('#')) return;
+      if (url === '/lms' && pathname === '/lms/dashboard' && isTopLevel) {
+        if (!best || best.length < url.length) best = url;
+        return;
+      }
       if (moduleRoots.includes(url)) {
         if (pathname === url && (!best || best.length < url.length)) best = url;
         return;
@@ -328,7 +327,7 @@ export function Sidebar() {
       if (!best || best.length < url.length) best = url;
     };
     menus.forEach((m) => {
-      consider(m.url);
+      consider(m.url, true);
       m.children?.forEach((c) => consider(c.url));
     });
     return best;
@@ -345,7 +344,9 @@ export function Sidebar() {
     const consider = (url: string, id: string | number, depth: number) => {
       if (!url || url.startsWith('#')) return;
       let exact = false;
-      if (moduleRoots.includes(url)) {
+      if (url === '/lms' && pathname === '/lms/dashboard' && depth === 0) {
+        exact = true;
+      } else if (moduleRoots.includes(url)) {
         if (pathname !== url) return;
         exact = true;
       } else if (pathname === url) {
@@ -516,12 +517,7 @@ export function Sidebar() {
 
   // Slug modul aktif (domain → segmen path yang cocok dengan Master Modul → memori modul terakhir).
   const activeModuleSlug = useMemo(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const ctx = resolveDomainContext(window.location.hostname);
-        if (ctx.isModule && ctx.moduleSlug) return ctx.moduleSlug;
-      } catch {}
-    }
+    if (tenantModule !== 'default') return tenantModule;
     const seg = pathname.split('/').filter(Boolean)[0]?.toLowerCase() || '';
     if (seg && appModules.some((m) => m.code?.toLowerCase() === seg)) return seg;
     if (seg === ROUTES.PROFILE.replace('/', '') && typeof window !== 'undefined') {
@@ -529,7 +525,7 @@ export function Sidebar() {
       if (saved && appModules.some((m) => m.code?.toLowerCase() === saved.toLowerCase())) return saved;
     }
     return portalModule?.code ?? '';
-  }, [pathname, appModules, portalModule]);
+  }, [pathname, appModules, portalModule, tenantModule]);
 
   // Baris 1: nama aplikasi mengikuti Master Modul portal (setting superadmin).
   const appName = portalModule?.name || APP_NAME;

@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/Input';
 import { Modal } from '@/components/ui/Modal';
 import { Drawer } from '@/components/ui/Drawer';
 import { DataTable, type ColumnDef } from '@/components/ui/DataTable';
-import { DropdownMenu } from '@/components/ui/DropdownMenu';
+import { DropdownMenu, type DropdownMenuItem } from '@/components/ui/DropdownMenu';
 import { Badge } from '@/components/ui/Badge';
 import { Select } from '@/components/ui/Select';
 import { AsyncSelect } from '@/components/ui/AsyncSelect';
@@ -20,9 +20,13 @@ import toast from 'react-hot-toast';
 
 export default function KonversiTransferPage() {
   const router = useRouter();
-  const { user, isSuperAdmin, hasRole, hasPermission } = useAuth();
+  const { isSuperAdmin, hasRole, hasPermission } = useAuth();
   const isDosen = hasRole('dosen');
-  const isStaff = isSuperAdmin || hasRole('admin') || hasPermission('siakad.master.manage') || hasPermission('siakad.kurikulum.manage');
+  const isStaff = isSuperAdmin
+    || hasPermission('siakad.konversi.manage')
+    || hasPermission('siakad.master.manage')
+    || hasPermission('siakad.kurikulum.manage')
+    || hasPermission('siakad.pa.manage');
 
   const [konversis, setKonversis] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -90,16 +94,15 @@ export default function KonversiTransferPage() {
         status: appliedFilters.status !== 'all' ? appliedFilters.status : undefined,
         sort_by: appliedFilters.sortBy,
         sort_order: appliedFilters.sortOrder,
-        advisees_only: isDosen && !isStaff ? true : undefined,
       });
       if (res.data) setKonversis(res.data);
       if (res.meta) setMeta(res.meta);
-    } catch (err: any) {
+    } catch {
       toast.error('Gagal memuat data konversi transfer');
     } finally {
       setLoading(false);
     }
-  }, [page, limit, appliedFilters, isDosen, isStaff]);
+  }, [page, limit, appliedFilters]);
 
   useEffect(() => {
     fetchKonversi();
@@ -142,11 +145,14 @@ export default function KonversiTransferPage() {
   };
 
   const handleSelectAll = () => {
-    setSelectedIds((prev) => (prev.length === konversis.length ? [] : konversis.map((k: any) => k.id)));
+    const eligible = isStaff
+      ? konversis.filter((item: any) => item.status === 'menunggu_kaprodi').map((item: any) => item.id)
+      : [];
+    setSelectedIds((prev) => (eligible.length > 0 && prev.length === eligible.length ? [] : eligible));
   };
 
   const handleBulkVerifikasi = async (status: 'disetujui' | 'ditolak') => {
-    if (selectedIds.length === 0) return;
+    if (!isStaff || selectedIds.length === 0) return;
     try {
       setSavingBulkVerif(true);
       const res = await siakadService.bulkUpdateKonversiStatus({ ids: selectedIds, status });
@@ -160,7 +166,7 @@ export default function KonversiTransferPage() {
     }
   };
 
-  const handleVerifikasi = async (status: 'disetujui' | 'ditolak') => {
+  const handleVerifikasi = async (status: 'menunggu_pa' | 'menunggu_kaprodi' | 'disetujui' | 'ditolak') => {
     if (!verifTarget) return;
     try {
       setSavingVerif(true);
@@ -169,7 +175,7 @@ export default function KonversiTransferPage() {
         catatan: verifCatatan || undefined,
         details: verifDetails,
       });
-      toast.success(res.message || `Konversi ${status}`);
+      toast.success(res.message || `Konversi diproses ke tahap ${status}`);
       setVerifTarget(null);
       fetchKonversi();
     } catch (err: any) {
@@ -191,6 +197,16 @@ export default function KonversiTransferPage() {
     }
   };
 
+  const selectedIdsReadyForFinalDecision = selectedIds.length > 0
+    && selectedIds.every((id) => konversis.some((item: any) => item.id === id && item.status === 'menunggu_kaprodi'));
+  const verificationTargetStatus = verifTarget?.status === 'diajukan'
+    ? 'menunggu_pa'
+    : verifTarget?.status === 'menunggu_pa'
+      ? 'menunggu_kaprodi'
+      : verifTarget?.status === 'menunggu_kaprodi'
+        ? 'disetujui'
+        : null;
+
   const columns: ColumnDef<any>[] = [
     {
       key: 'select',
@@ -198,7 +214,10 @@ export default function KonversiTransferPage() {
         <div className="flex items-center justify-center">
           <Checkbox
             label=""
-            checked={konversis.length > 0 && selectedIds.length === konversis.length}
+            checked={
+              konversis.some((item: any) => item.status === 'menunggu_kaprodi')
+              && selectedIds.length === konversis.filter((item: any) => item.status === 'menunggu_kaprodi').length
+            }
             onChange={handleSelectAll}
           />
         </div>
@@ -209,6 +228,7 @@ export default function KonversiTransferPage() {
           <Checkbox
             label=""
             checked={selectedIds.includes(row.id)}
+            disabled={!isStaff || row.status !== 'menunggu_kaprodi'}
             onChange={() => handleToggleSelect(row.id)}
           />
         </div>
@@ -293,10 +313,10 @@ export default function KonversiTransferPage() {
       align: 'center',
       render: (row) => (
         <Badge
-          variant={row.status === 'disetujui' ? 'green' : row.status === 'diajukan' ? 'amber' : row.status === 'ditolak' ? 'rose' : 'gray'}
+          variant={row.status === 'disetujui' ? 'green' : ['diajukan', 'menunggu_pa', 'menunggu_kaprodi'].includes(row.status) ? 'amber' : row.status === 'ditolak' ? 'rose' : 'gray'}
           className="inline-flex items-center gap-1 capitalize"
         >
-          <CheckCircle2 size={12} /> {row.status}
+          <CheckCircle2 size={12} /> {String(row.status || '').replace(/_/g, ' ')}
         </Badge>
       ),
     },
@@ -304,34 +324,39 @@ export default function KonversiTransferPage() {
       key: 'aksi',
       label: 'AKSI',
       align: 'right',
-      render: (row) => (
-        <div className="flex justify-end">
-          <DropdownMenu
-            items={[
-              {
-                label: 'Edit Usulan MK',
-                icon: <Edit size={14} />,
-                onClick: () => router.push(`/siakad/civitas/konversi/${row.id}/edit`),
-              },
-              ...(row.status !== 'disetujui'
-                ? [
-                    {
-                      label: 'Verifikasi per MK',
-                      icon: <CheckCircle2 size={14} />,
-                      onClick: () => openVerifikasi(row),
-                    },
-                  ]
-                : []),
-              {
-                label: 'Hapus Riwayat Konversi',
-                icon: <Trash2 size={14} />,
-                variant: 'danger',
-                onClick: () => setDeletingKonversi(row),
-              },
-            ]}
-          />
-        </div>
-      ),
+      render: (row) => {
+        const canEdit = isStaff && ['draft', 'diajukan'].includes(row.status);
+        const canVerify = (isStaff && ['diajukan', 'menunggu_kaprodi'].includes(row.status))
+          || (isDosen && row.status === 'menunggu_pa');
+        const canDelete = isStaff && ['draft', 'diajukan'].includes(row.status);
+        const items: DropdownMenuItem[] = [
+          ...(canEdit ? [{
+            label: 'Edit Usulan MK',
+            icon: <Edit size={14} />,
+            onClick: () => router.push(`/siakad/civitas/konversi/${row.id}/edit`),
+          }] : []),
+          ...(canVerify ? [{
+            label: row.status === 'diajukan'
+              ? 'Tinjau Pemetaan & Kirim ke PA'
+              : row.status === 'menunggu_pa'
+                ? 'Verifikasi sebagai Dosen PA'
+                : 'Keputusan Akhir Kaprodi',
+            icon: <CheckCircle2 size={14} />,
+            onClick: () => openVerifikasi(row),
+          }] : []),
+          ...(canDelete ? [{
+            label: 'Hapus Riwayat Konversi',
+            icon: <Trash2 size={14} />,
+            variant: 'danger' as const,
+            onClick: () => setDeletingKonversi(row),
+          }] : []),
+        ];
+        return (
+          <div className="flex justify-end">
+            <DropdownMenu items={items} />
+          </div>
+        );
+      },
     },
   ];
 
@@ -354,13 +379,15 @@ export default function KonversiTransferPage() {
             >
               Filter
             </Button>
-            <Button
-              variant="primary"
-              icon={<Plus size={16} />}
-              onClick={() => router.push('/siakad/civitas/konversi/create')}
-            >
-              Input Konversi Transfer
-            </Button>
+            {isStaff && (
+              <Button
+                variant="primary"
+                icon={<Plus size={16} />}
+                onClick={() => router.push('/siakad/civitas/konversi/create')}
+              >
+                Input Konversi Transfer
+              </Button>
+            )}
           </div>
         }
       />
@@ -380,7 +407,7 @@ export default function KonversiTransferPage() {
       />
 
       {/* Bilah verifikasi massal per mahasiswa */}
-      {selectedIds.length > 0 && (
+      {selectedIdsReadyForFinalDecision && isStaff && (
         <div className="card p-4 flex items-center justify-between border-primary-500 bg-primary-950 text-white shadow-xl animate-fade-in">
           <p className="text-xs font-extrabold text-white">
             {selectedIds.length} Usulan Terpilih
@@ -479,6 +506,8 @@ export default function KonversiTransferPage() {
               { value: 'all', label: 'Semua Status' },
               { value: 'draft', label: 'Draft' },
               { value: 'diajukan', label: 'Diajukan' },
+              { value: 'menunggu_pa', label: 'Menunggu Dosen PA' },
+              { value: 'menunggu_kaprodi', label: 'Menunggu Kaprodi' },
               { value: 'disetujui', label: 'Disetujui' },
               { value: 'ditolak', label: 'Ditolak' },
             ]}
@@ -543,10 +572,20 @@ export default function KonversiTransferPage() {
               Batal
             </Button>
             <Button variant="danger" onClick={() => handleVerifikasi('ditolak')} disabled={savingVerif}>
-              Tolak Semua
+              {verifTarget?.status === 'menunggu_pa' ? 'Tolak oleh PA' : 'Tolak Usulan'}
             </Button>
-            <Button variant="primary" onClick={() => handleVerifikasi('disetujui')} disabled={savingVerif}>
-              {savingVerif ? 'Menyimpan...' : 'Setujui (sesuai tandai)'}
+            <Button
+              variant="primary"
+              onClick={() => verificationTargetStatus && handleVerifikasi(verificationTargetStatus)}
+              disabled={savingVerif || !verificationTargetStatus}
+            >
+              {savingVerif
+                ? 'Menyimpan...'
+                : verificationTargetStatus === 'menunggu_pa'
+                  ? 'Teruskan ke Dosen PA'
+                  : verificationTargetStatus === 'menunggu_kaprodi'
+                    ? 'Setujui PA & Teruskan'
+                    : 'Setujui Final'}
             </Button>
           </>
         }

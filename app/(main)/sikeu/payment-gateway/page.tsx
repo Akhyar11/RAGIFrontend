@@ -7,7 +7,7 @@ import { PaymentGatewayConfigTemplate } from '@/components/sikeu/payment-gateway
 import { GatewayConfigData } from '@/components/sikeu/payment-gateway/organisms/GatewayConfigFormPanel';
 import { H2hStatusData } from '@/components/sikeu/payment-gateway/organisms/H2hStatusSection';
 
-const GATEWAYS = ['xendit', 'duitku', 'bsn_h2h', 'rekening_manual'];
+const GATEWAYS = ['xendit', 'midtrans', 'duitku', 'bsn_h2h', 'rekening_manual'];
 
 const defaultH2hConfig = (): GatewayConfigData => ({
   environment: 'sandbox',

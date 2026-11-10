@@ -7,30 +7,61 @@ import { z } from 'zod';
 import toast from 'react-hot-toast';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
+import { Select } from '@/components/ui/Select';
 import { AsyncSelect } from '@/components/ui/AsyncSelect';
 import { Badge } from '@/components/ui/Badge';
 import { Card } from '@/components/ui/Card';
 import { DataTable, ColumnDef } from '@/components/ui/DataTable';
 import { DropdownMenu } from '@/components/ui/DropdownMenu';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
+import KelasSelect from '@/components/lms/KelasSelect';
 import { lmsService } from '@/services/lms.service';
 import { siakadService } from '@/services/siakad.service';
-import { KELAS_PATTERN } from '@/lib/kelas';
 import { getApiErrorMessage } from '@/lib/utils';
 import type { LmsTryoutPeserta } from '@/types/lms.types';
 import { Copy, Check, Trash2, KeyRound, Users } from 'lucide-react';
 import TryoutKolaboratorCard, { TambahPesertaForm } from './TryoutKolaboratorCard';
 import { extractOptionValue } from './tryoutHelpers';
 
-const pesertaKelasSchema = z.object({
-  kelas: z
-    .string()
-    .min(1, 'Kelas wajib diisi.')
-    .regex(KELAS_PATTERN, 'Format kelas tidak valid. Gunakan 2 digit angkatan + huruf, cth: 25A'),
-  program_studi_id: z.string().optional(),
-});
+const pesertaKelasSchema = z
+  .object({
+    kelas: z.string().optional().default(''),
+    program_studi_id: z.string().optional().default(''),
+    angkatan: z.string().optional().default(''),
+    kelas_perkuliahan_id: z.string().optional().default(''),
+  })
+  .superRefine((val, ctx) => {
+    const hasKelas = Boolean(val.kelas && val.kelas.trim() !== '');
+    const hasProdi = Boolean(val.program_studi_id && val.program_studi_id.trim() !== '');
+    const hasAngkatan = Boolean(val.angkatan && val.angkatan.trim() !== '');
+    const hasKelasKuliah = Boolean(val.kelas_perkuliahan_id && val.kelas_perkuliahan_id.trim() !== '');
+
+    if (!hasKelas && !hasProdi && !hasAngkatan && !hasKelasKuliah) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['kelas'],
+        message: 'Isi minimal satu filter batch (Kelas Mahasiswa, Program Studi, Tahun Angkatan, atau Kelas Perkuliahan).',
+      });
+    }
+    if (hasKelas && !/^[0-9]{2}[A-Za-z0-9\-]{1,10}$/.test(val.kelas.trim())) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['kelas'],
+        message: 'Format kelas mahasiswa tidak valid. Gunakan 2 digit angkatan + huruf, cth: 25A',
+      });
+    }
+  });
 
 type PesertaKelasFormValues = z.infer<typeof pesertaKelasSchema>;
+
+const currentYear = new Date().getFullYear();
+const ANGKATAN_OPTIONS = [
+  { value: '', label: 'Semua Tahun Angkatan' },
+  ...Array.from({ length: 8 }, (_, idx) => {
+    const yr = String(currentYear + 1 - idx);
+    return { value: yr, label: `Angkatan ${yr}` };
+  }),
+];
 
 const salinPesertaSchema = z.object({
   source_quiz_id: z.string().min(1, 'Tryout sumber wajib dipilih.'),
@@ -53,12 +84,20 @@ function SalinPesertaForm({
   });
 
   const loadTryoutOptions = useCallback(async () => {
-    if (!kelasId) return [];
     try {
-      const res = await lmsService.listTryout(kelasId);
+      if (kelasId) {
+        const res = await lmsService.listTryout(kelasId);
+        return (res.data || [])
+          .filter((q) => q.id !== quizId)
+          .map((q) => ({ value: String(q.id), label: q.judul }));
+      }
+      const res = await lmsService.listTryoutSaya({ per_page: 100 });
       return (res.data || [])
         .filter((q) => q.id !== quizId)
-        .map((q) => ({ value: String(q.id), label: q.judul }));
+        .map((q) => ({
+          value: String(q.id),
+          label: `${q.judul}${q.kelas?.nama_kelas ? ` (${q.kelas.nama_kelas})` : ' (Ujian Khusus)'}`,
+        }));
     } catch {
       return [];
     }
@@ -86,12 +125,10 @@ function SalinPesertaForm({
         render={({ field }) => (
           <AsyncSelect
             label="Tryout Sumber"
-            placeholder="Pilih tryout pada kelas ini..."
+            placeholder={kelasId ? 'Pilih tryout pada kelas ini...' : 'Pilih tryout sumber...'}
             value={field.value}
             onChange={(val) => field.onChange(extractOptionValue(val))}
             loadOptions={loadTryoutOptions}
-            isDisabled={!kelasId}
-            hint={kelasId ? undefined : 'Kelas tryout tidak diketahui.'}
             isClearable
             error={form.formState.errors.source_quiz_id?.message}
           />
@@ -104,7 +141,7 @@ function SalinPesertaForm({
           variant="outline"
           icon={<Copy size={16} />}
           loading={form.formState.isSubmitting}
-          disabled={form.formState.isSubmitting || !kelasId}
+          disabled={form.formState.isSubmitting}
         >
           Salin Peserta
         </Button>
@@ -115,8 +152,8 @@ function SalinPesertaForm({
 
 function TambahPesertaKelasForm({ quizId, onAdded }: { quizId: number; onAdded: () => void }) {
   const form = useForm<PesertaKelasFormValues>({
-    resolver: zodResolver(pesertaKelasSchema),
-    defaultValues: { kelas: '', program_studi_id: '' },
+    resolver: zodResolver(pesertaKelasSchema) as any,
+    defaultValues: { kelas: '', program_studi_id: '', angkatan: '', kelas_perkuliahan_id: '' },
   });
 
   const loadProdiOptions = useCallback(async (inputValue: string) => {
@@ -134,18 +171,29 @@ function TambahPesertaKelasForm({ quizId, onAdded }: { quizId: number; onAdded: 
 
   const onSubmit = async (values: PesertaKelasFormValues) => {
     try {
-      const kelas = values.kelas.trim().toUpperCase();
-      const payload: { kelas: string; program_studi_id?: number } = { kelas };
+      const kelas = (values.kelas || '').trim().toUpperCase();
       const prodiVal = (values.program_studi_id || '').trim();
+      const angkatanVal = (values.angkatan || '').trim();
+      const kelasKuliahVal = (values.kelas_perkuliahan_id || '').trim();
+      const payload: {
+        kelas?: string;
+        program_studi_id?: number;
+        angkatan?: number;
+        kelas_perkuliahan_id?: number;
+      } = {};
+      if (kelas) payload.kelas = kelas;
       if (prodiVal) payload.program_studi_id = Number(prodiVal);
+      if (angkatanVal) payload.angkatan = Number(angkatanVal);
+      if (kelasKuliahVal) payload.kelas_perkuliahan_id = Number(kelasKuliahVal);
+
       const res: any = await lmsService.addTryoutPesertaByKelas(quizId, payload);
       const added = Number(res?.data?.added ?? res?.data?.added_count ?? res?.data?.created_count ?? 0);
       const skipped = Number(res?.data?.skipped_count ?? res?.data?.skipped ?? 0);
-      toast.success(`${added} peserta ditambahkan (${skipped} dilewati/sudah terdaftar)`);
-      form.reset({ kelas: '', program_studi_id: '' });
+      toast.success(res?.message || `${added} peserta batch ditambahkan (${skipped} dilewati/sudah terdaftar)`);
+      form.reset({ kelas: '', program_studi_id: '', angkatan: '', kelas_perkuliahan_id: '' });
       onAdded();
     } catch (err: any) {
-      toast.error(err.response?.data?.message || err.message || 'Gagal menambah peserta per kelas');
+      toast.error(err.response?.data?.message || err.message || 'Gagal menambah peserta per batch');
     }
   };
 
@@ -156,15 +204,26 @@ function TambahPesertaKelasForm({ quizId, onAdded }: { quizId: number; onAdded: 
         control={form.control}
         render={({ field }) => (
           <Input
-            label="Kelas"
-            required
-            placeholder="cth: 25A"
+            label="Kelas Mahasiswa (opsional)"
+            placeholder="cth: 25A, 24B"
             maxLength={10}
             value={field.value}
             onChange={(e) => field.onChange(e.target.value.toUpperCase().slice(0, 10))}
             onBlur={field.onBlur}
             hint="Format: 2 digit angkatan + huruf kelas (cth: 25A)"
             error={form.formState.errors.kelas?.message}
+          />
+        )}
+      />
+      <Controller
+        name="angkatan"
+        control={form.control}
+        render={({ field }) => (
+          <Select
+            label="Tahun Angkatan (opsional)"
+            value={field.value || ''}
+            onChange={(val) => field.onChange(extractOptionValue(val))}
+            options={ANGKATAN_OPTIONS}
           />
         )}
       />
@@ -183,6 +242,18 @@ function TambahPesertaKelasForm({ quizId, onAdded }: { quizId: number; onAdded: 
           />
         )}
       />
+      <Controller
+        name="kelas_perkuliahan_id"
+        control={form.control}
+        render={({ field }) => (
+          <KelasSelect
+            label="Dari KRS Kelas Perkuliahan (opsional)"
+            placeholder="Semua kelas perkuliahan..."
+            value={field.value || ''}
+            onChange={(val) => field.onChange(extractOptionValue(val))}
+          />
+        )}
+      />
       <div className="md:col-span-2 flex justify-end">
         <Button
           size="sm"
@@ -191,7 +262,7 @@ function TambahPesertaKelasForm({ quizId, onAdded }: { quizId: number; onAdded: 
           loading={form.formState.isSubmitting}
           disabled={form.formState.isSubmitting}
         >
-          Tambahkan Kelas
+          Tambahkan Batch Peserta
         </Button>
       </div>
     </form>
@@ -255,6 +326,24 @@ export default function TryoutPesertaTab({ quizId, kelasId, peserta, krsCount, k
       ),
     },
     {
+      key: 'kelas_angkatan',
+      label: 'KELAS & ANGKATAN',
+      render: (p) => (
+        <span className="text-xs text-slate-600">
+          {[p.mahasiswa?.kelas, p.mahasiswa?.angkatan ? `Angkatan ${p.mahasiswa.angkatan}` : null]
+            .filter(Boolean)
+            .join(' • ') || '-'}
+        </span>
+      ),
+    },
+    {
+      key: 'prodi',
+      label: 'PROGRAM STUDI',
+      render: (p) => (
+        <span className="text-xs text-slate-600">{p.mahasiswa?.program_studi?.nama || '-'}</span>
+      ),
+    },
+    {
       key: 'aksi',
       label: 'AKSI',
       align: 'right',
@@ -287,11 +376,21 @@ export default function TryoutPesertaTab({ quizId, kelasId, peserta, krsCount, k
             <Users size={20} />
           </div>
           <div>
-            <div className="text-xs text-slate-500">Peserta otomatis (KRS kelas)</div>
-            <div className="text-xs font-bold text-slate-800">
-              {krsCount === null || krsCount === undefined ? '-' : `${krsCount} mahasiswa`}
+            <div className="text-xs text-slate-500">
+              {kelasId ? 'Peserta otomatis (KRS kelas)' : 'Mode Peserta Tryout'}
             </div>
-            <div className="text-2xs text-slate-400">Seluruh mahasiswa KRS aktif dapat mengerjakan.</div>
+            <div className="text-xs font-bold text-slate-800">
+              {kelasId
+                ? krsCount === null || krsCount === undefined
+                  ? '-'
+                  : `${krsCount} mahasiswa`
+                : `Ujian Khusus (${peserta.length} peserta batch)`}
+            </div>
+            <div className="text-2xs text-slate-400">
+              {kelasId
+                ? 'Seluruh mahasiswa KRS aktif dapat mengerjakan.'
+                : 'Peserta diambil dari batch Kelas, Program Studi, atau Tahun Angkatan.'}
+            </div>
           </div>
         </Card>
 
@@ -327,7 +426,9 @@ export default function TryoutPesertaTab({ quizId, kelasId, peserta, krsCount, k
         <div className="space-y-2">
           <div className="flex items-center gap-2">
             <Users size={16} style={{ color: 'var(--module-primary)' }} />
-            <h6 className="text-xs font-bold uppercase tracking-wider text-slate-700">Tambah per Kelas</h6>
+            <h6 className="text-xs font-bold uppercase tracking-wider text-slate-700">
+              Tambah Batch Peserta (Kelas, Prodi & Tahun Angkatan)
+            </h6>
           </div>
           <TambahPesertaKelasForm quizId={quizId} onAdded={onChanged} />
         </div>

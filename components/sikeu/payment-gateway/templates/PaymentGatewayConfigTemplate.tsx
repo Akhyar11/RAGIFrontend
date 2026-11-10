@@ -15,6 +15,10 @@ import { AutomationSection } from '../organisms/AutomationSection';
 import { SecuritySection } from '../organisms/SecuritySection';
 import { SaveConfigurationBar } from '../organisms/SaveConfigurationBar';
 import { GatewayConfigData } from '../organisms/GatewayConfigFormPanel';
+import { MidtransTrialModal } from '../organisms/MidtransTrialModal';
+import { MidtransSnapModal } from '../organisms/MidtransSnapModal';
+import { Sparkles, FlaskConical, CreditCard } from 'lucide-react';
+import { Button } from '@/components/ui/Button';
 
 interface PaymentGatewayConfigTemplateProps {
   activeTab: string;
@@ -52,6 +56,9 @@ export function PaymentGatewayConfigTemplate({
 }: PaymentGatewayConfigTemplateProps) {
   const isH2h = activeTab === 'bsn_h2h';
   const isRekening = activeTab === 'rekening_manual';
+  const isMidtrans = activeTab === 'midtrans';
+  const [isTrialOpen, setIsTrialOpen] = React.useState(false);
+  const [isSnapOpen, setIsSnapOpen] = React.useState(false);
 
   if (isRekening) {
     return (
@@ -119,9 +126,74 @@ export function PaymentGatewayConfigTemplate({
         {/* Section 4: Gateway Priority Status */}
         <SecuritySection gatewayName={activeTab} config={currentConfig} onChange={onFormChange} />
 
+        {/* Section 5: Trial / Simulasi Pembayaran (Khusus Midtrans) */}
+        {isMidtrans && (
+          <div className="p-4 sm:p-5 bg-gradient-to-r from-slate-50 to-blue-50/50 border border-slate-200 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-2xs">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <span
+                  className="p-1.5 text-white rounded-lg"
+                  style={{ backgroundColor: 'var(--module-primary, #2563eb)' }}
+                >
+                  <Sparkles size={16} />
+                </span>
+                <span className="font-extrabold text-sm text-slate-900">Uji Coba &amp; Simulasi Pembayaran Midtrans</span>
+              </div>
+              <p className="text-xs text-slate-600">
+                Lakukan trial pembayaran sandbox tanpa uang riil untuk memastikan verifikasi SHA512, pelunasan tagihan, mutasi kas, dan jurnal akuntansi berjalan sempurna.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2 shrink-0">
+              <Button
+                type="button"
+                variant="outline"
+                size="md"
+                icon={<CreditCard size={16} />}
+                onClick={() => setIsSnapOpen(true)}
+                style={{
+                  borderColor: 'var(--module-primary, #2563eb)',
+                  color: 'var(--module-primary, #2563eb)',
+                }}
+                className="bg-white hover:opacity-90 font-bold shrink-0 shadow-2xs h-10 px-4"
+              >
+                Uji Coba Popup Snap
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="md"
+                icon={<FlaskConical size={16} />}
+                onClick={() => setIsTrialOpen(true)}
+                style={{
+                  borderColor: 'var(--module-primary, #2563eb)',
+                  color: 'var(--module-primary, #2563eb)',
+                }}
+                className="bg-white hover:opacity-90 font-bold shrink-0 shadow-2xs h-10 px-4"
+              >
+                Simulasi 1-Klik
+              </Button>
+            </div>
+          </div>
+        )}
+
         {/* Action Save Bar */}
         <SaveConfigurationBar activeTab={activeTab} saving={savingConfig} onSave={onSaveConfig} />
       </form>
+
+      {/* Modal Trial Pembayaran Midtrans (1-Klik Sandbox Callback) */}
+      <MidtransTrialModal
+        isOpen={isTrialOpen}
+        onClose={() => setIsTrialOpen(false)}
+        onSuccess={onSyncBalance}
+      />
+
+      {/* Modal Popup Midtrans Snap (Checkout Simulation) */}
+      <MidtransSnapModal
+        isOpen={isSnapOpen}
+        onClose={() => setIsSnapOpen(false)}
+        onPaymentSuccess={onSyncBalance}
+      />
     </div>
   );
 }

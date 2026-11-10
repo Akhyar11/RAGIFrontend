@@ -92,20 +92,22 @@ function isSafeRedirect(target: string, host: string, baseDomain: string): boole
 // ============================================================
 
 export async function proxy(request: NextRequest) {
-  // 0. Cegah re-processing jika request sudah pernah di-rewrite secara internal
-  if (request.headers.get('x-proxy-rewritten') === '1') {
-    return NextResponse.next();
-  }
-
   const host =
     request.headers.get('x-forwarded-host') ||
     request.headers.get('host') ||
     '';
 
-  // Baca pemetaan domain dari Vercel Edge Config (fail-open ke konfigurasi statis).
   const config = await getTenantConfig();
   const ctx = resolveDomainContextWithConfig(host, config);
   const { pathname } = request.nextUrl;
+
+  if (ctx.isUnknownDomain) {
+    return new NextResponse('Not Found', { status: 404 });
+  }
+
+  if (request.headers.get('x-proxy-rewritten') === '1') {
+    return NextResponse.next();
+  }
 
   // Header tenant yang diteruskan ke Server Components (headers().get('x-tenant-*')).
   const tenantHeaders = new Headers(request.headers);
@@ -118,13 +120,22 @@ export async function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // 1b. Domain tak dikenal (bukan base domain, bukan dev/preview, tidak
-  //     dipetakan) -> arahkan ke portal utama agar tidak menyajikan portal
-  //     di domain pihak ketiga.
-  if (ctx.isUnknownDomain && config.baseDomains.length > 0) {
-    const portalUrl = new URL(pathname || '/', `https://sso.${config.baseDomains[0]}`);
-    portalUrl.search = request.nextUrl.search;
-    return NextResponse.redirect(portalUrl);
+  if (ctx.isDefault) {
+    const firstSegment = pathname.split('/')[1]?.toLowerCase();
+    const mappedModuleHost = firstSegment
+      ? Object.entries(config.domainMap).find(([, module]) => module === firstSegment)?.[0]
+      : undefined;
+
+    if (firstSegment && firstSegment in MODULE_LABELS) {
+      if (!mappedModuleHost) {
+        return new NextResponse('Not Found', { status: 404 });
+      }
+
+      const restPath = pathname.slice(firstSegment.length + 1);
+      const targetUrl = new URL(restPath || '/', `https://${mappedModuleHost}`);
+      targetUrl.search = request.nextUrl.search;
+      return NextResponse.redirect(targetUrl);
+    }
   }
 
   const tokenKey = getAuthTokenKey(ctx.isDemo, host);

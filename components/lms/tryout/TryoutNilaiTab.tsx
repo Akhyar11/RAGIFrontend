@@ -88,10 +88,17 @@ export default function TryoutNilaiTab({ quiz, komponenObe, onChanged }: TryoutN
 
       <div className="flex items-start gap-2 p-3 rounded-xl bg-slate-50 border border-slate-200 text-2xs text-slate-600">
         <Info size={16} className="shrink-0 mt-0.5 text-slate-400" />
-        <span>
-          Pilih komponen penilaian OBE mata kuliah untuk menautkan tryout ini. Nilai attempt mahasiswa yang sudah
-          dinilai (termasuk nilai manual uraian) tersinkron otomatis ke komponen tersebut.
-        </span>
+        <div className="space-y-1">
+          <p className="font-semibold text-slate-700">Fleksibilitas Penilaian OBE vs Latihan Mandiri:</p>
+          <ul className="list-disc list-inside space-y-0.5 text-slate-600">
+            <li>
+              <strong>Untuk Nilai Resmi (Mini Quiz / Tugas / UTS / UAS):</strong> Pilih komponen penilaian OBE di bawah ini. Nilai pengerjaan mahasiswa akan otomatis disinkronkan ke rekap penilaian akademik & ketercapaian CPL prodi.
+            </li>
+            <li>
+              <strong>Untuk Tryout / Latihan Mandiri (Tanpa Masuk Nilai):</strong> Kosongkan komponen OBE (pilih &quot;Hanya Latihan Mandiri (Tanpa Sinkron OBE)&quot;). Mahasiswa tetap bisa mengerjakan dan melihat hasil evaluasi tanpa mempengaruhi nilai akhir mata kuliah.
+            </li>
+          </ul>
+        </div>
       </div>
 
       <form onSubmit={form.handleSubmit(onSubmit)} className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
@@ -100,14 +107,14 @@ export default function TryoutNilaiTab({ quiz, komponenObe, onChanged }: TryoutN
           control={form.control}
           render={({ field }) => (
             <Select
-              label="Komponen Penilaian OBE"
-              placeholder="Pilih komponen... (kosongkan = lepas tautan)"
+              label="Komponen Penilaian OBE (Sinkronisasi Nilai)"
+              placeholder="Pilih komponen... (kosongkan = hanya latihan)"
               value={field.value}
               onChange={field.onChange}
-              options={komponenObe.map((k) => ({ value: String(k.id), label: `${k.nama_komponen} • ${k.bobot}%` }))}
+              options={komponenObe.map((k) => ({ value: String(k.id), label: `${k.nama_komponen} • ${k.bobot}% (Sinkron OBE)` }))}
               isClearable
               isDisabled={komponenObe.length === 0}
-              hint={komponenObe.length === 0 ? 'Belum ada komponen OBE pada kelas ini.' : undefined}
+              hint={komponenObe.length === 0 ? 'Belum ada komponen OBE pada kelas ini.' : 'Kosongkan jika hanya untuk tryout / simulasi latihan mandiri.'}
               error={form.formState.errors.komponen_penilaian_id?.message}
             />
           )}

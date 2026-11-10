@@ -235,9 +235,23 @@ export interface LmsKelasItem {
   mahasiswa_count?: number;
 }
 
+export type LmsViewerMode = 'dosen' | 'mahasiswa' | 'pengelola';
+
+export interface LmsViewerContext {
+  viewer_mode: LmsViewerMode;
+  is_pengampu: boolean;
+  is_peserta_krs: boolean;
+  is_pengelola: boolean;
+  can_teach: boolean;
+  can_configure_kelas: boolean;
+  can_participate: boolean;
+  can_export: boolean;
+}
+
 export interface LmsKelasOverview {
   kelas: LmsKelasItem;
   lms_setting: LmsKelasSetting;
+  viewer_context?: LmsViewerContext;
   komponen_obe?: Array<{
     id: number;
     nama_komponen: string;
@@ -412,7 +426,10 @@ export interface LmsPertemuanItem {
 
 export interface LmsTokenGenerate {
   pertemuan_id: number;
+  kelas_id?: number;
   token: string;
+  qr_payload?: string;
+  rotate_interval_seconds?: number;
   ttl_menit: number;
   window_menit: number;
   expired_at: string;
@@ -421,14 +438,53 @@ export interface LmsTokenGenerate {
 
 export interface LmsTokenRotate {
   pertemuan_id: number;
+  kelas_id?: number;
   token: string;
+  qr_payload?: string;
+  rotate_interval_seconds?: number;
   ttl_detik: number;
   expired_at: string;
   sisa_detik: number;
 }
 
+export interface LmsBukaSesiPresensiResponse extends LmsTokenRotate {
+  window_menit?: number;
+  pertemuan?: LmsPertemuanItem;
+}
+
+export interface LmsScanPresensiResult {
+  pertemuan_id: number;
+  pertemuan_ke: number;
+  tanggal: string;
+  materi?: string | null;
+  kelas_id: number;
+  kode_kelas?: string | null;
+  nama_kelas?: string | null;
+  mata_kuliah?: string | null;
+  status: string;
+  waktu_absen: string;
+}
+
+export interface LmsSesiPresensiAktifItem {
+  pertemuan_id: number;
+  pertemuan_ke: number;
+  tanggal: string;
+  jam_mulai?: string | null;
+  jam_selesai?: string | null;
+  materi?: string | null;
+  kelas_id: number;
+  kode_kelas?: string | null;
+  nama_kelas?: string | null;
+  mata_kuliah?: string | null;
+  ruangan?: string | null;
+  sudah_absen: boolean;
+  status_absensi?: string | null;
+  waktu_absen?: string | null;
+}
+
 export interface LmsPertemuanDetail {
   pertemuan: LmsPertemuanItem;
+  viewer_context?: LmsViewerContext;
   materi_list: LmsMateriItem[];
   tugas_list: LmsTugasItem[];
   quiz_list: LmsQuizItem[];
@@ -437,8 +493,11 @@ export interface LmsPertemuanDetail {
     mahasiswa_id: number;
     nim: string;
     nama_lengkap: string;
-    status: 'hadir' | 'sakit' | 'izin' | 'alfa' | 'belum_absen';
+    status: string | null;
+    status_label?: string | null;
     catatan?: string | null;
+    is_submitted?: boolean;
+    waktu_absen?: string | null;
   }>;
   izin_list: LmsIzinAbsensiItem[];
   komponen_obe_list?: Array<{
@@ -458,6 +517,15 @@ export interface LmsPertemuanDetail {
   } | null;
   my_pengumpulan?: Record<number, LmsPengumpulanTugas>;
   my_izin?: LmsIzinAbsensiItem | null;
+}
+
+export interface LmsPertemuanAbsensiRoster {
+  pertemuan_id: number;
+  absensi_list: LmsPertemuanDetail['absensi_list'];
+  total_peserta: number;
+  total_sudah_absen: number;
+  total_belum_absen: number;
+  refreshed_at: string;
 }
 
 export interface LmsRekapAbsensi {
@@ -506,6 +574,9 @@ export interface LmsQuizItem {
   is_archived: boolean;
   kode_akses?: string | null;
   soal_count?: number;
+  tryout_peserta_count?: number;
+  kolaborator_dosen_ids?: number[];
+  kolaborators?: LmsQuizKolaborator[];
   /** Hanya terisi pada endpoint agregat `/lms/tryout`. */
   kelas?: LmsKelasRingkas | null;
 }
@@ -556,7 +627,15 @@ export interface LmsTryoutPeserta {
   id: number;
   quiz_id: number;
   mahasiswa_id: number;
-  mahasiswa?: { id: number; nim: string; nama_lengkap: string };
+  mahasiswa?: {
+    id: number;
+    nim: string;
+    nama_lengkap: string;
+    kelas?: string | null;
+    angkatan?: number | null;
+    program_studi_id?: number | null;
+    program_studi?: { id: number; kode_prodi: string; nama: string; jenjang?: string } | null;
+  };
 }
 
 /** Hasil pencarian mahasiswa untuk pemilih peserta tryout (`GET /lms/mahasiswa/search`). */
@@ -565,6 +644,7 @@ export interface LmsMahasiswaRingkas {
   nim: string;
   nama_lengkap: string;
   program_studi_id?: number | null;
+  angkatan?: number | null;
   kelas?: string | null;
   status?: string | null;
   program_studi?: { id: number; kode_prodi: string; nama: string; jenjang?: string } | null;
@@ -775,30 +855,7 @@ export const LMS_EXPORT_JENIS_LABEL: Record<LmsExportJenis, string> = {
   tryout: 'Hasil Pengerjaan Tryout',
 };
 
-// ── Integrasi PresensiV2 (Panel Administrasi Presensi LMS) ──
-
-/**
- * Status sinkronisasi satu baris data presensi terhadap PresensiV2.
- *
- * Closed-set dari domain, dinormalisasi di backend pada trait
- * `App\Models\Concerns\HasPresensiSyncStatus` (LMS-03). Tidak ada tabel
- * master untuk nilai ini — tetap sebagai konstanta terpusat.
- */
-export type LmsPresensiSyncStatus = 'local' | 'pending' | 'synced' | 'failed';
-
-export const LMS_PRESENSI_SYNC_STATUS_OPTIONS: SelectOption[] = [
-  { value: 'local', label: 'Hanya di LMS' },
-  { value: 'pending', label: 'Menunggu Sinkron' },
-  { value: 'synced', label: 'Tersinkron' },
-  { value: 'failed', label: 'Gagal Sinkron' },
-];
-
-export const LMS_PRESENSI_SYNC_STATUS_LABEL: Record<LmsPresensiSyncStatus, string> = {
-  local: 'Hanya di LMS',
-  pending: 'Menunggu Sinkron',
-  synced: 'Tersinkron',
-  failed: 'Gagal Sinkron',
-};
+// ── Monitoring Presensi Lokal LMS / SIAKAD RAG ──
 
 /**
  * Status kehadiran mahasiswa pada satu pertemuan.
@@ -821,68 +878,7 @@ export const LMS_PRESENSI_ABSEN_STATUS_LABEL: Record<LmsPresensiAbsenStatus, str
   alfa: 'Alfa',
 };
 
-/**
- * Status percobaan sinkronisasi yang tercatat pada log integrasi.
- *
- * Sejalan dengan `LmsPresensiSyncLog::STATUS_*` di backend.
- */
-export type LmsPresensiLogStatus = 'success' | 'failed' | 'partial' | 'skipped';
-
-export const LMS_PRESENSI_LOG_STATUS_OPTIONS: SelectOption[] = [
-  { value: 'success', label: 'Berhasil' },
-  { value: 'failed', label: 'Gagal' },
-  { value: 'partial', label: 'Sebagian' },
-  { value: 'skipped', label: 'Dilewati' },
-];
-
-export const LMS_PRESENSI_LOG_STATUS_LABEL: Record<LmsPresensiLogStatus, string> = {
-  success: 'Berhasil',
-  failed: 'Gagal',
-  partial: 'Sebagian',
-  skipped: 'Dilewati',
-};
-
-/**
- * Transport sinkronisasi integrasi PresensiV2.
- *
- * Sejalan dengan config `lms_integration.presensi.mode` di backend.
- */
-export type LmsPresensiTransport = 'api' | 'db' | 'none';
-
-export const LMS_PRESENSI_TRANSPORT_LABEL: Record<LmsPresensiTransport, string> = {
-  api: 'REST API PresensiV2',
-  db: 'Direct Database PresensiV2',
-  none: 'Belum Terintegrasi',
-};
-
-/** Ringkasan status integrasi PresensiV2 + feature flag presensi LMS. */
-export interface LmsPresensiStatus {
-  configured: boolean;
-  mode: string;
-  via: LmsPresensiTransport;
-  api_url: string;
-  timeout: number;
-  db_connection: string;
-  api_reachable: boolean;
-  db_reachable: boolean;
-  message: string;
-  fitur_presensi_aktif: boolean;
-  total_pertemuan: number;
-  total_gagal_sync: number;
-  total_tersinkron: number;
-  sinkron_terakhir?: LmsPresensiSinkronTerakhir | null;
-}
-
-/** Ringkasan percobaan sinkronisasi terakhir (dipotong oleh backend). */
-export interface LmsPresensiSinkronTerakhir {
-  aksi: string;
-  status: LmsPresensiLogStatus;
-  via: LmsPresensiTransport;
-  message: string | null;
-  created_at: string;
-}
-
-/** Ringkasan absensi sebuah kelas pada panel administrasi presensi. */
+/** Ringkasan presensi lokal sebuah kelas. */
 export interface LmsPresensiKelasItem {
   id: number;
   kode_kelas: string;
@@ -891,8 +887,6 @@ export interface LmsPresensiKelasItem {
   program_studi?: { id: number; nama: string; kode_prodi?: string } | null;
   tahun_akademik?: { id: number; kode: string; nama: string } | null;
   jumlah_sesi: number;
-  jumlah_gagal_sync: number;
-  jumlah_tersinkron: number;
   jumlah_rekap: number;
   jumlah_hadir: number;
 }
@@ -902,8 +896,6 @@ export interface LmsPresensiRekapItem {
   id: number;
   status: LmsPresensiAbsenStatus;
   catatan: string | null;
-  sync_status: LmsPresensiSyncStatus;
-  synced_at: string | null;
   pertemuan_id: number;
   pertemuan_ke: number;
   tanggal: string;
@@ -916,46 +908,7 @@ export interface LmsPresensiRekapItem {
   nama_lengkap: string;
 }
 
-/** Jejak percobaan sinkronisasi ke PresensiV2. */
-export interface LmsPresensiSyncLogItem {
-  id: number;
-  entitas: string;
-  entitas_id: number;
-  kelas_id: number | null;
-  pertemuan_ke: number | null;
-  aksi: string;
-  status: LmsPresensiLogStatus;
-  via: LmsPresensiTransport;
-  message: string | null;
-  created_at: string;
-  updated_at?: string;
-  /** Pengguna yang memicu sinkronisasi (bila ada). */
-  user?: { id: number; name: string; username: string } | null;
-}
-
-/** Cakupan sinkronisasi ulang: satu pertemuan atau satu kelas. */
-export interface LmsPresensiSyncPayload {
-  pertemuan_id?: number | null;
-  kelas_id?: number | null;
-}
-
-/** Hasil aksi sinkronisasi ulang (LMS → PresensiV2). */
-export interface LmsPresensiSyncResult {
-  success: boolean;
-  message: string;
-  pertemuan?: Record<string, { success: boolean; message: string; via?: string }>;
-}
-
-/** Hasil penarikan riwayat dari PresensiV2 ke LMS. */
-export interface LmsPresensiTarikResult {
-  success: boolean;
-  message: string;
-  via?: LmsPresensiTransport;
-  jurnal_ditarik?: number;
-  rekap_ditarik?: number;
-}
-
-/** Pilihan kolom pengurutan daftar kelas pada panel presensi. */
+/** Pilihan kolom pengurutan daftar kelas. */
 export const LMS_PRESENSI_SORT_BY_OPTIONS: SelectOption[] = [
   { value: 'kode_kelas', label: 'Kode Kelas' },
   { value: 'nama_kelas', label: 'Nama Kelas' },
@@ -1054,8 +1007,26 @@ export const LMS_NOTIFIKASI_READ_OPTIONS: SelectOption[] = [
 ];
 
 /** Ringkasan dashboard LMS (`GET /lms/dashboard/overview`). */
+export interface LmsDashboardClass {
+  id: number;
+  kode_kelas: string;
+  nama_kelas: string;
+  hari: string | null;
+  jam_mulai: string | null;
+  jam_selesai: string | null;
+  mata_kuliah: { id: number; kode: string; nama: string } | null;
+}
+
 export interface LmsDashboardOverview {
   role: 'mahasiswa' | 'dosen' | 'pengelola';
+  jadwal: {
+    hari_ini: string;
+    tanggal: string;
+    kelas: {
+      hari_ini: LmsDashboardClass[];
+      semua: LmsDashboardClass[];
+    };
+  };
   ringkasan: {
     kelas: number;
     tugas_aktif: number;
@@ -1065,6 +1036,41 @@ export interface LmsDashboardOverview {
   };
   tambahan: Record<string, number>;
   tren: Array<{ tanggal: string; pengumpulan: number; attempt: number }>;
+  preview: {
+    tugas: Array<{
+      id: number;
+      judul: string;
+      deadline_at: string | null;
+      pertemuan_id: number;
+      kelas_id: number;
+      kode_kelas: string;
+      nama_kelas: string;
+      mata_kuliah: { id: number; kode: string; nama: string } | null;
+      belum_dinilai: number | null;
+    }>;
+    kuis: Array<{
+      id: number;
+      judul: string;
+      tipe: 'kuis' | 'tryout';
+      dibuka_at: string | null;
+      deadline_at: string | null;
+      pertemuan_id: number | null;
+      kelas_id: number;
+      kode_kelas: string;
+      nama_kelas: string;
+      mata_kuliah: { id: number; kode: string; nama: string } | null;
+    }>;
+    materi: Array<{
+      id: number;
+      judul: string;
+      updated_at: string | null;
+      pertemuan_id: number;
+      kelas_id: number;
+      kode_kelas: string;
+      nama_kelas: string;
+      mata_kuliah: { id: number; kode: string; nama: string } | null;
+    }>;
+  };
 }
 
 /** Tipe nilai pengaturan modul LMS (mengikuti definisi backend). */
@@ -1091,3 +1097,23 @@ export interface LmsPengaturanModul {
 
 /** Pengaturan publik (`GET /lms/public/settings`). */
 export type LmsPublicSettings = Record<string, boolean | number | string>;
+
+/** Item monitoring keaktifan mengajar dosen (Super Admin / Admin). */
+export interface LmsKeaktifanDosenItem {
+  kelas_id: number;
+  kode_kelas: string;
+  nama_kelas: string;
+  prodi: { id: number; nama: string; kode?: string } | null;
+  mata_kuliah: { id: number; nama: string; kode?: string } | null;
+  dosen_pengampu: Array<{
+    id: number;
+    nama: string;
+    nidn?: string;
+    is_koordinator?: boolean;
+  }>;
+  total_pertemuan: number;
+  pertemuan_terisi: number;
+  pertemuan_selesai: number;
+  persentase_keaktifan: number;
+  status_keaktifan: 'Sangat Aktif' | 'Cukup Aktif' | 'Perlu Perhatian' | 'Belum Ada Presensi' | string;
+}

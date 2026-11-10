@@ -21,6 +21,7 @@ export default function BankSoalCreatePage() {
       tingkat_kesulitan: 'sedang' as any,
       bobot: 0,
       pertanyaan: '',
+      gambar_path: '',
       kunci_jawaban: '',
       pembahasan: '',
     },
@@ -36,6 +37,7 @@ export default function BankSoalCreatePage() {
         tingkat_kesulitan: values.tingkat_kesulitan,
         bobot: Number(values.bobot) || 0,
         pertanyaan: values.pertanyaan.trim(),
+        gambar_path: values.gambar_path?.trim() || undefined,
         kunci_jawaban: values.kunci_jawaban?.trim() || undefined,
         pembahasan: values.pembahasan?.trim() || undefined,
       });

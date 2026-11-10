@@ -135,7 +135,7 @@ export function resolveDomainContextWithConfig(
   // 1. Pemetaan eksplisit (custom domain).
   const mapped = config.domainMap[host];
   if (mapped) {
-    if (mapped === 'default' || reserved.has(mapped)) {
+    if (mapped === 'default' || mapped === 'sso' || reserved.has(mapped)) {
       return buildContext(host, '', '', true, false, reserved);
     }
     return buildContext(host, '', mapped, true, false, reserved);
@@ -159,7 +159,7 @@ export function resolveDomainContextWithConfig(
   }
 
   if (baseDomain) {
-    return buildContext(host, baseDomain, subdomain, false, false, reserved);
+    return buildContext(host, '', '', false, true, reserved);
   }
 
   // 3. Host platform Vercel (preview/production) -> portal default.
@@ -230,10 +230,12 @@ export function getCookieDomain(hostname?: string): string {
   if (typeof window === 'undefined' && !hostname) return '';
   const host = (hostname || (typeof window !== 'undefined' ? window.location.hostname : '')).trim().toLowerCase().split(':')[0];
   const ctx = resolveDomainContext(host);
-  if (ctx.baseDomain) {
-    return `domain=.${ctx.baseDomain}; `;
-  }
-  return '';
+  const parentDomain =
+    ctx.baseDomain ||
+    BASE_DOMAINS.filter((domain) => host === domain || host.endsWith(`.${domain}`))
+      .sort((a, b) => b.length - a.length)[0];
+
+  return parentDomain ? `domain=.${parentDomain}; ` : '';
 }
 
 /**

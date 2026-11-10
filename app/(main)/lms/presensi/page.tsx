@@ -4,50 +4,44 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { DataTable, ColumnDef } from '@/components/ui/DataTable';
 import { Drawer } from '@/components/ui/Drawer';
+import { DropdownMenu } from '@/components/ui/DropdownMenu';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import { Badge } from '@/components/ui/Badge';
 import { Modal } from '@/components/ui/Modal';
-import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
-import { DropdownMenu } from '@/components/ui/DropdownMenu';
-import { StatCard } from '@/components/ui/StatCard';
+import PeriodeAkademikSelect, { useActivePeriodeAkademik } from '@/components/lms/PeriodeAkademikSelect';
+import { toTahunAkademikId } from '@/lib/kelas';
 import { lmsService } from '@/services/lms.service';
+import { useAuth } from '@/hooks/useAuth';
 import { downloadBlobFile } from '@/lib/download';
 import { formatDateTime, getApiErrorMessage } from '@/lib/utils';
 import { SORT_ORDER_OPTIONS } from '@/lib/constants';
+import { useRouter, useSearchParams } from 'next/navigation';
 import {
   LMS_EXPORT_FORMAT_OPTIONS,
   LMS_PRESENSI_ABSEN_STATUS_LABEL,
   LMS_PRESENSI_ABSEN_STATUS_OPTIONS,
-  LMS_PRESENSI_LOG_STATUS_LABEL,
-  LMS_PRESENSI_LOG_STATUS_OPTIONS,
   LMS_PRESENSI_SORT_BY_OPTIONS,
-  LMS_PRESENSI_SYNC_STATUS_LABEL,
-  LMS_PRESENSI_SYNC_STATUS_OPTIONS,
-  LMS_PRESENSI_TRANSPORT_LABEL,
   LmsExportFormat,
   LmsPresensiKelasItem,
   LmsPresensiRekapItem,
-  LmsPresensiStatus,
-  LmsPresensiSyncLogItem,
+  LmsKeaktifanDosenItem,
 } from '@/types/lms.types';
 import type { PaginationMeta } from '@/types/api.types';
 import {
   Building2,
+  CalendarDays,
   Check,
   ClipboardList,
-  CloudDownload,
-  CloudUpload,
   Download,
-  Fingerprint,
   Filter,
-  History,
   RotateCcw,
+  UserCheck,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
-type TabKey = 'kelas' | 'rekap' | 'log';
+type TabKey = 'keaktifan' | 'kelas' | 'rekap';
 
 const EMPTY_META: PaginationMeta = {
   current_page: 1,
@@ -57,88 +51,115 @@ const EMPTY_META: PaginationMeta = {
 };
 
 const TABS: { key: TabKey; label: string; icon: typeof Building2 }[] = [
+  { key: 'keaktifan', label: 'Keaktifan Dosen', icon: UserCheck },
   { key: 'kelas', label: 'Kelas', icon: Building2 },
   { key: 'rekap', label: 'Rekap Kehadiran', icon: ClipboardList },
-  { key: 'log', label: 'Log Sinkronisasi', icon: History },
 ];
 
+const getTabFromQuery = (value: string | null): TabKey =>
+  value === 'kelas' || value === 'rekap' ? value : 'keaktifan';
+
 /**
- * Panel administrasi integrasi presensi LMS &lt;-&gt; PresensiV2 (LMS-03).
- *
- * Halaman ini hanya untuk admin/superadmin (permission `lms.presensi.read` /
- * `lms.presensi.manage`). Menampilkan status integrasi, rekap kehadiran lintas
- * kelas, jejak sinkronisasi, serta aksi sinkron ulang, tarik riwayat, dan
- * export rekap.
+ * Monitoring keaktifan mengajar dan rekap presensi lokal RAG/SIAKAD.
  */
 export default function LmsPresensiPage() {
-  const [tab, setTab] = useState<TabKey>('kelas');
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const { hasPermission } = useAuth();
+  const canManage = hasPermission('lms.presensi.manage');
+  const tab = getTabFromQuery(searchParams.get('tab'));
 
-  const [status, setStatus] = useState<LmsPresensiStatus | null>(null);
-  const [isLoadingStatus, setIsLoadingStatus] = useState(true);
-
+  const [keaktifanRows, setKeaktifanRows] = useState<LmsKeaktifanDosenItem[]>([]);
   const [kelasRows, setKelasRows] = useState<LmsPresensiKelasItem[]>([]);
   const [rekapRows, setRekapRows] = useState<LmsPresensiRekapItem[]>([]);
-  const [logRows, setLogRows] = useState<LmsPresensiSyncLogItem[]>([]);
 
+  const [metaKeaktifan, setMetaKeaktifan] = useState<PaginationMeta>(EMPTY_META);
   const [metaKelas, setMetaKelas] = useState<PaginationMeta>(EMPTY_META);
   const [metaRekap, setMetaRekap] = useState<PaginationMeta>(EMPTY_META);
-  const [metaLog, setMetaLog] = useState<PaginationMeta>(EMPTY_META);
 
-  const [isLoadingKelas, setIsLoadingKelas] = useState(true);
+  const [isLoadingKeaktifan, setIsLoadingKeaktifan] = useState(true);
+  const [isLoadingKelas, setIsLoadingKelas] = useState(false);
   const [isLoadingRekap, setIsLoadingRekap] = useState(false);
-  const [isLoadingLog, setIsLoadingLog] = useState(false);
 
   // Filter
   const [showFilter, setShowFilter] = useState(false);
   const [filterSearch, setFilterSearch] = useState('');
+  const [filterTahunAkademik, setFilterTahunAkademik] = useState('');
   const [filterKelasId, setFilterKelasId] = useState('');
   const [filterPertemuanKe, setFilterPertemuanKe] = useState('');
   const [filterStatusAbsen, setFilterStatusAbsen] = useState('');
-  const [filterSyncStatus, setFilterSyncStatus] = useState('');
-  const [filterLogStatus, setFilterLogStatus] = useState('');
   const [filterOrderBy, setFilterOrderBy] = useState('kode_kelas');
   const [filterOrderDir, setFilterOrderDir] = useState<'asc' | 'desc'>('asc');
+  const { activePeriodeId, periodeReady } = useActivePeriodeAkademik();
+
+  useEffect(() => {
+    if (activePeriodeId && !filterTahunAkademik) {
+      setFilterTahunAkademik(activePeriodeId);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activePeriodeId]);
 
   // Opsi kelas untuk filter (diambil dari endpoint panel, bukan hardcode).
   const [kelasOptions, setKelasOptions] = useState<{ value: string; label: string }[]>([]);
 
   // Export
   const [showExport, setShowExport] = useState(false);
-  const [exportFormat, setExportFormat] = useState<LmsExportFormat>('csv');
+  const [exportFormat, setExportFormat] = useState<LmsExportFormat>('xlsx');
   const [isExporting, setIsExporting] = useState(false);
 
-  // Aksi baris
-  const [isSyncing, setIsSyncing] = useState(false);
-  const [tarikTarget, setTarikTarget] = useState<LmsPresensiKelasItem | null>(null);
-  const [isTarik, setIsTarik] = useState(false);
+  const handleTabChange = useCallback(
+    (nextTab: TabKey) => {
+      const params = new URLSearchParams(searchParams.toString());
+      params.set('tab', nextTab);
+      router.replace(`/lms/presensi?${params.toString()}`, { scroll: false });
+    },
+    [router, searchParams]
+  );
 
-  const fetchStatus = useCallback(async () => {
-    setIsLoadingStatus(true);
-    try {
-      const res = await lmsService.getStatusPresensi();
-      if (res.status === 'success' && res.data) {
-        setStatus(res.data);
+  const fetchKeaktifan = useCallback(
+    async (page: number, perPage: number) => {
+      setIsLoadingKeaktifan(true);
+      try {
+        const res = await lmsService.getKeaktifanDosen({
+          page,
+          per_page: perPage,
+          search: filterSearch || undefined,
+          tahun_akademik_id: toTahunAkademikId(filterTahunAkademik),
+        });
+
+        if (res.status === 'success') {
+          setKeaktifanRows(res.data || []);
+          if (res.meta) setMetaKeaktifan(res.meta);
+        } else {
+          setKeaktifanRows([]);
+        }
+      } catch (err: unknown) {
+        toast.error(getApiErrorMessage(err, 'Gagal memuat data keaktifan dosen.'));
+        setKeaktifanRows([]);
+      } finally {
+        setIsLoadingKeaktifan(false);
       }
-    } catch (err: unknown) {
-      toast.error(getApiErrorMessage(err, 'Gagal memuat status integrasi presensi.'));
-    } finally {
-      setIsLoadingStatus(false);
-    }
-  }, []);
+    },
+    [filterSearch, filterTahunAkademik]
+  );
 
   const fetchKelasOptions = useCallback(async () => {
     try {
-      const res = await lmsService.indexKelasPresensi({ per_page: 100, sort_order: 'asc' });
+      const res = await lmsService.indexKelasPresensi({
+        per_page: 100,
+        sort_order: 'asc',
+        tahun_akademik_id: toTahunAkademikId(filterTahunAkademik),
+      });
       const options = (res.data || []).map((row) => ({
         value: String(row.id),
         label: `${row.kode_kelas} — ${row.mata_kuliah?.nama || row.nama_kelas}`,
       }));
       setKelasOptions(options);
-    } catch {
-      // Opsi kelas bersifat tambahan — kegagalan tidak boleh memblokir halaman.
+    } catch (err: unknown) {
+      toast.error(getApiErrorMessage(err, 'Gagal memuat opsi kelas.'));
       setKelasOptions([]);
     }
-  }, []);
+  }, [filterTahunAkademik]);
 
   const fetchKelas = useCallback(
     async (page: number, perPage: number) => {
@@ -150,6 +171,7 @@ export default function LmsPresensiPage() {
           search: filterSearch || undefined,
           sort_by: filterOrderBy,
           sort_order: filterOrderDir,
+          tahun_akademik_id: toTahunAkademikId(filterTahunAkademik),
         });
 
         if (res.status === 'success') {
@@ -165,7 +187,7 @@ export default function LmsPresensiPage() {
         setIsLoadingKelas(false);
       }
     },
-    [filterSearch, filterOrderBy, filterOrderDir]
+    [filterSearch, filterOrderBy, filterOrderDir, filterTahunAkademik]
   );
 
   const fetchRekap = useCallback(
@@ -179,7 +201,7 @@ export default function LmsPresensiPage() {
           kelas_id: filterKelasId ? Number(filterKelasId) : undefined,
           pertemuan_ke: filterPertemuanKe ? Number(filterPertemuanKe) : undefined,
           status: filterStatusAbsen || undefined,
-          sync_status: filterSyncStatus || undefined,
+          tahun_akademik_id: toTahunAkademikId(filterTahunAkademik),
         });
 
         if (res.status === 'success') {
@@ -195,155 +217,186 @@ export default function LmsPresensiPage() {
         setIsLoadingRekap(false);
       }
     },
-    [filterSearch, filterKelasId, filterPertemuanKe, filterStatusAbsen, filterSyncStatus]
-  );
-
-  const fetchLog = useCallback(
-    async (page: number, perPage: number) => {
-      setIsLoadingLog(true);
-      try {
-        const res = await lmsService.logSinkronisasiPresensi({
-          page,
-          per_page: perPage,
-          status: filterLogStatus || undefined,
-          kelas_id: filterKelasId ? Number(filterKelasId) : undefined,
-        });
-
-        if (res.status === 'success') {
-          setLogRows(res.data || []);
-          if (res.meta) setMetaLog(res.meta);
-        } else {
-          setLogRows([]);
-        }
-      } catch (err: unknown) {
-        toast.error(getApiErrorMessage(err, 'Gagal memuat log sinkronisasi.'));
-        setLogRows([]);
-      } finally {
-        setIsLoadingLog(false);
-      }
-    },
-    [filterLogStatus, filterKelasId]
+    [filterSearch, filterKelasId, filterPertemuanKe, filterStatusAbsen, filterTahunAkademik]
   );
 
   useEffect(() => {
-    fetchStatus();
+    if (!periodeReady) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchKelasOptions();
-  }, [fetchStatus, fetchKelasOptions]);
+  }, [fetchKelasOptions, periodeReady]);
 
   useEffect(() => {
-    fetchKelas(metaKelas.current_page, metaKelas.per_page);
-    // `meta` sengaja tidak menjadi dependensi agar tidak memicu loop render.
+    if (!periodeReady) return;
+    if (tab === 'keaktifan') {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      fetchKeaktifan(metaKeaktifan.current_page, metaKeaktifan.per_page);
+    }
+    if (tab === 'kelas') {
+      fetchKelas(metaKelas.current_page, metaKelas.per_page);
+    }
+    if (tab === 'rekap') {
+      fetchRekap(1, metaRekap.per_page);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fetchKelas]);
-
-  useEffect(() => {
-    if (tab === 'rekap') fetchRekap(1, metaRekap.per_page);
-    if (tab === 'log') fetchLog(1, metaLog.per_page);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab, fetchRekap, fetchLog]);
-
-  const reloadTab = useCallback(
-    (page?: number) => {
-      if (tab === 'kelas') fetchKelas(page ?? metaKelas.current_page, metaKelas.per_page);
-      if (tab === 'rekap') fetchRekap(page ?? metaRekap.current_page, metaRekap.per_page);
-      if (tab === 'log') fetchLog(page ?? metaLog.current_page, metaLog.per_page);
-    },
-    [tab, fetchKelas, fetchRekap, fetchLog, metaKelas, metaRekap, metaLog]
-  );
+  }, [tab, fetchKeaktifan, fetchKelas, fetchRekap, periodeReady]);
 
   const handleApplyFilter = () => {
     setShowFilter(false);
+    if (tab === 'keaktifan') fetchKeaktifan(1, metaKeaktifan.per_page);
     if (tab === 'kelas') fetchKelas(1, metaKelas.per_page);
     if (tab === 'rekap') fetchRekap(1, metaRekap.per_page);
-    if (tab === 'log') fetchLog(1, metaLog.per_page);
   };
 
   const handleResetFilter = () => {
     setFilterSearch('');
+    setFilterTahunAkademik(activePeriodeId);
     setFilterKelasId('');
     setFilterPertemuanKe('');
     setFilterStatusAbsen('');
-    setFilterSyncStatus('');
-    setFilterLogStatus('');
     setFilterOrderBy('kode_kelas');
     setFilterOrderDir('asc');
     setShowFilter(false);
   };
 
-  const handleSync = async (
-    scope: { pertemuan_id?: number; kelas_id?: number },
-    label: string
-  ): Promise<void> => {
-    setIsSyncing(true);
-    try {
-      const res = await lmsService.syncPresensi(scope);
-      const message = res.data?.message || res.message || 'Sinkronisasi selesai.';
-      if (res.status === 'success' && res.data?.success) {
-        toast.success(message);
-      } else {
-        toast.error(message);
-      }
-      reloadTab();
-      fetchStatus();
-    } catch (err: unknown) {
-      toast.error(getApiErrorMessage(err, 'Gagal menjalankan sinkronisasi presensi.'));
-    } finally {
-      setIsSyncing(false);
-    }
-  };
-
-  const handleTarik = async (): Promise<void> => {
-    if (!tarikTarget) return;
-
-    setIsTarik(true);
-    try {
-      const res = await lmsService.tarikPresensi(tarikTarget.id);
-      const message = res.data?.message || res.message || 'Penarikan riwayat selesai.';
-      if (res.status === 'success' && res.data?.success) {
-        toast.success(message);
-      } else {
-        toast.error(message);
-      }
-      setTarikTarget(null);
-      reloadTab();
-      fetchStatus();
-    } catch (err: unknown) {
-      toast.error(getApiErrorMessage(err, 'Gagal menarik riwayat presensi.'));
-    } finally {
-      setIsTarik(false);
-    }
-  };
-
   const handleExport = async (): Promise<void> => {
+    if (!canManage || !['keaktifan', 'rekap'].includes(tab)) return;
     setIsExporting(true);
     try {
-      const file = await lmsService.exportRekapPresensiAdmin({
-        format: exportFormat,
-        search: filterSearch || undefined,
-        kelas_id: filterKelasId ? Number(filterKelasId) : undefined,
-        pertemuan_ke: filterPertemuanKe ? Number(filterPertemuanKe) : undefined,
-        status: filterStatusAbsen || undefined,
-        sync_status: filterSyncStatus || undefined,
-      });
-      downloadBlobFile(file.blob, file.filename);
-      toast.success('Rekap presensi berhasil diunduh.');
+      if (tab === 'keaktifan') {
+        const file = await lmsService.exportKeaktifanDosen({
+          format: exportFormat,
+          search: filterSearch || undefined,
+          tahun_akademik_id: toTahunAkademikId(filterTahunAkademik),
+        });
+        downloadBlobFile(file.blob, file.filename);
+        toast.success('Laporan keaktifan mengajar dosen berhasil diunduh.');
+      } else {
+        const file = await lmsService.exportRekapPresensiAdmin({
+          format: exportFormat,
+          search: filterSearch || undefined,
+          kelas_id: filterKelasId ? Number(filterKelasId) : undefined,
+          pertemuan_ke: filterPertemuanKe ? Number(filterPertemuanKe) : undefined,
+          status: filterStatusAbsen || undefined,
+          tahun_akademik_id: toTahunAkademikId(filterTahunAkademik),
+        });
+        downloadBlobFile(file.blob, file.filename);
+        toast.success('Rekap presensi berhasil diunduh.');
+      }
       setShowExport(false);
     } catch (err: unknown) {
-      toast.error(getApiErrorMessage(err, 'Gagal mengunduh rekap presensi.'));
+      toast.error(getApiErrorMessage(err, 'Gagal mengunduh laporan / rekap presensi.'));
     } finally {
       setIsExporting(false);
     }
   };
 
-  const lihatRekapKelas = (row: LmsPresensiKelasItem) => {
-    setFilterKelasId(String(row.id));
-    setTab('rekap');
-    setShowFilter(false);
-  };
+  const lihatRekapKelas = useCallback(
+    (row: LmsPresensiKelasItem) => {
+      setFilterKelasId(String(row.id));
+      handleTabChange('rekap');
+      setShowFilter(false);
+    },
+    [handleTabChange]
+  );
 
   /* ---------------------------------------------------------------------
    | Kolom tabel
    | --------------------------------------------------------------------- */
+
+  const keaktifanColumns: ColumnDef<LmsKeaktifanDosenItem>[] = useMemo(
+    () => [
+      {
+        key: 'kelas',
+        label: 'KELAS & MATA KULIAH',
+        render: (row) => (
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="font-bold text-slate-800 text-xs">{row.kode_kelas}</span>
+              <span className="text-2xs font-medium text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded">
+                {row.nama_kelas}
+              </span>
+            </div>
+            <span className="text-xs text-slate-700 block font-medium mt-0.5">
+              {row.mata_kuliah?.nama || '-'}
+            </span>
+            <span className="text-2xs text-slate-500 block">
+              {row.prodi?.nama || '-'}
+            </span>
+          </div>
+        ),
+      },
+      {
+        key: 'dosen',
+        label: 'DOSEN PENGAMPU',
+        render: (row) => (
+          <div>
+            {row.dosen_pengampu && row.dosen_pengampu.length > 0 ? (
+              row.dosen_pengampu.map((dp, idx) => (
+                <div key={idx} className="mb-1 last:mb-0">
+                  <span className="text-xs font-semibold text-slate-800 block">
+                    {dp.nama}
+                  </span>
+                  <span className="text-2xs text-slate-500 block">
+                    NIDN: {dp.nidn || '-'} {dp.is_koordinator ? '(Koordinator)' : ''}
+                  </span>
+                </div>
+              ))
+            ) : (
+              <span className="text-xs text-slate-400 italic">Belum diplot</span>
+            )}
+          </div>
+        ),
+      },
+      {
+        key: 'pertemuan',
+        label: 'REALISASI PERTEMUAN',
+        align: 'center',
+        render: (row) => (
+          <div>
+            <span className="text-xs font-bold text-slate-800 block">
+              {row.total_pertemuan} / 16 Sesi
+            </span>
+            <span className="text-2xs text-slate-500 block">
+              {row.pertemuan_selesai} pertemuan selesai
+            </span>
+          </div>
+        ),
+      },
+      {
+        key: 'presensi_terisi',
+        label: 'PRESENSI TERISI',
+        align: 'center',
+        render: (row) => (
+          <div>
+            <span className="text-xs font-bold text-slate-800 block">
+              {row.pertemuan_terisi} / {row.total_pertemuan} Sesi
+            </span>
+            <span className="text-2xs text-slate-500 block">sesi memiliki data absensi</span>
+          </div>
+        ),
+      },
+      {
+        key: 'keaktifan',
+        label: '% KEAKTIFAN',
+        align: 'center',
+        render: (row) => {
+          const persen = row.persentase_keaktifan ?? 0;
+          const variant =
+            persen >= 80 ? 'green' : persen >= 50 ? 'amber' : persen > 0 ? 'red' : 'gray';
+          return (
+            <div className="flex flex-col items-center">
+              <span className="text-xs font-black text-slate-800">{persen}%</span>
+              <Badge variant={variant} className="mt-0.5 text-2xs">
+                {row.status_keaktifan}
+              </Badge>
+            </div>
+          );
+        },
+      },
+    ],
+    []
+  );
 
   const kelasColumns: ColumnDef<LmsPresensiKelasItem>[] = useMemo(
     () => [
@@ -391,51 +444,19 @@ export default function LmsPresensiPage() {
         ),
       },
       {
-        key: 'sinkron',
-        label: 'SINKRON',
-        align: 'center',
-        render: (row) => {
-          if ((row.jumlah_gagal_sync ?? 0) > 0) {
-            return <Badge variant="red">{row.jumlah_gagal_sync} gagal</Badge>;
-          }
-          if ((row.jumlah_tersinkron ?? 0) > 0) {
-            return <Badge variant="green">{row.jumlah_tersinkron} tersinkron</Badge>;
-          }
-          return <Badge variant="gray">Hanya di LMS</Badge>;
-        },
-      },
-      {
         key: 'aksi',
         label: 'AKSI',
         align: 'right',
         render: (row) => (
-          <div className="flex justify-end">
-            <DropdownMenu
-              items={[
-                {
-                  label: 'Lihat Rekap Kehadiran',
-                  icon: <ClipboardList size={16} />,
-                  onClick: () => lihatRekapKelas(row),
-                },
-                {
-                  label: 'Sinkron Ulang ke PresensiV2',
-                  icon: <CloudUpload size={16} />,
-                  disabled: isSyncing,
-                  onClick: () => handleSync({ kelas_id: row.id }, row.kode_kelas),
-                },
-                {
-                  label: 'Tarik Riwayat dari PresensiV2',
-                  icon: <CloudDownload size={16} />,
-                  onClick: () => setTarikTarget(row),
-                },
-              ]}
-            />
-          </div>
+          <DropdownMenu items={[{
+            label: 'Lihat Rekap',
+            icon: <ClipboardList size={14} />,
+            onClick: () => lihatRekapKelas(row),
+          }]} />
         ),
       },
     ],
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [isSyncing]
+    [lihatRekapKelas]
   );
 
   const rekapColumns: ColumnDef<LmsPresensiRekapItem>[] = useMemo(
@@ -489,121 +510,6 @@ export default function LmsPresensiPage() {
           return <Badge variant={variant}>{label}</Badge>;
         },
       },
-      {
-        key: 'sync_status',
-        label: 'SINKRON',
-        align: 'center',
-        render: (row) => {
-          const label = LMS_PRESENSI_SYNC_STATUS_LABEL[row.sync_status] ?? row.sync_status;
-          const variant =
-            row.sync_status === 'synced'
-              ? 'green'
-              : row.sync_status === 'failed'
-                ? 'red'
-                : row.sync_status === 'pending'
-                  ? 'amber'
-                  : 'gray';
-          return <Badge variant={variant}>{label}</Badge>;
-        },
-      },
-      {
-        key: 'aksi',
-        label: 'AKSI',
-        align: 'right',
-        render: (row) => (
-          <div className="flex justify-end">
-            <DropdownMenu
-              items={[
-                {
-                  label: 'Sinkron Ulang Pertemuan ini',
-                  icon: <CloudUpload size={16} />,
-                  disabled: isSyncing,
-                  onClick: () => handleSync({ pertemuan_id: row.pertemuan_id }, row.kode_kelas),
-                },
-              ]}
-            />
-          </div>
-        ),
-      },
-    ],
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [isSyncing]
-  );
-
-  const logColumns: ColumnDef<LmsPresensiSyncLogItem>[] = useMemo(
-    () => [
-      {
-        key: 'waktu',
-        label: 'WAKTU',
-        render: (row) => (
-          <div>
-            <span className="text-xs text-slate-700 block">{formatDateTime(row.created_at)}</span>
-            <span className="text-2xs text-slate-500 block">{row.user?.name || 'Sistem'}</span>
-          </div>
-        ),
-      },
-      {
-        key: 'aksi',
-        label: 'AKSI',
-        render: (row) => (
-          <div>
-            <span className="text-xs text-slate-700 block">{row.aksi}</span>
-            <span className="text-2xs text-slate-500 block">
-              {row.entitas} #{row.entitas_id}
-            </span>
-          </div>
-        ),
-      },
-      {
-        key: 'kelas',
-        label: 'KELAS',
-        render: (row) => (
-          <div>
-            <span className="text-xs text-slate-700 block">
-              {row.kelas_id ? `Kelas #${row.kelas_id}` : '-'}
-            </span>
-            <span className="text-2xs text-slate-500 block">
-              {row.pertemuan_ke ? `Pertemuan ke-${row.pertemuan_ke}` : '-'}
-            </span>
-          </div>
-        ),
-      },
-      {
-        key: 'status',
-        label: 'STATUS',
-        align: 'center',
-        render: (row) => {
-          const label = LMS_PRESENSI_LOG_STATUS_LABEL[row.status] ?? row.status;
-          const variant =
-            row.status === 'success'
-              ? 'green'
-              : row.status === 'failed'
-                ? 'red'
-                : row.status === 'partial'
-                  ? 'amber'
-                  : 'gray';
-          return <Badge variant={variant}>{label}</Badge>;
-        },
-      },
-      {
-        key: 'via',
-        label: 'TRANSPORT',
-        align: 'center',
-        render: (row) => (
-          <span className="text-2xs text-slate-600">
-            {LMS_PRESENSI_TRANSPORT_LABEL[row.via] ?? row.via}
-          </span>
-        ),
-      },
-      {
-        key: 'pesan',
-        label: 'PESAN',
-        render: (row) => (
-          <span className="text-2xs text-slate-600 block truncate max-w-[280px]">
-            {row.message || '-'}
-          </span>
-        ),
-      },
     ],
     []
   );
@@ -612,17 +518,14 @@ export default function LmsPresensiPage() {
    | Render
    | --------------------------------------------------------------------- */
 
-  const integrasiAktif = status?.configured === true;
-  const badgeIntegrasi = integrasiAktif ? 'green' : 'amber';
-
   return (
     <div className="w-full flex flex-col space-y-4">
       <PageHeader
-        title="Presensi & Integrasi"
-        description="Monitoring rekap kehadiran, jejak sinkronisasi, dan pertukaran data dengan aplikasi PresensiV2."
+        title="Monitoring Presensi"
+        description="Pantau realisasi mengajar dan rekap presensi yang tersimpan di RAG."
         breadcrumbs={[
           { label: 'LMS', href: '/lms' },
-          { label: 'Presensi & Integrasi' },
+          { label: 'Monitoring Presensi' },
         ]}
         action={
           <div className="flex items-center gap-2">
@@ -634,80 +537,26 @@ export default function LmsPresensiPage() {
             >
               Filter
             </Button>
-            <Button
-              variant="primary"
-              icon={<Download size={16} />}
-              onClick={() => setShowExport(true)}
-            >
-              Export Rekap
-            </Button>
+            {canManage && ['keaktifan', 'rekap'].includes(tab) && (
+              <Button
+                variant="outline"
+                icon={<Download size={16} />}
+                onClick={() => setShowExport(true)}
+              >
+                Export
+              </Button>
+            )}
           </div>
         }
       />
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard
-          label="Status Integrasi"
-          value={
-            isLoadingStatus ? '...' : integrasiAktif ? 'Aktif' : 'Belum Aktif'
-          }
-          icon={<Fingerprint size={18} />}
-          iconVariant={integrasiAktif ? 'green' : 'amber'}
-          footer={
-            <span className="text-2xs">
-              {status
-                ? `${LMS_PRESENSI_TRANSPORT_LABEL[status.via] ?? status.via} · ${status.message}`
-                : 'Memuat konfigurasi integrasi...'}
-            </span>
-          }
-        />
-        <StatCard
-          label="Total Pertemuan"
-          value={status?.total_pertemuan ?? 0}
-          icon={<ClipboardList size={18} />}
-          iconVariant="blue"
-          footer={
-            <span className="text-2xs">
-              {status?.fitur_presensi_aktif === false
-                ? 'Fitur presensi sedang dimatikan'
-                : 'Seluruh sesi presensi LMS'}
-            </span>
-          }
-        />
-        <StatCard
-          label="Tersinkron"
-          value={status?.total_tersinkron ?? 0}
-          icon={<CloudUpload size={18} />}
-          iconVariant="green"
-          footer={<span className="text-2xs">Pertemuan sudah tercatat di PresensiV2</span>}
-        />
-        <StatCard
-          label="Gagal Sinkron"
-          value={status?.total_gagal_sync ?? 0}
-          icon={<CloudDownload size={18} />}
-          iconVariant={status?.total_gagal_sync ? 'red' : 'gray'}
-          footer={<span className="text-2xs">Dapat dicoba ulang dari daftar kelas</span>}
-        />
+      <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-xs text-blue-900">
+        Data perkuliahan, dosen pengampu, KRS, dan presensi pada halaman ini bersumber dari modul
+        SIAKAD di RAG. Perubahan tersimpan di RAG dan tidak dikirim ke sistem legacy.
       </div>
 
-      {!integrasiAktif ? (
-        <div className="card">
-          <div className="card-body flex items-start gap-3">
-            <Badge variant={badgeIntegrasi}>Belum Terintegrasi</Badge>
-            <div>
-              <p className="text-xs font-semibold text-slate-800">Integrasi PresensiV2 belum aktif</p>
-              <p className="text-2xs text-slate-500 mt-1">
-                Isi environment <code>PRESENSI_API_URL</code> (atau konfigurasi koneksi database
-                <code> PRESENSI_DB_HOST</code> + <code>PRESENSI_DB_DATABASE</code>) untuk mengaktifkan
-                sinkronisasi. Seluruh alur presensi LMS tetap berjalan normal tanpa integrasi ini.
-              </p>
-            </div>
-          </div>
-        </div>
-      ) : null}
-
       <div className="card">
-        <div className="card-header flex items-center gap-1 overflow-x-auto border-b border-slate-200">
+        <div className="card-header !justify-start flex items-center gap-2 overflow-x-auto border-b border-slate-200">
           {TABS.map((item) => {
             const Icon = item.icon;
             const isActive = tab === item.key;
@@ -715,7 +564,7 @@ export default function LmsPresensiPage() {
               <button
                 key={item.key}
                 type="button"
-                onClick={() => setTab(item.key)}
+                onClick={() => handleTabChange(item.key)}
                 className={`flex items-center gap-2 px-4 py-2 text-xs font-semibold transition ${
                   isActive
                     ? 'border-[var(--module-primary)] text-[var(--module-primary)] bg-[var(--module-primary-subtle,#f8fafc)] rounded-t-lg border-b-2'
@@ -730,6 +579,18 @@ export default function LmsPresensiPage() {
         </div>
 
         <div className="card-body">
+          {tab === 'keaktifan' ? (
+            <DataTable
+              columns={keaktifanColumns}
+              data={keaktifanRows}
+              isLoading={isLoadingKeaktifan}
+              meta={metaKeaktifan}
+              onPageChange={(p) => fetchKeaktifan(p, metaKeaktifan.per_page)}
+              onLimitChange={(lim) => fetchKeaktifan(1, lim)}
+              emptyMessage="Belum ada data perkuliahan atau belum ada kelas aktif."
+            />
+          ) : null}
+
           {tab === 'kelas' ? (
             <DataTable
               columns={kelasColumns}
@@ -754,17 +615,6 @@ export default function LmsPresensiPage() {
             />
           ) : null}
 
-          {tab === 'log' ? (
-            <DataTable
-              columns={logColumns}
-              data={logRows}
-              isLoading={isLoadingLog}
-              meta={metaLog}
-              onPageChange={(p) => fetchLog(p, metaLog.per_page)}
-              onLimitChange={(lim) => fetchLog(1, lim)}
-              emptyMessage="Belum ada percobaan sinkronisasi ke PresensiV2."
-            />
-          ) : null}
         </div>
       </div>
 
@@ -792,7 +642,14 @@ export default function LmsPresensiPage() {
             onChange={(e) => setFilterSearch(e.target.value)}
           />
 
-          {tab !== 'kelas' ? (
+          <PeriodeAkademikSelect
+            label="Tahun Akademik"
+            placeholder="Pilih periode akademik..."
+            value={filterTahunAkademik}
+            onChange={(val) => setFilterTahunAkademik(val)}
+          />
+
+          {tab !== 'kelas' && tab !== 'keaktifan' ? (
             <Select
               label="Kelas"
               placeholder="Semua kelas..."
@@ -820,26 +677,7 @@ export default function LmsPresensiPage() {
                 options={LMS_PRESENSI_ABSEN_STATUS_OPTIONS}
                 isClearable
               />
-              <Select
-                label="Status Sinkron"
-                placeholder="Semua status..."
-                value={filterSyncStatus}
-                onChange={(val) => setFilterSyncStatus(val ? String(val) : '')}
-                options={LMS_PRESENSI_SYNC_STATUS_OPTIONS}
-                isClearable
-              />
             </>
-          ) : null}
-
-          {tab === 'log' ? (
-            <Select
-              label="Status Sinkronisasi"
-              placeholder="Semua status..."
-              value={filterLogStatus}
-              onChange={(val) => setFilterLogStatus(val ? String(val) : '')}
-              options={LMS_PRESENSI_LOG_STATUS_OPTIONS}
-              isClearable
-            />
           ) : null}
 
           {tab === 'kelas' ? (
@@ -861,11 +699,11 @@ export default function LmsPresensiPage() {
         </div>
       </Drawer>
 
-      {/* Modal export rekap */}
-      <Modal
+      {/* Modal export rekap / keaktifan */}
+      {canManage && <Modal
         open={showExport}
         onClose={() => setShowExport(false)}
-        title="Export Rekap Kehadiran"
+        title={tab === 'keaktifan' ? 'Export Laporan Keaktifan Dosen' : 'Export Rekap Kehadiran'}
         size="sm"
         footer={
           <div className="flex items-center justify-end gap-2">
@@ -890,27 +728,14 @@ export default function LmsPresensiPage() {
             options={LMS_EXPORT_FORMAT_OPTIONS}
             value={exportFormat}
             onChange={(val: LmsExportFormat) => setExportFormat(val)}
-            hint="CSV memakai BOM UTF-8 agar karakter Indonesia tampil benar di Excel. Filter aktif pada tab Rekap Kehadiran ikut dipakai."
+            hint={
+              tab === 'keaktifan'
+                ? 'Laporan berisi seluruh kelas, dosen pengampu, realisasi pertemuan dari 16 sesi, dan persentase pengisian presensi.'
+                : 'CSV memakai BOM UTF-8 agar karakter Indonesia tampil benar di Excel. Filter aktif pada tab Rekap Kehadiran ikut dipakai.'
+            }
           />
         </div>
-      </Modal>
-
-      {/* Konfirmasi tarik riwayat dari PresensiV2 */}
-      <ConfirmDialog
-        isOpen={tarikTarget !== null}
-        onClose={() => setTarikTarget(null)}
-        onConfirm={handleTarik}
-        title="Tarik Riwayat dari PresensiV2"
-        message={
-          tarikTarget
-            ? `Riwayat jurnal dan rekap kehadiran kelas "${tarikTarget.kode_kelas}" akan ditarik dari PresensiV2 dan dapat menimpa data absensi lokal. Lanjutkan?`
-            : ''
-        }
-        confirmText="Ya, Tarik Riwayat"
-        cancelText="Batal"
-        variant="warning"
-        isLoading={isTarik}
-      />
+      </Modal>}
     </div>
   );
 }

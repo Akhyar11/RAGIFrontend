@@ -1,8 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, use } from 'react';
-import { useRouter } from 'next/navigation';
-import { ArrowLeft, Plus, Save, CheckCheck, CalendarCheck } from 'lucide-react';
+import { Plus, Save, CheckCheck, CalendarCheck, Filter } from 'lucide-react';
 import { z } from 'zod';
 import { useForm, useFieldArray, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -11,6 +10,7 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import { DataTable, type ColumnDef } from '@/components/ui/DataTable';
+import { Drawer } from '@/components/ui/Drawer';
 import { siakadService } from '@/services/siakad.service';
 import { SIAKAD_OPTION_TYPES, useSiakadOptions } from '@/lib/siakad-options';
 import { useAuth } from '@/hooks/useAuth';
@@ -50,7 +50,6 @@ type AbsensiListFormData = z.infer<typeof absensiListSchema>;
 export default function InputAbsensiKelasPage({ params }: PageProps) {
   const resolvedParams = use(params);
   const kelasId = Number(resolvedParams.id);
-  const router = useRouter();
   const { isMahasiswa } = useAuth();
 
   const statusAbsensiOptions = useSiakadOptions(SIAKAD_OPTION_TYPES.STATUS_ABSENSI);
@@ -62,6 +61,9 @@ export default function InputAbsensiKelasPage({ params }: PageProps) {
   const [loadingAbsen, setLoadingAbsen] = useState(false);
   const [isNewPertemuanOpen, setIsNewPertemuanOpen] = useState(false);
   const [savingAbsen, setSavingAbsen] = useState(false);
+  const [showAttendanceFilter, setShowAttendanceFilter] = useState(false);
+  const [attendanceSearchDraft, setAttendanceSearchDraft] = useState('');
+  const [attendanceSearch, setAttendanceSearch] = useState('');
   const [page, setPage] = useState(1);
   const [meta, setMeta] = useState<any>({
     current_page: 1,
@@ -153,14 +155,14 @@ export default function InputAbsensiKelasPage({ params }: PageProps) {
           const list = res.data.absensi.map((it: any) => ({
             id: it.id,
             mahasiswa_id: it.mahasiswa_id,
-            status: it.status || 'hadir',
+            status: it.status || '',
             catatan: it.catatan || '',
             mahasiswa: it.mahasiswa,
           }));
           resetAbsensiForm({ absensi: list });
-          const total = res.data.total ?? list.length;
+          const total = res.meta?.total ?? list.length;
           setMeta(
-            res.data.meta || {
+            res.meta || {
               current_page: targetPage,
               last_page: Math.ceil(total / 25) || 1,
               per_page: 25,
@@ -185,14 +187,36 @@ export default function InputAbsensiKelasPage({ params }: PageProps) {
   const handleViewAttendanceDetails = async (p: any) => {
     setActivePertemuan(p);
     setPage(1);
+    setAttendanceSearch('');
+    setAttendanceSearchDraft('');
     await fetchAttendanceList(p.id, 1, '');
   };
 
   const handlePageChange = async (newPage: number) => {
     setPage(newPage);
     if (activePertemuan) {
-      await fetchAttendanceList(activePertemuan.id, newPage, '');
+      await fetchAttendanceList(activePertemuan.id, newPage, attendanceSearch);
     }
+  };
+
+  const applyAttendanceFilter = () => {
+    const search = attendanceSearchDraft.trim();
+    setAttendanceSearch(search);
+    setPage(1);
+    if (activePertemuan) {
+      void fetchAttendanceList(activePertemuan.id, 1, search);
+    }
+    setShowAttendanceFilter(false);
+  };
+
+  const resetAttendanceFilter = () => {
+    setAttendanceSearch('');
+    setAttendanceSearchDraft('');
+    setPage(1);
+    if (activePertemuan) {
+      void fetchAttendanceList(activePertemuan.id, 1, '');
+    }
+    setShowAttendanceFilter(false);
   };
 
   const onSavePertemuan = async (data: PertemuanFormData) => {
@@ -294,16 +318,6 @@ export default function InputAbsensiKelasPage({ params }: PageProps) {
             { label: 'Jadwal Perkuliahan', href: '/siakad/perkuliahan/kelas' },
             { label: 'Input Absensi' },
           ]}
-          action={
-            <Button
-              variant="outline"
-              icon={<ArrowLeft size={16} />}
-              onClick={() => router.push('/siakad/perkuliahan/kelas')}
-              style={{ borderColor: 'var(--module-primary)', color: 'var(--module-primary)' }}
-            >
-              Kembali
-            </Button>
-          }
         />
         <div className="card p-6 text-center text-sm text-slate-500">
           Presensi Anda dapat dilihat di halaman LMS masing-masing kelas.
@@ -316,7 +330,7 @@ export default function InputAbsensiKelasPage({ params }: PageProps) {
     <div className="space-y-6 animate-fade-in">
       <PageHeader
         title={`Input Absensi — ${kelas?.nama_kelas || 'Kelas'}`}
-        description={`${kelas?.mata_kuliah?.nama || ''} • ${kelas?.hari || ''} ${kelas?.jam_mulai ? String(kelas.jam_mulai).slice(0, 5) : ''}-${kelas?.jam_selesai ? String(kelas.jam_selesai).slice(0, 5) : ''} • Pilih pertemuan di kiri, tandai kehadiran di kanan.`}
+        description={`${kelas?.mata_kuliah?.nama || ''} • ${kelas?.hari || ''} ${kelas?.jam_mulai ? String(kelas.jam_mulai).slice(0, 5) : ''}-${kelas?.jam_selesai ? String(kelas.jam_selesai).slice(0, 5) : ''} • Pilih pertemuan di kiri. Status kosong berarti belum diisi.`}
         breadcrumbs={[
           { label: 'Portal SSO', href: '/dashboard' },
           { label: 'SIAKAD', href: '/siakad' },
@@ -326,11 +340,10 @@ export default function InputAbsensiKelasPage({ params }: PageProps) {
         action={
           <Button
             variant="outline"
-            icon={<ArrowLeft size={16} />}
-            onClick={() => router.push('/siakad/perkuliahan/kelas')}
-            style={{ borderColor: 'var(--module-primary)', color: 'var(--module-primary)' }}
+            icon={<Filter size={16} />}
+            onClick={() => setShowAttendanceFilter(true)}
           >
-            Kembali
+            Filter
           </Button>
         }
       />
@@ -433,7 +446,7 @@ export default function InputAbsensiKelasPage({ params }: PageProps) {
         </div>
 
         {/* Kolom Kanan: Pengisian Absen Mahasiswa */}
-        <div className="lg:col-span-2 card p-4 md:p-6 space-y-4">
+        <div className="lg:col-span-2 space-y-4">
           {!activePertemuan ? (
             <div className="flex flex-col items-center justify-center gap-2 border border-dashed rounded-2xl bg-slate-50 text-slate-400 p-6">
               <CalendarCheck size={36} className="text-slate-300" />
@@ -442,7 +455,7 @@ export default function InputAbsensiKelasPage({ params }: PageProps) {
             </div>
           ) : (
             <>
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100 pb-4">
                 <div>
                   <h4 className="font-extrabold text-xs text-slate-900">
                     Daftar Kehadiran: Pertemuan {activePertemuan.pertemuan_ke}
@@ -474,12 +487,31 @@ export default function InputAbsensiKelasPage({ params }: PageProps) {
                 meta={meta}
                 onPageChange={handlePageChange}
                 isLoading={loadingAbsen}
-                emptyMessage="Tidak ada mahasiswa terdaftar di kelas ini."
+                emptyMessage={attendanceSearch ? 'Tidak ada mahasiswa yang sesuai pencarian.' : 'Tidak ada mahasiswa terdaftar di kelas ini.'}
               />
             </>
           )}
         </div>
       </div>
+
+      <Drawer
+        open={showAttendanceFilter}
+        onClose={() => setShowAttendanceFilter(false)}
+        title="Cari Mahasiswa"
+        footer={
+          <div className="flex justify-end gap-3">
+            <Button variant="outline" onClick={resetAttendanceFilter}>Reset</Button>
+            <Button onClick={applyAttendanceFilter}>Terapkan</Button>
+          </div>
+        }
+      >
+        <Input
+          label="Nama atau NIM"
+          placeholder="Cari nama atau NIM mahasiswa"
+          value={attendanceSearchDraft}
+          onChange={(event) => setAttendanceSearchDraft(event.target.value)}
+        />
+      </Drawer>
     </div>
   );
 }

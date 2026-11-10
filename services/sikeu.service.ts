@@ -7,7 +7,9 @@ import {
   JurnalUmum,
   DetailJurnalUmum,
   SaldoAwalData,
-  SaldoAwal
+  SaldoAwal,
+  PajakAkunAlias,
+  PajakPelaporanMode
 } from '@/types/sikeu.types';
 
 import apiClient from '@/lib/axios';
@@ -710,6 +712,23 @@ export const sikeuService = {
     return data;
   },
 
+  trialMidtransPayment: async (payload: { tagihan_id?: number; nominal?: number; payment_type?: string }) => {
+    const { data } = await apiClient.post<ApiResponse<any>>('/v1/sikeu/payment-gateway/midtrans/trial', payload);
+    return data;
+  },
+
+  createMidtransSnapToken: async (payload: { tagihan_id: number; first_name?: string; email?: string; phone?: string }) => {
+    const { data } = await apiClient.post<ApiResponse<{
+      token: string;
+      redirect_url: string;
+      order_id: string;
+      client_key: string;
+      gross_amount: number;
+      environment: string;
+    }>>('/v1/sikeu/midtrans/snap-token', payload);
+    return data;
+  },
+
   // Master Unit Kas
   getUnitKasList: async () => {
     const { data } = await apiClient.get<ApiResponse<any[]>>('/v1/sikeu/master/unit-kas');
@@ -831,8 +850,41 @@ export const sikeuService = {
     return data;
   },
 
-  setorPajak: async (id: number, payload: { ntpn: string; tanggal_setor?: string; unit_kas_id?: number }) => {
+  setorPajak: async (id: number, payload: { ntpn: string; tanggal_setor?: string; unit_kas_id: number }) => {
     const { data } = await apiClient.post<ApiResponse<any>>(`/v1/sikeu/pajak/${id}/setor`, payload);
+    return data;
+  },
+
+  getPajakAkunAliases: async (params?: {
+    search?: string;
+    page?: number;
+    per_page?: number;
+  }): Promise<ApiResponse<PajakAkunAlias[]> & { meta?: PaginationMeta; mode?: PajakPelaporanMode }> => {
+    const query = new URLSearchParams();
+    if (params?.search) query.append('search', params.search);
+    if (params?.page) query.append('page', params.page.toString());
+    if (params?.per_page) query.append('per_page', params.per_page.toString());
+    const queryString = query.toString() ? `?${query.toString()}` : '';
+    const { data } = await apiClient.get<ApiResponse<PajakAkunAlias[]> & {
+      meta?: PaginationMeta;
+      mode?: PajakPelaporanMode;
+    }>(`/v1/sikeu/pajak/pelaporan-akun${queryString}`);
+    return data;
+  },
+
+  updatePajakAkunAlias: async (akunId: number, nama_akun_pajak: string) => {
+    const { data } = await apiClient.put<ApiResponse<PajakAkunAlias>>(
+      `/v1/sikeu/pajak/pelaporan-akun/${akunId}`,
+      { nama_akun_pajak }
+    );
+    return data;
+  },
+
+  updatePajakPelaporanMode: async (mode: PajakPelaporanMode) => {
+    const { data } = await apiClient.put<ApiResponse<{ mode: PajakPelaporanMode }>>(
+      '/v1/sikeu/pajak/pelaporan-akun/mode',
+      { mode }
+    );
     return data;
   },
 
@@ -1554,5 +1606,3 @@ export const sikeuService = {
     window.URL.revokeObjectURL(url);
   },
 };
-
-

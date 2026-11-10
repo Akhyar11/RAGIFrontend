@@ -717,6 +717,18 @@ export const sikeuService = {
     return data;
   },
 
+  createMidtransSnapToken: async (payload: { tagihan_id: number; first_name?: string; email?: string; phone?: string }) => {
+    const { data } = await apiClient.post<ApiResponse<{
+      token: string;
+      redirect_url: string;
+      order_id: string;
+      client_key: string;
+      gross_amount: number;
+      environment: string;
+    }>>('/v1/sikeu/midtrans/snap-token', payload);
+    return data;
+  },
+
   // Master Unit Kas
   getUnitKasList: async () => {
     const { data } = await apiClient.get<ApiResponse<any[]>>('/v1/sikeu/master/unit-kas');

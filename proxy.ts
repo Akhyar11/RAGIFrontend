@@ -7,7 +7,7 @@ import {
   getAuthTokenKey,
 } from '@/lib/domain';
 import { getTenantConfig } from '@/lib/tenant-config.server';
-import { TOKEN_KEY } from '@/lib/constants';
+import { SYSTEM_MODULES, TOKEN_KEY } from '@/lib/constants';
 
 // Rute publik yang dapat diakses tanpa autentikasi
 const PUBLIC_PATHS = new Set([
@@ -98,8 +98,25 @@ export async function proxy(request: NextRequest) {
     '';
 
   const config = await getTenantConfig();
-  const ctx = resolveDomainContextWithConfig(host, config);
+  let ctx = resolveDomainContextWithConfig(host, config);
   const { pathname } = request.nextUrl;
+  const hostname = host.trim().toLowerCase().split(':')[0];
+  const isLocalDevelopment =
+    process.env.NODE_ENV !== 'production' &&
+    (hostname === 'localhost' || hostname === '127.0.0.1');
+
+  if (isLocalDevelopment) {
+    const firstSegment = pathname.split('/').filter(Boolean)[0]?.toLowerCase();
+    const localModule = SYSTEM_MODULES.find((module) =>
+      module.value === firstSegment && module.value in MODULE_LABELS
+    );
+
+    if (localModule) {
+      ctx = resolveDomainContextWithConfig(`${localModule.value}.localhost`, config);
+    } else if (pathname === '/' || isPublicRoute(pathname)) {
+      ctx = resolveDomainContextWithConfig('localhost', config);
+    }
+  }
 
   if (ctx.isUnknownDomain) {
     return new NextResponse('Not Found', { status: 404 });
@@ -120,7 +137,7 @@ export async function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
-  if (ctx.isDefault) {
+  if (ctx.isDefault && !isLocalDevelopment) {
     const firstSegment = pathname.split('/')[1]?.toLowerCase();
     const mappedModuleHost = firstSegment
       ? Object.entries(config.domainMap).find(([, module]) => module === firstSegment)?.[0]

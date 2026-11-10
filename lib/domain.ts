@@ -230,10 +230,12 @@ export function getCookieDomain(hostname?: string): string {
   if (typeof window === 'undefined' && !hostname) return '';
   const host = (hostname || (typeof window !== 'undefined' ? window.location.hostname : '')).trim().toLowerCase().split(':')[0];
   const ctx = resolveDomainContext(host);
-  if (ctx.baseDomain) {
-    return `domain=.${ctx.baseDomain}; `;
-  }
-  return '';
+  const parentDomain =
+    ctx.baseDomain ||
+    BASE_DOMAINS.filter((domain) => host === domain || host.endsWith(`.${domain}`))
+      .sort((a, b) => b.length - a.length)[0];
+
+  return parentDomain ? `domain=.${parentDomain}; ` : '';
 }
 
 /**

@@ -12,12 +12,12 @@
 # 5. State Management Standard (Zustand scoping)
 # ==============================================================================
 
-echo "🎨 [Audit 2/3: UI/UX, CRUD, Form & Theming] Memeriksa standar UI/UX frontend dengan AI (AI Muse Spark 1.3)..."
+echo "🎨 [Audit 2/3: UI/UX, CRUD, Form & Theming] Memeriksa standar UI/UX frontend dengan AI (Big Pickle)..."
 
 export PATH="$HOME/.local/bin:$HOME/.opencode/bin:/usr/local/bin:$PATH"
 AI_ENGINE="opencode"
 OPENCODE_BIN=$(command -v opencode || echo "$HOME/.opencode/bin/opencode")
-MODEL="${OPENCODE_MODEL:-opencode/muse-spark-1.3-contributor-free}"
+MODEL="${OPENCODE_MODEL:-opencode/big-pickle}"
 
 if [ -n "$DIFF_TARGET" ]; then
     STAGED_DIFF=$(git diff "$DIFF_TARGET" -- "app/**" "components/**" "hooks/**" "store/**")
@@ -37,7 +37,7 @@ fi
 PROMPT_FILE=$(mktemp)
 
 cat << 'EOF' > "$PROMPT_FILE"
-Kamu adalah Senior UI/UX & Frontend Architect khusus Next.js App Router & Tailwind CSS (AI Muse Spark 1.3).
+Kamu adalah Senior UI/UX & Frontend Architect khusus Next.js App Router & Tailwind CSS (Big Pickle).
 Tugasmu adalah memeriksa FULL Git Diff frontend berikut secara SANGAT KETAT terhadap Standar UI/UX, Admin CRUD, Validasi Form, Spacing, dan Tema Modul.
 Evaluasi HANYA baris baru (+) yang ditambahkan atau diubah. Abaikan baris konteks tanpa tanda (+).
 
@@ -136,5 +136,5 @@ elif ! echo "$RESULT" | grep -qi "PASSED"; then
     exit 1
 fi
 
-echo "✅ [Audit 2/3: UI/UX, CRUD, Form & Theming] PASSED (Divalidasi AI Muse Spark 1.3)."
+echo "✅ [Audit 2/3: UI/UX, CRUD, Form & Theming] PASSED (Divalidasi Big Pickle)."
 exit 0

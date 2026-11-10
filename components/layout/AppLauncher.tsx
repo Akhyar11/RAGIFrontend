@@ -16,11 +16,13 @@ import {
   GraduationCap,
   X,
   ChevronRight,
+  type LucideIcon,
 } from 'lucide-react';
 import { moduleService, AppModule } from '@/services/module.service';
 import { getModuleUrl } from '@/lib/domain';
+import { useAuthStore } from '@/store/authStore';
 
-const MODULE_META: Record<string, { subpath: string; icon: any }> = {
+const MODULE_META: Record<string, { subpath: string; icon: LucideIcon }> = {
   sso: {
     subpath: '',
     icon: Shield,
@@ -61,7 +63,14 @@ const MODULE_META: Record<string, { subpath: string; icon: any }> = {
 
 export function AppLauncher() {
   const [isOpen, setIsOpen] = useState(false);
-  const [modules, setModules] = useState<AppModule[]>([]);
+  const [moduleResult, setModuleResult] = useState<{
+    identity: string;
+    modules: AppModule[];
+  } | null>(null);
+  const userId = useAuthStore((state) => state.user?.id);
+  const accessToken = useAuthStore((state) => state.access_token);
+  const authIdentity = `${userId ?? ''}:${accessToken ?? ''}`;
+  const modules = moduleResult?.identity === authIdentity ? moduleResult.modules : [];
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -75,16 +84,35 @@ export function AppLauncher() {
   }, []);
 
   useEffect(() => {
+    let isCurrentUser = true;
+
+    if (!accessToken) {
+      return () => {
+        isCurrentUser = false;
+      };
+    }
+
     moduleService
       .getMyModules()
       .then((res) => {
-        setModules(Array.isArray(res) ? res.filter((m) => m.is_active) : []);
+        if (isCurrentUser) {
+          setModuleResult({
+            identity: authIdentity,
+            modules: Array.isArray(res) ? res.filter((m) => m.is_active) : [],
+          });
+        }
       })
       .catch((err) => {
         console.error('Failed to load user modules:', err);
-        setModules([]);
+        if (isCurrentUser) {
+          setModuleResult({ identity: authIdentity, modules: [] });
+        }
       });
-  }, []);
+
+    return () => {
+      isCurrentUser = false;
+    };
+  }, [accessToken, authIdentity]);
 
   return (
     <div className="relative inline-block" ref={dropdownRef}>

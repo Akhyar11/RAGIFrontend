@@ -52,13 +52,14 @@ export interface DomainContext {
   isModule: boolean;
   isDefault: boolean;
   isDemo: boolean;
+  isDev: boolean;
   /** Host bukan bagian base domain & tidak ada di domainMap (apex pihak ketiga tak dikenal). */
   isUnknownDomain: boolean;
   /** Host dipetakan eksplisit lewat Edge Config domainMap (custom domain). */
   isCustomDomain: boolean;
 }
 
-function isDevHost(host: string): boolean {
+export function isDevHost(host: string): boolean {
   return (
     host === 'localhost' ||
     host === '127.0.0.1' ||
@@ -110,6 +111,7 @@ function buildContext(
     isModule: moduleSlug !== null,
     isDefault: moduleSlug === null,
     isDemo: isDemoEnv,
+    isDev: isDevHost(host),
     isUnknownDomain,
     isCustomDomain,
   };

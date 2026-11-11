@@ -27,6 +27,10 @@ const MODULE_META: Record<string, { subpath: string; icon: LucideIcon }> = {
     subpath: '',
     icon: Shield,
   },
+  iam: {
+    subpath: '',
+    icon: Shield,
+  },
   simpeg: {
     subpath: '',
     icon: Users,

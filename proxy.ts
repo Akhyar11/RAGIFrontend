@@ -151,7 +151,37 @@ export async function proxy(request: NextRequest) {
     const firstSegment = pathname.split('/')[1]?.toLowerCase();
     const restPath = firstSegment ? pathname.slice(firstSegment.length + 1) : '';
 
-    if (firstSegment && firstSegment in MODULE_LABELS && firstSegment !== ctx.moduleSlug) {
+    const isSsoSegment =
+      firstSegment === 'sso' ||
+      firstSegment === 'iam' ||
+      firstSegment === 'default' ||
+      (firstSegment ? RESERVED_SUBDOMAINS.has(firstSegment) : false);
+
+    if (firstSegment && isSsoSegment) {
+      if (!ctx.isDefault) {
+        const mappedSsoHost = Object.entries(config.domainMap).find(
+          ([, module]) => {
+            const m = module.toLowerCase();
+            return m === 'sso' || m === 'default' || m === 'iam';
+          },
+        )?.[0];
+
+        if (mappedSsoHost && mappedSsoHost !== host && mappedSsoHost !== hostname) {
+          const targetUrl = new URL(restPath || '/', `https://${mappedSsoHost}`);
+          targetUrl.search = request.nextUrl.search;
+          return NextResponse.redirect(targetUrl, 307);
+        }
+
+        if (effectiveBaseDomain) {
+          const targetHost = `${envPrefix}sso.${effectiveBaseDomain}`;
+          if (targetHost !== host && targetHost !== hostname) {
+            const targetUrl = new URL(restPath || '/', `https://${targetHost}`);
+            targetUrl.search = request.nextUrl.search;
+            return NextResponse.redirect(targetUrl, 307);
+          }
+        }
+      }
+    } else if (firstSegment && firstSegment in MODULE_LABELS && firstSegment !== ctx.moduleSlug) {
       const mappedModuleHost = Object.entries(config.domainMap).find(
         ([, module]) => module.toLowerCase() === firstSegment,
       )?.[0];
@@ -170,30 +200,6 @@ export async function proxy(request: NextRequest) {
           return NextResponse.redirect(targetUrl, 307);
         }
       }
-    } else if (
-      firstSegment &&
-      (firstSegment === 'sso' || firstSegment === 'default' || RESERVED_SUBDOMAINS.has(firstSegment))
-    ) {
-      if (!ctx.isDefault) {
-        const mappedSsoHost = Object.entries(config.domainMap).find(
-          ([, module]) => module.toLowerCase() === 'sso' || module.toLowerCase() === 'default',
-        )?.[0];
-
-        if (mappedSsoHost && mappedSsoHost !== host && mappedSsoHost !== hostname) {
-          const targetUrl = new URL(restPath || '/', `https://${mappedSsoHost}`);
-          targetUrl.search = request.nextUrl.search;
-          return NextResponse.redirect(targetUrl, 307);
-        }
-
-        if (effectiveBaseDomain) {
-          const targetHost = `${envPrefix}sso.${effectiveBaseDomain}`;
-          if (targetHost !== host && targetHost !== hostname) {
-            const targetUrl = new URL(restPath || '/', `https://${targetHost}`);
-            targetUrl.search = request.nextUrl.search;
-            return NextResponse.redirect(targetUrl, 307);
-          }
-        }
-      }
     }
   }
 
@@ -205,7 +211,10 @@ export async function proxy(request: NextRequest) {
   //    ke panel login SSO tanpa pernah me-render HTML modul/dashboard (menghilangkan glitch 100%).
   if (!token && !isPublicRoute(pathname)) {
     const mappedSsoHost = Object.entries(config.domainMap).find(
-      ([, module]) => module.toLowerCase() === 'sso' || module.toLowerCase() === 'default',
+      ([, module]) => {
+        const m = module.toLowerCase();
+        return m === 'sso' || m === 'default' || m === 'iam';
+      },
     )?.[0];
     const ssoTargetHost =
       mappedSsoHost ||
@@ -249,7 +258,10 @@ export async function proxy(request: NextRequest) {
     // (mis. 'spmb.ragispace.com/login' -> 'sso.ragispace.com/login').
     if (isAuthEntryPath(pathname)) {
       const mappedSsoHost = Object.entries(config.domainMap).find(
-        ([, module]) => module.toLowerCase() === 'sso' || module.toLowerCase() === 'default',
+        ([, module]) => {
+          const m = module.toLowerCase();
+          return m === 'sso' || m === 'default' || m === 'iam';
+        },
       )?.[0];
       const ssoTargetHost =
         mappedSsoHost ||
@@ -302,6 +314,7 @@ export async function proxy(request: NextRequest) {
       ((firstSegment in MODULE_LABELS && firstSegment !== modSlug) ||
         RESERVED_SUBDOMAINS.has(firstSegment) ||
         firstSegment === 'sso' ||
+        firstSegment === 'iam' ||
         firstSegment === 'default')
     ) {
       return new NextResponse('Not Found', { status: 404 });

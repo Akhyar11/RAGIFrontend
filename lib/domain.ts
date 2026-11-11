@@ -137,10 +137,20 @@ export function resolveDomainContextWithConfig(
   // 1. Pemetaan eksplisit (custom domain).
   const mapped = config.domainMap[host];
   if (mapped) {
-    if (mapped === 'default' || mapped === 'sso' || reserved.has(mapped)) {
-      return buildContext(host, '', '', true, false, reserved);
+    let matchedBaseDomain = '';
+    for (const bd of config.baseDomains) {
+      const norm = bd.trim().toLowerCase();
+      if (norm && (host === norm || host.endsWith(`.${norm}`))) {
+        if (norm.length > matchedBaseDomain.length) {
+          matchedBaseDomain = norm;
+        }
+      }
     }
-    return buildContext(host, '', mapped, true, false, reserved);
+
+    if (mapped === 'default' || mapped === 'sso' || reserved.has(mapped)) {
+      return buildContext(host, matchedBaseDomain, '', true, false, reserved);
+    }
+    return buildContext(host, matchedBaseDomain, mapped, true, false, reserved);
   }
 
   // 2. Cocokkan base domain (suffix).
@@ -264,15 +274,16 @@ export function getModuleUrl(moduleCode: string, path: string = '', currentHostn
   const host = (currentHostname || (typeof window !== 'undefined' ? window.location.hostname : '')).trim().toLowerCase().split(':')[0];
   const ctx = resolveDomainContext(host);
   const code = (moduleCode || '').toLowerCase().trim();
+  const config = getStaticTenantConfig();
 
   let cleanPath = path.trim();
   if (cleanPath && !cleanPath.startsWith('/')) {
     cleanPath = `/${cleanPath}`;
   }
 
-  // Jika di localhost / non-base domain, gunakan relative path internal
-  if (!ctx.baseDomain) {
-    if (RESERVED_SUBDOMAINS.has(code)) {
+  // Jika di localhost / dev host tanpa base domain terdaftar, gunakan relative path internal
+  if (ctx.isDev) {
+    if (RESERVED_SUBDOMAINS.has(code) || code === 'sso' || code === 'default') {
       return cleanPath || ROUTES.DASHBOARD;
     }
     return `/${code}${cleanPath}`;
@@ -281,13 +292,38 @@ export function getModuleUrl(moduleCode: string, path: string = '', currentHostn
   const protocol = typeof window !== 'undefined' && window.location.protocol ? window.location.protocol : 'https:';
   const prefix = ctx.isDemo ? 'demo-' : '';
 
-  // Jika target adalah portal SSO / domain default
-  if (RESERVED_SUBDOMAINS.has(code)) {
-    const ssoPath = cleanPath || ROUTES.DASHBOARD;
-    return `${protocol}//${prefix}sso.${ctx.baseDomain}${ssoPath.startsWith('/') ? ssoPath : `/${ssoPath}`}`;
+  // 1. Cek apakah ada pemetaan domain khusus untuk modul ini di domainMap
+  const mappedHost = Object.entries(config.domainMap).find(([, mod]) => mod.toLowerCase() === code)?.[0];
+  if (mappedHost) {
+    if (cleanPath === `/${code}`) {
+      cleanPath = '';
+    } else if (cleanPath.startsWith(`/${code}/`)) {
+      cleanPath = cleanPath.slice(code.length + 1);
+    }
+    return `${protocol}//${mappedHost}${cleanPath || ''}`;
   }
 
-  // Jika target adalah subdomain modul (misal siakad, sikeu, spmb)
+  // 2. Jika target adalah portal SSO / domain default
+  if (RESERVED_SUBDOMAINS.has(code) || code === 'sso' || code === 'default') {
+    const mappedSsoHost = Object.entries(config.domainMap).find(
+      ([, mod]) => mod.toLowerCase() === 'sso' || mod.toLowerCase() === 'default',
+    )?.[0];
+    const ssoPath = cleanPath || ROUTES.DASHBOARD;
+    if (mappedSsoHost) {
+      return `${protocol}//${mappedSsoHost}${ssoPath.startsWith('/') ? ssoPath : `/${ssoPath}`}`;
+    }
+    if (ctx.baseDomain) {
+      return `${protocol}//${prefix}sso.${ctx.baseDomain}${ssoPath.startsWith('/') ? ssoPath : `/${ssoPath}`}`;
+    }
+    return ssoPath;
+  }
+
+  // 3. Jika non-base domain dan tidak ada pemetaan modul, gunakan relative path internal
+  if (!ctx.baseDomain) {
+    return `/${code}${cleanPath}`;
+  }
+
+  // 4. Target subdomain modul standar
   // Potong prefix `/${code}` jika ada di path agar tidak menjadi siakad.polinus.cloud/siakad
   if (cleanPath === `/${code}`) {
     cleanPath = '';

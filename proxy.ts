@@ -7,7 +7,7 @@ import {
   getAuthTokenKey,
 } from '@/lib/domain';
 import { getTenantConfig } from '@/lib/tenant-config.server';
-import { SYSTEM_MODULES, TOKEN_KEY } from '@/lib/constants';
+import { SYSTEM_MODULES } from '@/lib/constants';
 
 // Rute publik yang dapat diakses tanpa autentikasi
 const PUBLIC_PATHS = new Set([
@@ -137,31 +137,83 @@ export async function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
-  if (ctx.isDefault && !isLocalDevelopment) {
-    const firstSegment = pathname.split('/')[1]?.toLowerCase();
-    const mappedModuleHost = firstSegment
-      ? Object.entries(config.domainMap).find(([, module]) => module === firstSegment)?.[0]
-      : undefined;
+  const envPrefix = ctx.isDemo ? 'demo-' : '';
+  const effectiveBaseDomain =
+    ctx.baseDomain ||
+    config.baseDomains
+      .map((d) => d.trim().toLowerCase())
+      .filter((d) => hostname === d || hostname.endsWith(`.${d}`))
+      .sort((a, b) => b.length - a.length)[0] ||
+    '';
 
-    if (firstSegment && firstSegment in MODULE_LABELS && mappedModuleHost) {
-      const restPath = pathname.slice(firstSegment.length + 1);
-      const targetUrl = new URL(restPath || '/', `https://${mappedModuleHost}`);
-      targetUrl.search = request.nextUrl.search;
-      return NextResponse.redirect(targetUrl);
+  // Cross-domain module & SSO redirection (berlaku untuk SEMUA domain di luar dev lokal)
+  if (!isLocalDevelopment) {
+    const firstSegment = pathname.split('/')[1]?.toLowerCase();
+    const restPath = firstSegment ? pathname.slice(firstSegment.length + 1) : '';
+
+    if (firstSegment && firstSegment in MODULE_LABELS && firstSegment !== ctx.moduleSlug) {
+      const mappedModuleHost = Object.entries(config.domainMap).find(
+        ([, module]) => module.toLowerCase() === firstSegment,
+      )?.[0];
+
+      if (mappedModuleHost && mappedModuleHost !== host && mappedModuleHost !== hostname) {
+        const targetUrl = new URL(restPath || '/', `https://${mappedModuleHost}`);
+        targetUrl.search = request.nextUrl.search;
+        return NextResponse.redirect(targetUrl, 307);
+      }
+
+      if (effectiveBaseDomain) {
+        const targetHost = `${envPrefix}${firstSegment}.${effectiveBaseDomain}`;
+        if (targetHost !== host && targetHost !== hostname) {
+          const targetUrl = new URL(restPath || '/', `https://${targetHost}`);
+          targetUrl.search = request.nextUrl.search;
+          return NextResponse.redirect(targetUrl, 307);
+        }
+      }
+    } else if (
+      firstSegment &&
+      (firstSegment === 'sso' || firstSegment === 'default' || RESERVED_SUBDOMAINS.has(firstSegment))
+    ) {
+      if (!ctx.isDefault) {
+        const mappedSsoHost = Object.entries(config.domainMap).find(
+          ([, module]) => module.toLowerCase() === 'sso' || module.toLowerCase() === 'default',
+        )?.[0];
+
+        if (mappedSsoHost && mappedSsoHost !== host && mappedSsoHost !== hostname) {
+          const targetUrl = new URL(restPath || '/', `https://${mappedSsoHost}`);
+          targetUrl.search = request.nextUrl.search;
+          return NextResponse.redirect(targetUrl, 307);
+        }
+
+        if (effectiveBaseDomain) {
+          const targetHost = `${envPrefix}sso.${effectiveBaseDomain}`;
+          if (targetHost !== host && targetHost !== hostname) {
+            const targetUrl = new URL(restPath || '/', `https://${targetHost}`);
+            targetUrl.search = request.nextUrl.search;
+            return NextResponse.redirect(targetUrl, 307);
+          }
+        }
+      }
     }
   }
 
   const tokenKey = getAuthTokenKey(ctx.isDemo, host);
   const token = request.cookies.get(tokenKey)?.value;
-  const envPrefix = ctx.isDemo ? 'demo-' : '';
 
   // 2. Auth Guard Server-Side:
   //    Jika belum login dan mengakses rute terproteksi, langsung alihkan (307 redirect)
   //    ke panel login SSO tanpa pernah me-render HTML modul/dashboard (menghilangkan glitch 100%).
   if (!token && !isPublicRoute(pathname)) {
-    if (ctx.baseDomain) {
+    const mappedSsoHost = Object.entries(config.domainMap).find(
+      ([, module]) => module.toLowerCase() === 'sso' || module.toLowerCase() === 'default',
+    )?.[0];
+    const ssoTargetHost =
+      mappedSsoHost ||
+      (effectiveBaseDomain ? `${envPrefix}sso.${effectiveBaseDomain}` : (ctx.baseDomain ? `${envPrefix}sso.${ctx.baseDomain}` : ''));
+
+    if (ssoTargetHost) {
       const returnUrl = `https://${host}${pathname}${request.nextUrl.search}`;
-      const loginUrl = new URL('/login', `https://${envPrefix}sso.${ctx.baseDomain}`);
+      const loginUrl = new URL('/login', `https://${ssoTargetHost}`);
       loginUrl.searchParams.set('redirect', returnUrl);
       return NextResponse.redirect(loginUrl);
     } else {
@@ -175,21 +227,10 @@ export async function proxy(request: NextRequest) {
   // 3. Jika sudah login dan mengakses /login, alihkan ke dashboard / redirect URL
   if (token && pathname === '/login') {
     const redirectParam = request.nextUrl.searchParams.get('redirect');
-    if (redirectParam && isSafeRedirect(redirectParam, host, ctx.baseDomain)) {
+    if (redirectParam && isSafeRedirect(redirectParam, host, ctx.baseDomain || effectiveBaseDomain)) {
       return NextResponse.redirect(new URL(redirectParam, request.url));
     }
     return NextResponse.redirect(new URL('/dashboard', request.url));
-  }
-
-  // Kasus 1: Permintaan berada di domain SSO / portal default (sso.polinus.cloud / demo-sso.polinus.cloud)
-  if (ctx.baseDomain && ctx.isDefault) {
-    const firstSegment = pathname.split('/')[1]?.toLowerCase();
-    if (firstSegment && firstSegment in MODULE_LABELS && !RESERVED_SUBDOMAINS.has(firstSegment)) {
-      const restPath = pathname.slice(firstSegment.length + 1);
-      const targetUrl = new URL(restPath || '/', `https://${envPrefix}${firstSegment}.${ctx.baseDomain}`);
-      targetUrl.search = request.nextUrl.search;
-      return NextResponse.redirect(targetUrl);
-    }
   }
 
   // Kasus 2: Permintaan berada di subdomain modul (misal siakad.polinus.cloud)
@@ -206,10 +247,18 @@ export async function proxy(request: NextRequest) {
     // 2a-2. Halaman autentikasi (login/register/...) pada subdomain modul
     // diarahkan ke portal SSO, agar tidak pernah tampil di subdomain modul
     // (mis. 'spmb.ragispace.com/login' -> 'sso.ragispace.com/login').
-    if (isAuthEntryPath(pathname) && ctx.baseDomain) {
-      const ssoUrl = new URL(pathname, `https://${envPrefix}sso.${ctx.baseDomain}`);
-      ssoUrl.search = request.nextUrl.search;
-      return NextResponse.redirect(ssoUrl);
+    if (isAuthEntryPath(pathname)) {
+      const mappedSsoHost = Object.entries(config.domainMap).find(
+        ([, module]) => module.toLowerCase() === 'sso' || module.toLowerCase() === 'default',
+      )?.[0];
+      const ssoTargetHost =
+        mappedSsoHost ||
+        (effectiveBaseDomain ? `${envPrefix}sso.${effectiveBaseDomain}` : (ctx.baseDomain ? `${envPrefix}sso.${ctx.baseDomain}` : ''));
+      if (ssoTargetHost && ssoTargetHost !== host && ssoTargetHost !== hostname) {
+        const ssoUrl = new URL(pathname, `https://${ssoTargetHost}`);
+        ssoUrl.search = request.nextUrl.search;
+        return NextResponse.redirect(ssoUrl);
+      }
     }
 
     // 2b. Abaikan rute auth & system global (login, profile, api, dll.)
@@ -244,6 +293,18 @@ export async function proxy(request: NextRequest) {
           headers: requestHeaders,
         },
       });
+    }
+
+    // Guard: jangan pernah me-rewrite jika path ditujukan untuk modul lain atau reserved subdomain
+    const firstSegment = pathname.split('/')[1]?.toLowerCase();
+    if (
+      firstSegment &&
+      ((firstSegment in MODULE_LABELS && firstSegment !== modSlug) ||
+        RESERVED_SUBDOMAINS.has(firstSegment) ||
+        firstSegment === 'sso' ||
+        firstSegment === 'default')
+    ) {
+      return new NextResponse('Not Found', { status: 404 });
     }
 
     // 2d. Subpath bersih (misal '/krs', '/dashboard', '/nilai')

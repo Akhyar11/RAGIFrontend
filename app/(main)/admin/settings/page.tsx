@@ -39,6 +39,7 @@ import { isAxiosError } from 'axios';
 import apiClient from '@/lib/axios';
 import { feederService } from '@/services/feeder.service';
 import { notifySystemLogoUpdated } from '@/components/layout/SystemLogo';
+import { SpmbAdminNotificationSettings } from '@/components/iam/SpmbAdminNotificationSettings';
 
 const SCHEME_OPTIONS: SelectOption[] = [
   { value: 'smtps', label: 'SSL / SMTPS (Port 465)' },
@@ -1726,6 +1727,8 @@ export default function SystemSettingsPage() {
             </div>
             {renderSectionFooter('thirdPartyRole', 'Simpan Role Pihak Ketiga')}
           </div>
+
+          <SpmbAdminNotificationSettings />
 
           {/* ════════ Section 5: Role Superadmin Utama ════════ */}
           <div className="settings-section-card card">

@@ -223,6 +223,8 @@ export async function proxy(request: NextRequest) {
       '/forgot-password',
       '/reset-password',
       '/profile',
+      '/notifikasi',
+      '/lms/notifikasi',
       '/mfa',
       '/not-found',
       '/unauthorized',

@@ -75,6 +75,8 @@ export function MainLayoutClient({
                 '/profile',
                 '/profile/sessions',
                 '/profile/mfa',
+                '/notifikasi',
+                '/lms/notifikasi',
               ];
               const currentPath = pathname.replace(/\/$/, '');
               const isAllowed =

@@ -5,12 +5,11 @@ import { createPortal } from 'react-dom';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Bell, CheckCheck, Inbox } from 'lucide-react';
-import { lmsService } from '@/services/lms.service';
-import {
-  LMS_NOTIFIKASI_JENIS_LABEL,
-  LmsNotifikasiItem,
-} from '@/types/lms.types';
+import { notificationService } from '@/services/notification.service';
+import { NOTIFICATION_CHANGED_EVENT, type NotificationPreviewItem, type NotificationSource } from '@/types/notification.types';
+import toast from 'react-hot-toast';
 import { formatRelativeTime } from '@/lib/utils';
+import { getNotificationTarget } from '@/lib/notification-navigation';
 
 /**
  * Interval polling jumlah notifikasi belum dibaca (ms).
@@ -23,7 +22,7 @@ const POLLING_INTERVAL = 60_000;
 const MAX_ITEMS = 6;
 
 /**
- * Lonceng notifikasi in-app LMS (LMS-04).
+ * Lonceng inbox sistem dan LMS.
  *
  * Notifikasi bersifat personal (disimpan per `user_id`), sehingga komponen ini
  * tidak memakai permission modul — cukup relies pada token sesi pengguna.
@@ -36,48 +35,37 @@ const MAX_ITEMS = 6;
 export default function NotifikasiBell() {
   const router = useRouter();
 
-  const [unreadCount, setUnreadCount] = useState(0);
-  const [items, setItems] = useState<LmsNotifikasiItem[]>([]);
+  const [counts, setCounts] = useState<Record<NotificationSource, number>>({ system: 0, lms: 0 });
+  const unreadCount = counts.system + counts.lms;
+  const [failedSources, setFailedSources] = useState<NotificationSource[]>([]);
+  const [items, setItems] = useState<NotificationPreviewItem[]>([]);
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [mounted, setMounted] = useState(false);
 
   const triggerRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const [coords, setCoords] = useState<{ top: number; right: number } | null>(null);
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
   const fetchUnreadCount = useCallback(async (): Promise<void> => {
-    try {
-      const res = await lmsService.getNotifikasiUnreadCount();
-      if (res.status === 'success' && res.data) {
-        setUnreadCount(res.data.unread_count ?? 0);
-      }
-    } catch {
-      // Lonceng tidak boleh mengganggu pengguna saat endpoint gagal
-      // (mis. belum login / jaringan bermasalah) — badge simply tidak berubah.
-    }
+    const result = await notificationService.getUnreadCounts();
+    setCounts((previous) => ({ ...previous, ...result }));
   }, []);
 
   const fetchItems = useCallback(async (): Promise<void> => {
     setIsLoading(true);
     try {
-      const res = await lmsService.getNotifikasi({ per_page: MAX_ITEMS, sort_order: 'desc' });
-      if (res.status === 'success') {
-        setItems(res.data || []);
-      }
+      const result = await notificationService.getPreview(MAX_ITEMS);
+      setItems(result.items);
+      setFailedSources(result.failedSources);
     } catch {
-      setItems([]);
+      setFailedSources(['system', 'lms']);
     } finally {
       setIsLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    fetchUnreadCount();
+    void Promise.resolve().then(fetchUnreadCount);
     const timer = setInterval(fetchUnreadCount, POLLING_INTERVAL);
     return () => clearInterval(timer);
   }, [fetchUnreadCount]);
@@ -139,41 +127,42 @@ export default function NotifikasiBell() {
   }, [isOpen]);
 
   const handleOpenItem = useCallback(
-    async (item: LmsNotifikasiItem) => {
+    async (item: NotificationPreviewItem) => {
       setIsOpen(false);
 
       if (!item.is_read) {
         try {
-          await lmsService.markNotifikasiRead(item.id);
-          setUnreadCount((prev) => Math.max(0, prev - 1));
+          await notificationService.markPreviewRead(item);
+          setCounts((prev) => ({ ...prev, [item.source]: Math.max(0, prev[item.source] - 1) }));
           setItems((prev) =>
-            prev.map((row) => (row.id === item.id ? { ...row, is_read: true } : row))
+            prev.map((row) => (row.id === item.id && row.source === item.source ? { ...row, is_read: true } : row))
           );
         } catch {
           // Gagal menandai dibaca tidak menghalangi navigasi.
         }
       }
 
-      if (item.rute) {
-        router.push(item.rute);
-      }
+      const target = getNotificationTarget(item.url);
+      if (target) router.push(target);
     },
     [router]
   );
 
   const handleMarkAllRead = useCallback(async () => {
     try {
-      const res = await lmsService.markAllNotifikasiRead();
-      setUnreadCount(0);
-      setItems((prev) => prev.map((row) => ({ ...row, is_read: true })));
-      const jumlah = res.data?.updated ?? 0;
-      if (jumlah > 0) {
-        await fetchUnreadCount();
-      }
-    } catch {
-      // Diabaikan — badge tetap menampilkan nilai terakhir yang diketahui.
+      await notificationService.markAllSourcesRead();
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : 'Gagal menandai notifikasi.');
+    } finally {
+      await Promise.all([fetchUnreadCount(), fetchItems()]);
     }
-  }, [fetchUnreadCount]);
+  }, [fetchUnreadCount, fetchItems]);
+
+  useEffect(() => {
+    const refresh = () => { void fetchUnreadCount(); if (isOpen) void fetchItems(); };
+    window.addEventListener(NOTIFICATION_CHANGED_EVENT, refresh);
+    return () => window.removeEventListener(NOTIFICATION_CHANGED_EVENT, refresh);
+  }, [fetchUnreadCount, fetchItems, isOpen]);
 
   return (
     <div className="topbar-user-menu">
@@ -198,7 +187,7 @@ export default function NotifikasiBell() {
         ) : null}
       </button>
 
-      {isOpen && mounted && coords
+      {isOpen && coords
         ? createPortal(
             <div
               ref={panelRef}
@@ -225,6 +214,9 @@ export default function NotifikasiBell() {
                 </button>
               </div>
 
+              {failedSources.length > 0 && (
+                <p role="status" className="p-3 text-xs text-slate-600">Sebagian notifikasi belum dapat dimuat ({failedSources.join(', ')}).</p>
+              )}
               <div className="max-h-[320px] overflow-y-auto">
                 {isLoading && items.length === 0 ? (
                   <div className="px-3 py-4 text-2xs text-slate-500 text-center">Memuat notifikasi...</div>
@@ -236,7 +228,7 @@ export default function NotifikasiBell() {
                 ) : (
                   items.map((item) => (
                     <button
-                      key={item.id}
+                      key={`${item.source}:${item.id}`}
                       type="button"
                       onClick={() => handleOpenItem(item)}
                       className={`w-full text-left px-3 py-2 border-b border-slate-100 hover:bg-slate-50 transition ${
@@ -256,13 +248,13 @@ export default function NotifikasiBell() {
                         )}
                         <div className="min-w-0 flex-1">
                           <p className="text-xs font-semibold text-slate-800 truncate">
-                            {item.judul}
+                            {item.title}
                           </p>
-                          {item.pesan ? (
-                            <p className="text-2xs text-slate-500 line-clamp-2">{item.pesan}</p>
+                          {item.message ? (
+                            <p className="text-2xs text-slate-500 line-clamp-2">{item.message}</p>
                           ) : null}
                           <p className="text-2xs text-slate-400 mt-0.5">
-                            {LMS_NOTIFIKASI_JENIS_LABEL[item.jenis] ?? item.jenis} ·{' '}
+                            {item.label} ·{' '}
                             {formatRelativeTime(item.created_at)}
                           </p>
                         </div>
@@ -274,7 +266,7 @@ export default function NotifikasiBell() {
 
               <div className="px-3 py-2 border-t border-slate-200 bg-slate-50">
                 <Link
-                  href="/lms/notifikasi"
+                  href="/notifikasi"
                   onClick={() => setIsOpen(false)}
                   className="block text-center text-xs font-semibold transition"
                   style={{ color: 'var(--module-primary, var(--primary-600))' }}

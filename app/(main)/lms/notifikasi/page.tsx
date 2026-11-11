@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { PageHeader } from '@/components/layout/PageHeader';
+import { InboxTabs } from '@/components/notifications/InboxTabs';
+import { NOTIFICATION_CHANGED_EVENT } from '@/types/notification.types';
 import { DataTable, ColumnDef } from '@/components/ui/DataTable';
 import { Drawer } from '@/components/ui/Drawer';
 import { Button } from '@/components/ui/Button';
@@ -152,12 +154,18 @@ export default function LmsNotifikasiPage() {
   );
 
   useEffect(() => {
-    fetchRows(1, perPage);
+    void Promise.resolve().then(() => fetchRows(1, perPage));
   }, [fetchRows, perPage]);
 
   useEffect(() => {
-    fetchUnreadCount();
-  }, [fetchUnreadCount]);
+    void Promise.resolve().then(fetchUnreadCount);
+    const refresh = () => {
+      void fetchUnreadCount();
+      void fetchRows(meta.current_page, perPage);
+    };
+    window.addEventListener(NOTIFICATION_CHANGED_EVENT, refresh);
+    return () => window.removeEventListener(NOTIFICATION_CHANGED_EVENT, refresh);
+  }, [fetchUnreadCount, fetchRows, meta.current_page, perPage]);
 
   const handleApplyFilter = (): void => {
     setShowFilter(false);
@@ -176,6 +184,7 @@ export default function LmsNotifikasiPage() {
     setMarkingId(row.id);
     try {
       await lmsService.markNotifikasiRead(row.id);
+      window.dispatchEvent(new Event(NOTIFICATION_CHANGED_EVENT));
       setRows((prev) => prev.map((item) => (item.id === row.id ? { ...item, is_read: true } : item)));
       setUnreadCount((prev) => Math.max(0, prev - 1));
       toast.success('Notifikasi ditandai sudah dibaca.');
@@ -195,6 +204,7 @@ export default function LmsNotifikasiPage() {
     setIsMarkingAll(true);
     try {
       const res = await lmsService.markAllNotifikasiRead();
+      window.dispatchEvent(new Event(NOTIFICATION_CHANGED_EVENT));
       const updated = res.data?.updated ?? 0;
       setRows((prev) => prev.map((item) => ({ ...item, is_read: true })));
       setUnreadCount(0);
@@ -350,6 +360,8 @@ export default function LmsNotifikasiPage() {
           </div>
         }
       />
+
+      <InboxTabs active="lms" />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <StatCard

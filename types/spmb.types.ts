@@ -269,6 +269,8 @@ export interface KomponenBiayaRoleReward {
 }
 
 export interface MasterKomponenBiaya {
+  payment_gateway_config_id?: number | null;
+  payment_gateway?: import('./spmb-payment.types').SpmbPaymentGateway | null;
   id: number;
   kode: string;
   nama: string;

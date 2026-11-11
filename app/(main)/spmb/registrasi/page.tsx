@@ -55,7 +55,6 @@ import { useUiStore } from '@/store/uiStore';
 import api from '@/lib/axios';
 import type { BiayaBebanItem, SpmbKodeDiskonPreview } from '@/types/spmb.types';
 
-import { XenditCheckoutModal } from '@/components/sikeu/payment-gateway/XenditCheckoutModal';
 
 const spmbRegistrasiSchema = z.object({
   jalur_id: z.string().min(1, 'Jalur Pendaftaran wajib dipilih'),
@@ -468,7 +467,6 @@ export default function RegistrasiSpmbPage() {
   const [isCheckingRegistration, setIsCheckingRegistration] = useState(true);
   const [loadingSimulasi, setLoadingSimulasi] = useState(false);
   const [loadingReset, setLoadingReset] = useState(false);
-  const [isCheckoutModalOpen, setIsCheckoutModalOpen] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
   const [tipeJalurOptions, setTipeJalurOptions] = useState<{ value: string; label: string }[]>([]);
   const [berkasRequirements, setBerkasRequirements] = useState<DokumenItemConfig[]>(DEFAULT_FALLBACK_DOCUMENTS);
@@ -636,7 +634,7 @@ export default function RegistrasiSpmbPage() {
     try {
       const res = await spmbService.getMyPendaftaran();
       if (res.data && res.data.pendaftaran) {
-        const { pendaftaran, tagihan } = res.data;
+        const { pendaftaran, tagihan, tagihan_list } = res.data;
         const p = pendaftaran;
         const discountUsage = p.kode_diskon_usage || p.kodeDiskonUsage;
         setDiscountLocked(Boolean(tagihan?.tagihan || discountUsage));
@@ -721,7 +719,7 @@ export default function RegistrasiSpmbPage() {
 
         // Tampilkan layar sukses / tagihan hanya jika pendaftaran sudah final (bukan draft)
         if (p.status && p.status !== 'draft') {
-          setSuksesData({ pendaftaran, tagihan });
+          setSuksesData({ pendaftaran, tagihan, tagihan_list });
         } else {
           // Status masih DRAFT: Pulihkan posisi langkah form terakhir
           const savedStep = typeof window !== 'undefined' ? localStorage.getItem('spmb_reg_current_step') : null;
@@ -851,7 +849,7 @@ export default function RegistrasiSpmbPage() {
 
   useEffect(() => {
     if (!suksesData) return;
-    const isLunas = suksesData.pendaftaran?.status_pembayaran === 'lunas' || suksesData.tagihan?.tagihan?.status === 'lunas';
+    const isLunas = suksesData.pendaftaran?.status_pembayaran === 'lunas';
     if (isLunas) return;
 
     // Auto-polling payment status every 3 seconds
@@ -859,10 +857,10 @@ export default function RegistrasiSpmbPage() {
       try {
         const res = await spmbService.getMyPendaftaran();
         if (res.data && res.data.pendaftaran) {
-          const { pendaftaran, tagihan } = res.data;
-          const checkLunas = pendaftaran?.status_pembayaran === 'lunas' || tagihan?.tagihan?.status === 'lunas';
+          const { pendaftaran, tagihan, tagihan_list } = res.data;
+          const checkLunas = pendaftaran?.status_pembayaran === 'lunas';
           if (checkLunas) {
-            setSuksesData({ pendaftaran, tagihan });
+            setSuksesData({ pendaftaran, tagihan, tagihan_list });
             toast.success('🎉 Pembayaran Berhasil Terverifikasi Real-Time! Status Anda telah otomatis diperbarui.');
             clearInterval(interval);
           }
@@ -1120,8 +1118,10 @@ export default function RegistrasiSpmbPage() {
     const vaNumber = vaObj?.va_number || '';
     const rawBank = vaObj?.bank_kode || vaObj?.bank_code || vaObj?.bank_nama || '';
     const bankCode = rawBank ? rawBank.replace(/^Bank\s+/i, '').trim().toUpperCase() : '';
-    const rawTotal = Number(tagihan?.tagihan?.total_bayar ?? tagihan?.total_bayar ?? 0);
-    const totalBayar = rawTotal > 0 ? rawTotal : (tarif > 0 ? tarif : 250000);
+    const registrationBills = (suksesData.tagihan_list || tagihan?.tagihan_list || []).filter((item: { tagihan: { tipe_referensi?: string | null } }) => item.tagihan.tipe_referensi !== 'spmb_daftar_ulang');
+    const mappedBills = registrationBills.some((item: { tagihan: { payment_gateway_config_id?: number | null } }) => !!item.tagihan.payment_gateway_config_id);
+    const amountForBill = (bill: { total_tagihan?: number | string; total_denda?: number | string; total_potongan?: number | string }) => Math.max(0, Number(bill.total_tagihan || 0) + Number(bill.total_denda || 0) - Number(bill.total_potongan || 0));
+    const totalBayar = registrationBills.length ? registrationBills.reduce((sum: number, item: { tagihan: Parameters<typeof amountForBill>[0] }) => sum + amountForBill(item.tagihan), 0) : amountForBill(tagihan?.tagihan || tagihan || {});
 
     return (
       <div className="animate-fade-in space-y-6 max-w-3xl mx-auto py-4" style={dynamicStyles}>
@@ -1173,11 +1173,12 @@ export default function RegistrasiSpmbPage() {
               </div>
               <div>
                 <h3 className="font-bold text-slate-900 text-base">Instruksi &amp; Rincian Pembayaran</h3>
-                <p className="text-xs text-slate-500">Virtual Account Pendaftaran SPMB Kampus</p>
+                <p className="text-xs text-slate-500">Tagihan Pendaftaran SPMB Kampus</p>
               </div>
             </div>
 
             <div className="space-y-4 text-sm">
+              {mappedBills ? <p className="text-xs">Tagihan mengikuti kanal pembayaran pada komponen biaya. Buka halaman Pembayaran SPMB untuk melihat seluruh tagihan dan melanjutkan pembayaran.</p> : <>
               <div className="flex flex-col sm:flex-row sm:items-center justify-between py-2 border-b border-slate-100 gap-1">
                 <span className="text-slate-500 font-medium">Bank Tujuan</span>
                 <span className="font-extrabold text-slate-800 uppercase tracking-wide bg-slate-100 px-3 py-1 rounded-lg border border-slate-200/60 text-xs sm:text-sm self-start sm:self-auto">
@@ -1223,6 +1224,7 @@ export default function RegistrasiSpmbPage() {
                 </span>
               </div>
 
+              </>}
               <div className="flex flex-col sm:flex-row sm:items-center justify-between py-2 gap-1">
                 <span className="text-slate-500 font-medium">Total Tagihan</span>
                 <span className="font-black text-slate-900 text-xl sm:text-2xl text-primary-900">
@@ -1267,19 +1269,19 @@ export default function RegistrasiSpmbPage() {
             ) : (
               <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-1">
                 <p className="text-xs text-slate-500">
-                  Belum menyelesaikan pembayaran? Anda dapat menerbitkan ulang Virtual Account jika kode VA kadaluarsa.
+                  Buka halaman pembayaran untuk melihat kanal dan sisa tagihan Anda.
                 </p>
                 <Button
                   type="button"
                   variant="primary"
                   size="sm"
-                  onClick={() => setIsCheckoutModalOpen(true)}
+                  onClick={() => router.push('/spmb/pembayaran?tahap=pendaftaran')}
                   className="w-full sm:w-auto text-xs font-bold shrink-0"
                   icon={<CreditCard size={16} />}
                 >
                   Bayar Sekarang
                 </Button>
-                <Button
+                {!mappedBills && <Button
                   type="button"
                   variant="outline"
                   size="sm"
@@ -1301,7 +1303,7 @@ export default function RegistrasiSpmbPage() {
                   className="w-full sm:w-auto bg-white border-slate-300 text-slate-700 hover:bg-slate-50 text-xs font-bold shrink-0"
                 >
                   🔄 Terbitkan Ulang VA
-                </Button>
+                </Button>}
               </div>
             )}
           </div>
@@ -1323,24 +1325,7 @@ export default function RegistrasiSpmbPage() {
           </div>
         </div>
 
-        <XenditCheckoutModal
-          isOpen={isCheckoutModalOpen}
-          onClose={() => setIsCheckoutModalOpen(false)}
-          pendaftaranId={pendaftaran?.id || 0}
-          noPendaftaran={pendaftaran?.no_pendaftaran || ''}
-          namaMhs={pendaftaran?.nama_lengkap || ''}
-          totalBayar={totalBayar}
-          vaNumber={vaNumber}
-          bankCode={bankCode}
-          onSuccess={async () => {
-            try {
-              const res = await spmbService.getMyPendaftaran();
-              if (res?.data) setSuksesData(res.data);
-            } catch {
-              // polling akan menyusul
-            }
-          }}
-        />
+
       </div>
     );
   }

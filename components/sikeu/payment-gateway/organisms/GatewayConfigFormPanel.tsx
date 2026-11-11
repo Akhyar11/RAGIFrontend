@@ -17,6 +17,8 @@ export interface GatewayConfigData {
   account_validation_enabled: boolean;
   max_disbursement_limit: number;
   is_active: boolean;
+  is_default?: boolean;
+  callback_url?: string | null;
   va_fee?: number;
   vat_percent?: number;
   charge_fee_to_payer?: boolean;

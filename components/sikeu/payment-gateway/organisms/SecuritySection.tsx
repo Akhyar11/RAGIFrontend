@@ -3,6 +3,7 @@
 import React from 'react';
 import { SectionTitle } from '../atoms/SectionTitle';
 import { ToggleSwitch } from '../atoms/ToggleSwitch';
+import { Checkbox } from '@/components/ui/Checkbox';
 import { GatewayConfigData } from './GatewayConfigFormPanel';
 
 interface SecuritySectionProps {
@@ -28,9 +29,9 @@ export const SecuritySection: React.FC<SecuritySectionProps> = ({
 
       <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between gap-4">
         <div className="space-y-1">
-          <p className="text-xs font-bold text-slate-900">Jadikan Gateway Utama ({gatewayName.toUpperCase()})</p>
+          <p className="text-xs font-bold text-slate-900">Aktifkan Kanal ({gatewayName.toUpperCase()})</p>
           <p className="text-2xs text-slate-500 font-medium">
-            Gateway ini akan digunakan sebagai payment gateway utama untuk transaksi penerbitan Virtual Account mahasiswa.
+            Beberapa kanal dapat aktif bersamaan dan dipilih pada komponen biaya SPMB.
           </p>
         </div>
 
@@ -43,6 +44,15 @@ export const SecuritySection: React.FC<SecuritySectionProps> = ({
             onChange={(val) => onChange('is_active', val)}
           />
         </div>
+      </div>
+      <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl">
+        <Checkbox
+          id={`default-gateway-${gatewayName}`}
+          label="Gunakan sebagai kanal default"
+          hint="Dipakai oleh tagihan baru yang belum menentukan kanal pembayaran."
+          checked={!!config.is_default}
+          onChange={(e) => onChange('is_default', e.target.checked)}
+        />
       </div>
     </div>
   );

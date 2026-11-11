@@ -94,14 +94,14 @@ export const CredentialSection: React.FC<CredentialSectionProps> = ({
         />
       </div>
 
-      {isMidtrans && (
+      {(isMidtrans || isXendit) && (
         <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg text-2xs text-blue-900 space-y-1">
-          <span className="font-extrabold block">URL Notifikasi Webhook Midtrans:</span>
+          <span className="font-extrabold block">URL Notifikasi Pembayaran:</span>
           <span className="font-mono text-blue-800 bg-white/80 px-2 py-0.5 rounded border border-blue-200 block">
-            {typeof window !== 'undefined' ? `${window.location.origin}/api/v1/sikeu/callback/midtrans` : '/api/v1/sikeu/callback/midtrans'}
+            {config.callback_url || 'Muat konfigurasi dari backend untuk melihat URL callback.'}
           </span>
           <span className="text-2xs text-blue-700 block">
-            Pasang URL di atas pada menu Settings &gt; Configuration &gt; Payment Notification URL di Midtrans Dashboard.
+            Pasang URL backend ini sebagai callback pembayaran di dashboard provider. Untuk Xendit, gunakan callback invoice/payment link.
           </span>
         </div>
       )}

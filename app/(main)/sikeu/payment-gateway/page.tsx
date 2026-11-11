@@ -75,6 +75,8 @@ export default function PaymentGatewayConfigPage() {
             vat_percent: Number(c.vat_percent ?? 11),
             charge_fee_to_payer: !!c.charge_fee_to_payer,
             is_active: !!c.is_active,
+            is_default: !!c.is_default,
+            callback_url: c.callback_url || null,
             base_url: c.base_url || '',
             server_location: c.server_location || '',
             db_host: c.db_host || '',
@@ -165,6 +167,7 @@ export default function PaymentGatewayConfigPage() {
         delete payload.db_password;
       }
       await sikeuService.updatePaymentGateway(activeTab.toLowerCase(), payload);
+      await fetchConfigs();
       toast.success(`Konfigurasi ${activeTab.toUpperCase()} berhasil disimpan!`);
       if (activeTab === 'bsn_h2h') {
         handleRefreshH2hStatus();

@@ -26,24 +26,9 @@ import { Textarea } from '@/components/ui/Textarea';
 import { Badge } from '@/components/ui/Badge';
 import { sippmService } from '@/services/sippm.service';
 import { simpegService } from '@/services/simpeg.service';
+import apiClient from '@/lib/axios';
 import type { JenisTim } from '@/types/sippm.types';
 import { useAuth } from '@/hooks/useAuth';
-
-// Fallback Master Data Mahasiswa (SIAKAD)
-const fallbackMahasiswaList = [
-  { id: 1001, nama_lengkap: 'Aditia Rahmat Kusuma', nim: '202401001', prodi: 'S1 Teknik Informatika' },
-  { id: 1002, nama_lengkap: 'Anisa Bella Safitri', nim: '202401002', prodi: 'S1 Sistem Informasi' },
-  { id: 1003, nama_lengkap: 'Bayu Ferdiansyah', nim: '202401003', prodi: 'S1 Desain Komunikasi Visual' },
-  { id: 1004, nama_lengkap: 'Candra Kusuma Wijaya', nim: '202401004', prodi: 'S1 Teknik Elektro' },
-];
-
-// Fallback Courses for SIAKAD Grade Conversion
-const fallbackMataKuliahAktif = [
-  { value: 101, label: 'Metodologi Penelitian & Pengabdian Masyarakat [MK-PML-01] (3 SKS)' },
-  { value: 102, label: 'Proyek Kemanusiaan & Pengabdian Desa [MK-MBKM-02] (4 SKS)' },
-  { value: 103, label: 'Tugas Akhir / Skripsi [MK-SKR-03] (6 SKS)' },
-  { value: 104, label: 'Kuliah Kerja Nyata / Pengabdian Mhs [MK-KKN-04] (4 SKS)' },
-];
 
 // Zod Schema for Create Proposal
 const proposalSchema = z.object({
@@ -102,28 +87,16 @@ export default function CreateProposalPage() {
   } = useForm<ProposalFormValues>({
     resolver: zodResolver(proposalSchema) as any,
     defaultValues: {
-      periode_id: 1,
-      skema_id: 1,
-      ketua_pegawai_id: 1,
-      program_studi: 'S1 Teknik Informatika',
+      periode_id: undefined as any,
+      skema_id: undefined as any,
+      ketua_pegawai_id: undefined as any,
+      program_studi: '',
       judul: '',
-      anggaran_diajukan: 20000000,
-      target_tkt: 3,
+      anggaran_diajukan: 10000000,
+      target_tkt: 1,
       abstrak: '',
-      anggota: [
-        {
-          jenis_tim: 'dosen',
-          pegawai_id: 2,
-          peran_dalam_tim: 'Anggota Peneliti Dosen',
-          tugas_kegiatan: 'Perancangan arsitektur sistem dan algoritma.',
-        },
-      ],
-      mata_kuliah_konversi: [
-        {
-          mata_kuliah_id: 101,
-          keterangan: 'Konversi Nilai Mata Kuliah Metodologi Penelitian (3 SKS)',
-        },
-      ],
+      anggota: [],
+      mata_kuliah_konversi: [],
     },
   });
 
@@ -147,21 +120,12 @@ export default function CreateProposalPage() {
       const filtered = periodes.filter((p: any) =>
         !inputValue || (p.tahun_anggaran || p.nama_periode || '').toLowerCase().includes(inputValue.toLowerCase())
       );
-      if (filtered.length > 0) {
-        return filtered.map((p: any) => ({
-          value: p.id,
-          label: p.tahun_anggaran || p.nama_periode || `Periode ${p.id}`,
-        }));
-      }
-      return [
-        { value: 1, label: '2025/2026 (Tahun Anggaran)' },
-        { value: 2, label: '2024/2025 (Tahun Anggaran)' },
-      ];
-    } catch (err) {
-      return [
-        { value: 1, label: '2025/2026 (Tahun Anggaran)' },
-        { value: 2, label: '2024/2025 (Tahun Anggaran)' },
-      ];
+      return filtered.map((p: any) => ({
+        value: p.id,
+        label: p.tahun_anggaran || p.nama_periode || `Periode ${p.id}`,
+      }));
+    } catch {
+      return [];
     }
   }, []);
 
@@ -172,23 +136,12 @@ export default function CreateProposalPage() {
       const filtered = skemas.filter((s: any) =>
         !inputValue || (s.nama || s.nama_skema || '').toLowerCase().includes(inputValue.toLowerCase())
       );
-      if (filtered.length > 0) {
-        return filtered.map((s: any) => ({
-          value: s.id,
-          label: s.nama || s.nama_skema,
-        }));
-      }
-      return [
-        { value: 1, label: 'Penelitian Dosen Muda (PDP)' },
-        { value: 2, label: 'Penelitian Dasar (PD)' },
-        { value: 3, label: 'Penelitian Terapan (PT / BIMA)' },
-        { value: 4, label: 'Pengabdian Masyarakat Pemula (PMP)' },
-      ];
-    } catch (err) {
-      return [
-        { value: 1, label: 'Penelitian Dosen Muda (PDP)' },
-        { value: 2, label: 'Penelitian Dasar (PD)' },
-      ];
+      return filtered.map((s: any) => ({
+        value: s.id,
+        label: s.nama || s.nama_skema,
+      }));
+    } catch {
+      return [];
     }
   }, []);
 
@@ -199,13 +152,10 @@ export default function CreateProposalPage() {
       return list.map((d: any) => ({
         value: d.id,
         label: `${d.nama_lengkap || d.name} (NIP: ${d.nip || '-'})`,
-        prodi: d.unit_kerja?.nama || d.prodi || 'S1 Teknik Informatika',
+        prodi: d.unit_kerja?.nama || d.prodi || 'Dosen',
       }));
-    } catch (err) {
-      return [
-        { value: 1, label: 'Prof. Dr. Ir. H. Ahmad Dahlan, M.Kom (NIP: 198205152010121001)', prodi: 'S1 Teknik Informatika' },
-        { value: 2, label: 'Dr. Siti Nurhaliza, S.T., M.T. (NIP: 198509182010121002)', prodi: 'S1 Sistem Informasi' },
-      ];
+    } catch {
+      return [];
     }
   }, []);
 
@@ -217,19 +167,47 @@ export default function CreateProposalPage() {
         value: t.id,
         label: `${t.nama_lengkap || t.name} (NIP: ${t.nip || '-'})`,
       }));
-    } catch (err) {
-      return [
-        { value: 101, label: 'Hendra Gunawan, S.Kom. (Laboran TI)' },
-        { value: 102, label: 'Dewi Lestari, A.Md. (Pranata Komputer)' },
-      ];
+    } catch {
+      return [];
+    }
+  }, []);
+
+  const loadMahasiswaOptions = useCallback(async (inputValue: string) => {
+    try {
+      const res = await apiClient.get<any>('/v1/siakad/mahasiswa', {
+        params: { search: inputValue || undefined, limit: 20 },
+      });
+      const list = Array.isArray(res?.data?.data)
+        ? res.data.data
+        : Array.isArray(res?.data)
+        ? res.data
+        : [];
+      return list.map((m: any) => ({
+        value: m.id,
+        label: `${m.nama_lengkap || m.nama} (NIM: ${m.nim || '-'})`,
+      }));
+    } catch {
+      return [];
     }
   }, []);
 
   const loadMatkulOptions = useCallback(async (inputValue: string) => {
-    const filtered = fallbackMataKuliahAktif.filter((m) =>
-      !inputValue || m.label.toLowerCase().includes(inputValue.toLowerCase())
-    );
-    return filtered;
+    try {
+      const res = await apiClient.get<any>('/v1/siakad/obe/matrix/cpl-mata-kuliah', {
+        params: { search: inputValue || undefined },
+      });
+      const list = Array.isArray(res?.data?.data)
+        ? res.data.data
+        : Array.isArray(res?.data)
+        ? res.data
+        : [];
+      return list.map((m: any) => ({
+        value: m.id,
+        label: `${m.nama_mk || m.nama || m.label} [${m.kode_mk || m.kode || 'MK'}] (${m.sks || 3} SKS)`,
+      }));
+    } catch {
+      return [];
+    }
   }, []);
 
   const onSubmit = async (data: ProposalFormValues) => {
@@ -481,14 +459,13 @@ export default function CreateProposalPage() {
                     )}
 
                     {currentJenisTim === 'mahasiswa' && (
-                      <Select
+                      <AsyncSelect
                         label="Pilih Mahasiswa (SIAKAD)"
                         required
-                        {...register(`anggota.${index}.mahasiswa_id` as const, { valueAsNumber: true })}
-                        options={fallbackMahasiswaList.map((m) => ({
-                          value: m.id.toString(),
-                          label: `${m.nama_lengkap} (NIM: ${m.nim})`,
-                        }))}
+                        loadOptions={loadMahasiswaOptions}
+                        onChange={(opt: any) => {
+                          if (opt) setValue(`anggota.${index}.mahasiswa_id` as const, Number(opt.value));
+                        }}
                       />
                     )}
 
@@ -573,7 +550,7 @@ export default function CreateProposalPage() {
               icon={<Plus size={16} />}
               onClick={() =>
                 appendMk({
-                  mata_kuliah_id: 102,
+                  mata_kuliah_id: 0,
                   keterangan: '',
                 })
               }

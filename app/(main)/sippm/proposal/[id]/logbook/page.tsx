@@ -56,33 +56,19 @@ export default function LogbookKegiatanPage({ params }: { params: Promise<{ id: 
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [logbookEntries, setLogbookEntries] = useState<any[]>([]);
 
-  // Sample Logbook Entries
-  const [logbookEntries, setLogbookEntries] = useState<LogbookEntry[]>([
-    {
-      id: 1,
-      tgl_kegiatan: '2026-09-10',
-      persentase_capaian: 25,
-      uraian_kegiatan: 'Studi literatur awal & penyusunan dataset sampel citra medis oncology.',
-      hambatan: 'Beberapa jurnal rujukan memerlukan akses berbayar.',
-      status_verifikasi: 'verified',
-    },
-    {
-      id: 2,
-      tgl_kegiatan: '2026-09-28',
-      persentase_capaian: 50,
-      uraian_kegiatan: 'Pelaksanaan eksperimen pelatihan arsitektur Deep Learning ResNet-50 pada GPU server kampus.',
-      hambatan: 'Waktu training membutuhkan waktu 14 jam per epoch.',
-      status_verifikasi: 'verified',
-    },
-    {
-      id: 3,
-      tgl_kegiatan: '2026-10-15',
-      persentase_capaian: 75,
-      uraian_kegiatan: 'Pengujian akurasi model & penyusunan Draf Laporan Kemajuan serta draf artikel jurnal.',
-      status_verifikasi: 'pending',
-    },
-  ]);
+  const fetchLogbooks = async () => {
+    try {
+      const res = await sippmService.getLogbooks(proposalId);
+      if (res?.data) {
+        const entries = Array.isArray(res.data) ? res.data : (res.data as any)?.data || [];
+        setLogbookEntries(entries);
+      }
+    } catch {
+      // ignore
+    }
+  };
 
   const {
     register,
@@ -104,8 +90,16 @@ export default function LogbookKegiatanPage({ params }: { params: Promise<{ id: 
     const fetchProposal = async () => {
       try {
         setLoading(true);
-        const res = await sippmService.getProposalDetail(proposalId);
-        if (res.data) setProposal(res.data);
+        const [resProp, resLog] = await Promise.allSettled([
+          sippmService.getProposalDetail(proposalId),
+          sippmService.getLogbooks(proposalId),
+        ]);
+        if (resProp.status === 'fulfilled' && resProp.value.data) {
+          setProposal(resProp.value.data);
+        }
+        if (resLog.status === 'fulfilled' && resLog.value.data) {
+          setLogbookEntries(resLog.value.data);
+        }
       } catch (err: any) {
         toast.error(err?.response?.data?.message || 'Gagal memuat logbook riset');
       } finally {
@@ -118,20 +112,20 @@ export default function LogbookKegiatanPage({ params }: { params: Promise<{ id: 
   const onSubmit = async (data: LogbookFormValues) => {
     try {
       setSubmitting(true);
-      const newEntry: LogbookEntry = {
-        id: Date.now(),
+      const fullUraian = data.hambatan ? `${data.uraian_kegiatan} (Kendala: ${data.hambatan})` : data.uraian_kegiatan;
+      await sippmService.storeLogbook(proposalId, {
         tgl_kegiatan: data.tgl_kegiatan,
+        tanggal: data.tgl_kegiatan,
         persentase_capaian: data.persentase_capaian,
         uraian_kegiatan: data.uraian_kegiatan,
         hambatan: data.hambatan,
-        status_verifikasi: 'pending',
-      };
-      setLogbookEntries([newEntry, ...logbookEntries]);
-      toast.success('Catatan logbook riset harian berhasil ditambahkan');
+      } as any);
+      toast.success('Catatan logbook riset berhasil disimpan ke server');
       setIsModalOpen(false);
       reset();
+      await fetchLogbooks();
     } catch (err: any) {
-      toast.error('Gagal menambah logbook kegiatan');
+      toast.error(err?.response?.data?.message || 'Gagal menambah logbook kegiatan');
     } finally {
       setSubmitting(false);
     }
@@ -244,38 +238,44 @@ export default function LogbookKegiatanPage({ params }: { params: Promise<{ id: 
           <span className="text-xs text-slate-500 font-medium">Total {logbookEntries.length} Catatan Masuk</span>
         </div>
         <div className="card-body p-0">
-          <div className="divide-y divide-slate-100">
-            {logbookEntries.map((entry) => (
-              <div key={entry.id} className="p-5 hover:bg-slate-50/70 transition-colors space-y-2">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                  <div className="flex items-center gap-3">
-                    <Badge variant="info">{entry.tgl_kegiatan}</Badge>
-                    <Badge variant="success">Progress: {entry.persentase_capaian}%</Badge>
+          {logbookEntries.length === 0 ? (
+            <div className="p-8 text-center text-slate-500 text-sm">
+              Belum ada catatan logbook kegiatan riset. Klik tombol <strong>Tambah Catatan Logbook</strong> untuk mulai mencatat.
+            </div>
+          ) : (
+            <div className="divide-y divide-slate-100">
+              {logbookEntries.map((entry) => (
+                <div key={entry.id} className="p-5 hover:bg-slate-50/70 transition-colors space-y-2">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div className="flex items-center gap-3">
+                      <Badge variant="info">{entry.tanggal || entry.tgl_kegiatan}</Badge>
+                      <Badge variant="success">Progress: {entry.persentase_capaian}%</Badge>
+                    </div>
+                    <div>
+                      {entry.status_verifikasi === 'verified' ? (
+                        <Badge variant="success">
+                          <CheckCircle2 size={12} className="mr-1" /> Diverifikasi Reviewer Monev
+                        </Badge>
+                      ) : (
+                        <Badge variant="warning">
+                          <Clock size={12} className="mr-1" /> Menunggu Review Monev
+                        </Badge>
+                      )}
+                    </div>
                   </div>
-                  <div>
-                    {entry.status_verifikasi === 'verified' ? (
-                      <Badge variant="success">
-                        <CheckCircle2 size={12} className="mr-1" /> Diverifikasi Reviewer Monev
-                      </Badge>
-                    ) : (
-                      <Badge variant="warning">
-                        <Clock size={12} className="mr-1" /> Menunggu Review Monev
-                      </Badge>
-                    )}
-                  </div>
+
+                  <p className="text-slate-800 text-sm font-medium leading-relaxed">{entry.uraian_kegiatan}</p>
+
+                  {entry.hambatan && (
+                    <div className="text-xs text-amber-800 bg-amber-50 p-2.5 rounded-lg border border-amber-200 flex items-center gap-2">
+                      <AlertCircle size={14} className="shrink-0 text-amber-600" />
+                      <span><strong>Catatan Kendala:</strong> {entry.hambatan}</span>
+                    </div>
+                  )}
                 </div>
-
-                <p className="text-slate-800 text-sm font-medium leading-relaxed">{entry.uraian_kegiatan}</p>
-
-                {entry.hambatan && (
-                  <div className="text-xs text-amber-800 bg-amber-50 p-2.5 rounded-lg border border-amber-200 flex items-center gap-2">
-                    <AlertCircle size={14} className="shrink-0 text-amber-600" />
-                    <span><strong>Catatan Kendala:</strong> {entry.hambatan}</span>
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 

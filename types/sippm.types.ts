@@ -515,3 +515,23 @@ export interface CreatePengumumanPayload {
   lampiran_alokasi_waktu?: JadwalItem[];
 }
 
+export interface LogbookKegiatan {
+  id: number;
+  proposal_kegiatan_id: number;
+  tanggal: string;
+  uraian_kegiatan: string;
+  persentase_capaian: number;
+  anggaran_terpakai: number;
+  file_bukti_path?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface CreateLogbookPayload {
+  tanggal: string;
+  uraian_kegiatan: string;
+  persentase_capaian: number;
+  anggaran_terpakai?: number;
+  file_bukti?: File | string;
+}
+

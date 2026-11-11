@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import { AsyncSelect } from '@/components/ui/AsyncSelect';
 import { DataTable, ColumnDef } from '@/components/ui/DataTable';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { DropdownMenu, DropdownMenuItem } from '@/components/ui/DropdownMenu';
 import { SippmBadge } from '@/components/sippm/SippmBadge';
 import { sippmService } from '@/services/sippm.service';
@@ -101,14 +102,25 @@ export default function ProposalListPage() {
     }
   }, []);
 
-  const handleSubmitProposal = async (id: number) => {
-    if (!confirm('Apakah Anda yakin ingin mengajukan proposal ini? Proposal yang telah diajukan tidak dapat diubah kembali.')) return;
+  const [confirmSubmitId, setConfirmSubmitId] = useState<number | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleSubmitProposal = (id: number) => {
+    setConfirmSubmitId(id);
+  };
+
+  const executeSubmitProposal = async () => {
+    if (!confirmSubmitId) return;
     try {
-      await sippmService.submitProposal(id);
+      setSubmitting(true);
+      await sippmService.submitProposal(confirmSubmitId);
       toast.success('Proposal berhasil diajukan ke LPPM');
       fetchProposals();
     } catch (err: any) {
       toast.error(err?.response?.data?.message || 'Gagal mengajukan proposal');
+    } finally {
+      setSubmitting(false);
+      setConfirmSubmitId(null);
     }
   };
 
@@ -380,6 +392,18 @@ export default function ProposalListPage() {
           </div>
         </div>
       </Drawer>
+
+      {/* Confirm Dialog for Submit Proposal */}
+      <ConfirmDialog
+        isOpen={!!confirmSubmitId}
+        onClose={() => setConfirmSubmitId(null)}
+        onConfirm={executeSubmitProposal}
+        title="Ajukan Proposal ke LPPM"
+        message="Apakah Anda yakin ingin mengajukan proposal ini? Proposal yang telah diajukan tidak dapat diubah kembali dan akan diproses ke tahap seleksi."
+        confirmText="Ya, Ajukan"
+        variant="primary"
+        isLoading={submitting}
+      />
     </div>
   );
 }

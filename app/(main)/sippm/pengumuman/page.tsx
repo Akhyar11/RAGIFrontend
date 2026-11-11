@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import { Modal } from '@/components/ui/Modal';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { DataTable, ColumnDef } from '@/components/ui/DataTable';
 import { DropdownMenu, DropdownMenuItem } from '@/components/ui/DropdownMenu';
 import { Badge } from '@/components/ui/Badge';
@@ -120,19 +121,24 @@ export default function PengumumanHibahPage() {
     }
   };
 
-  const handlePublish = async (id: number) => {
-    if (!confirm('Apakah Anda yakin ingin mempublish pengumuman ini? Periode pengusulan proposal di sistem akan OTOMATIS DIBUKA bagi seluruh dosen.')) {
-      return;
-    }
+  const [confirmPublishId, setConfirmPublishId] = useState<number | null>(null);
+
+  const handlePublish = (id: number) => {
+    setConfirmPublishId(id);
+  };
+
+  const executePublish = async () => {
+    if (!confirmPublishId) return;
     setSubmitting(true);
     try {
-      await sippmService.publishPengumuman(id);
+      await sippmService.publishPengumuman(confirmPublishId);
       toast.success('Pengumuman berhasil DIPUBLISH! Periode pengusulan proposal aktif.');
       fetchAnnouncements();
     } catch (err: any) {
       toast.error(err?.response?.data?.message || 'Gagal mempublish pengumuman');
     } finally {
       setSubmitting(false);
+      setConfirmPublishId(null);
     }
   };
 
@@ -439,6 +445,18 @@ export default function PengumumanHibahPage() {
           </div>
         </Modal>
       )}
+
+      {/* Confirm Dialog for Publish */}
+      <ConfirmDialog
+        isOpen={!!confirmPublishId}
+        onClose={() => setConfirmPublishId(null)}
+        onConfirm={executePublish}
+        title="Publish Pengumuman Hibah"
+        message="Apakah Anda yakin ingin mempublish pengumuman ini? Periode pengusulan proposal di sistem akan OTOMATIS DIBUKA bagi seluruh dosen."
+        confirmText="Ya, Publish"
+        variant="primary"
+        isLoading={submitting}
+      />
     </div>
   );
 }

@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import { Modal } from '@/components/ui/Modal';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { DataTable, ColumnDef } from '@/components/ui/DataTable';
 import { DropdownMenu, DropdownMenuItem } from '@/components/ui/DropdownMenu';
 import { Badge } from '@/components/ui/Badge';
@@ -133,14 +134,25 @@ export default function MasterPeriodePage() {
     setIsModalOpen(true);
   };
 
-  const handleDelete = async (id: number) => {
-    if (!confirm('Apakah Anda yakin ingin menghapus periode hibah ini?')) return;
+  const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  const handleDelete = (id: number) => {
+    setDeleteConfirmId(id);
+  };
+
+  const executeDelete = async () => {
+    if (!deleteConfirmId) return;
     try {
-      await sippmService.destroyPeriode(id);
+      setDeleting(true);
+      await sippmService.destroyPeriode(deleteConfirmId);
       toast.success('Periode hibah berhasil dihapus');
       fetchPeriode();
     } catch (err: any) {
       toast.error(err?.response?.data?.message || 'Gagal menghapus periode hibah');
+    } finally {
+      setDeleting(false);
+      setDeleteConfirmId(null);
     }
   };
 
@@ -429,6 +441,18 @@ export default function MasterPeriodePage() {
           </div>
         </form>
       </Modal>
+
+      {/* Confirm Dialog for Delete */}
+      <ConfirmDialog
+        isOpen={!!deleteConfirmId}
+        onClose={() => setDeleteConfirmId(null)}
+        onConfirm={executeDelete}
+        title="Konfirmasi Hapus Periode"
+        message="Apakah Anda yakin ingin menghapus data periode hibah ini? Tindakan ini tidak dapat dibatalkan."
+        confirmText="Ya, Hapus"
+        variant="danger"
+        isLoading={deleting}
+      />
     </div>
   );
 }

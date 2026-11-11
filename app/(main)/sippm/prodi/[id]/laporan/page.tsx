@@ -657,9 +657,9 @@ export default function LaporanProdiDetailPage({ params }: { params: Promise<{ i
         }
         title=""
         description={
-          <p className="text-xs md:text-sm text-primary-50 leading-relaxed font-semibold max-w-4xl opacity-95">
+          <span className="text-xs md:text-sm text-primary-50 leading-relaxed font-semibold max-w-4xl opacity-95 block">
             Capaian IKU 5 Program Studi <strong>{prodi.nama_prodi}</strong> telah diverifikasi oleh Badan Penjaminan Mutu (UPM) Kampus. Seluruh luaran publikasi Scopus, Sinta, dan HKI telah memenuhi kriteria SPMI Kemendikbudristek.
-          </p>
+          </span>
         }
         actions={
           <div className="text-left md:text-right shrink-0 bg-primary-950/80 p-3.5 rounded-xl border border-primary-700/60">

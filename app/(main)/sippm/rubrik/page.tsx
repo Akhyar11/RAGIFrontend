@@ -14,6 +14,7 @@ import { Select } from '@/components/ui/Select';
 import { Textarea } from '@/components/ui/Textarea';
 import { Checkbox } from '@/components/ui/Checkbox';
 import { Modal } from '@/components/ui/Modal';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { DataTable, ColumnDef } from '@/components/ui/DataTable';
 import { DropdownMenu, DropdownMenuItem } from '@/components/ui/DropdownMenu';
 import { Badge } from '@/components/ui/Badge';
@@ -143,14 +144,25 @@ export default function MasterRubrikPage() {
     setIsModalOpen(true);
   };
 
-  const handleDelete = async (id: number) => {
-    if (!confirm('Apakah Anda yakin ingin menghapus indikator penilaian ini?')) return;
+  const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  const handleDelete = (id: number) => {
+    setDeleteConfirmId(id);
+  };
+
+  const executeDelete = async () => {
+    if (!deleteConfirmId) return;
     try {
-      await sippmService.destroyRubrik(id);
+      setDeleting(true);
+      await sippmService.destroyRubrik(deleteConfirmId);
       toast.success('Indikator penilaian berhasil dihapus');
       fetchRubriks();
     } catch (err: any) {
       toast.error(err?.response?.data?.message || 'Gagal menghapus indikator');
+    } finally {
+      setDeleting(false);
+      setDeleteConfirmId(null);
     }
   };
 
@@ -475,6 +487,18 @@ export default function MasterRubrikPage() {
           />
         </form>
       </Modal>
+
+      {/* Confirm Dialog for Delete */}
+      <ConfirmDialog
+        isOpen={!!deleteConfirmId}
+        onClose={() => setDeleteConfirmId(null)}
+        onConfirm={executeDelete}
+        title="Konfirmasi Hapus Indikator Rubrik"
+        message="Apakah Anda yakin ingin menghapus indikator penilaian ini? Tindakan ini tidak dapat dibatalkan."
+        confirmText="Ya, Hapus"
+        variant="danger"
+        isLoading={deleting}
+      />
     </div>
   );
 }

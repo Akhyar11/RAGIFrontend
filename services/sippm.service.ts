@@ -30,6 +30,8 @@ import type {
   CreateRubrikPayload,
   PengumumanHibah,
   CreatePengumumanPayload,
+  LogbookKegiatan,
+  CreateLogbookPayload,
 } from '@/types/sippm.types';
 
 
@@ -137,6 +139,30 @@ export const sippmService = {
     return data;
   },
 
+  getLogbooks: async (proposalId: number): Promise<ApiResponse<LogbookKegiatan[]>> => {
+    const { data } = await apiClient.get<ApiResponse<LogbookKegiatan[]>>(`/sippm/proposal/${proposalId}/logbook`);
+    return data;
+  },
+
+  storeLogbook: async (proposalId: number, payload: CreateLogbookPayload): Promise<ApiResponse<LogbookKegiatan>> => {
+    if (payload.file_bukti instanceof File) {
+      const formData = new FormData();
+      formData.append('tanggal', payload.tanggal);
+      formData.append('uraian_kegiatan', payload.uraian_kegiatan);
+      formData.append('persentase_capaian', payload.persentase_capaian.toString());
+      if (payload.anggaran_terpakai !== undefined) {
+        formData.append('anggaran_terpakai', payload.anggaran_terpakai.toString());
+      }
+      formData.append('file_bukti', payload.file_bukti);
+      const { data } = await apiClient.post<ApiResponse<LogbookKegiatan>>(`/sippm/proposal/${proposalId}/logbook`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      return data;
+    }
+    const { data } = await apiClient.post<ApiResponse<LogbookKegiatan>>(`/sippm/proposal/${proposalId}/logbook`, payload);
+    return data;
+  },
+
   // ------------------------------------------------------------
   // Reviewer & Decision
   // ------------------------------------------------------------
@@ -170,8 +196,12 @@ export const sippmService = {
 
   requestPencairan: async (kontrakId: number, payload: RequestPencairanPayload): Promise<ApiResponse<any>> => {
     const formData = new FormData();
-    formData.append('termin', (payload.termin_ke || (payload as any).termin || 1).toString());
-    formData.append('nominal', payload.nominal.toString());
+    const terminVal = ((payload as any).termin_ke || (payload as any).termin || 1).toString();
+    const nominalVal = ((payload as any).nominal_pencairan || payload.nominal || 0).toString();
+    formData.append('termin', terminVal);
+    formData.append('termin_ke', terminVal);
+    formData.append('nominal', nominalVal);
+    formData.append('nominal_pencairan', nominalVal);
     if (payload.catatan_keuangan) formData.append('catatan_keuangan', payload.catatan_keuangan);
     if (payload.file_lpj) formData.append('file_lpj', payload.file_lpj);
 
@@ -306,6 +336,11 @@ export const sippmService = {
   // Master Standar IKU 5 Prodi
   // ------------------------------------------------------------
   indexIku5Standards: async (params?: { search?: string; tahun_akademik?: string; unit_kerja_id?: number }): Promise<PaginatedResponse<any>> => {
+    const { data } = await apiClient.get<PaginatedResponse<any>>('/sippm/iku5-standards', { params });
+    return data;
+  },
+
+  getIku5Standards: async (params?: any): Promise<PaginatedResponse<any>> => {
     const { data } = await apiClient.get<PaginatedResponse<any>>('/sippm/iku5-standards', { params });
     return data;
   },

@@ -17,6 +17,7 @@ import toast from 'react-hot-toast';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { SippmBadge } from '@/components/sippm/SippmBadge';
 import { sippmService } from '@/services/sippm.service';
 import type { ProposalKegiatan } from '@/types/sippm.types';
@@ -50,14 +51,27 @@ export default function ProposalDetailPage({ params }: { params: Promise<{ id: s
     fetchDetail();
   }, [canRead, resolvedParams.id]);
 
-  const handleSubmitProposal = async () => {
-    if (!proposal || !confirm('Apakah Anda yakin ingin mengajukan proposal ini ke LPPM?')) return;
+  const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
+  const [submittingProposal, setSubmittingProposal] = useState(false);
+
+  const handleSubmitProposal = () => {
+    setShowSubmitConfirm(true);
+  };
+
+  const executeSubmitProposal = async () => {
+    if (!proposal) return;
     try {
+      setSubmittingProposal(true);
       await sippmService.submitProposal(proposal.id);
       toast.success('Proposal berhasil diajukan ke LPPM');
       router.refresh();
+      const res = await sippmService.getProposalDetail(proposal.id);
+      if (res.data) setProposal(res.data);
     } catch (err: any) {
       toast.error(err?.response?.data?.message || 'Gagal mengajukan proposal');
+    } finally {
+      setSubmittingProposal(false);
+      setShowSubmitConfirm(false);
     }
   };
 
@@ -262,6 +276,18 @@ export default function ProposalDetailPage({ params }: { params: Promise<{ id: s
           )}
         </div>
       </div>
+
+      {/* Confirm Dialog for Submit Proposal */}
+      <ConfirmDialog
+        isOpen={showSubmitConfirm}
+        onClose={() => setShowSubmitConfirm(false)}
+        onConfirm={executeSubmitProposal}
+        title="Ajukan Proposal ke LPPM"
+        message="Apakah Anda yakin ingin mengajukan proposal ini ke LPPM? Setelah diajukan, usulan akan masuk tahap review dan seleksi."
+        confirmText="Ya, Ajukan"
+        variant="primary"
+        isLoading={submittingProposal}
+      />
     </div>
   );
 }

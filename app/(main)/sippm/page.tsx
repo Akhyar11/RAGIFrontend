@@ -65,14 +65,12 @@ export default function SippmDashboardPage() {
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
-            <a
-              href={`${process.env.NEXT_PUBLIC_API_URL || ''}/api/sippm/pengumuman/1/html-draft`}
-              target="_blank"
-              rel="noopener noreferrer"
+            <Link
+              href="/sippm/pengumuman"
               className="px-4 py-2.5 bg-white/10 hover:bg-white/20 text-white text-xs font-bold rounded-xl border border-white/20 transition backdrop-blur-md flex items-center gap-1.5"
             >
-              <FileText size={14} /> Surat Pengumuman Scanned (PDF)
-            </a>
+              <FileText size={14} /> Surat Pengumuman Hibah
+            </Link>
             <Link
               href="/sippm/proposal/create"
               className="px-4 py-2.5 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-white font-extrabold text-xs rounded-xl shadow-lg hover:shadow-emerald-500/25 transition flex items-center gap-1.5"

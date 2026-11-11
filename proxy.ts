@@ -143,11 +143,7 @@ export async function proxy(request: NextRequest) {
       ? Object.entries(config.domainMap).find(([, module]) => module === firstSegment)?.[0]
       : undefined;
 
-    if (firstSegment && firstSegment in MODULE_LABELS) {
-      if (!mappedModuleHost) {
-        return new NextResponse('Not Found', { status: 404 });
-      }
-
+    if (firstSegment && firstSegment in MODULE_LABELS && mappedModuleHost) {
       const restPath = pathname.slice(firstSegment.length + 1);
       const targetUrl = new URL(restPath || '/', `https://${mappedModuleHost}`);
       targetUrl.search = request.nextUrl.search;

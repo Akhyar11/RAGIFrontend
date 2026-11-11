@@ -72,15 +72,30 @@ export default function EvaluateProposalPage({ params }: { params: Promise<{ id:
         const list = Array.isArray(res?.data)
           ? res.data
           : (res?.data as any)?.items || (res?.data as any)?.data || [];
-        const found = list.find((r: any) => r.id === Number(resolvedParams.id));
+        let found = list.find((r: any) => r.id === Number(resolvedParams.id) || r.proposal_id === Number(resolvedParams.id));
+        if (!found) {
+          try {
+            const propRes = await sippmService.getProposalDetail(Number(resolvedParams.id));
+            if (propRes?.data) {
+              found = {
+                id: Number(resolvedParams.id),
+                proposal_id: propRes.data.id,
+                proposal: propRes.data,
+                status: 'assigned',
+              } as any;
+            }
+          } catch {
+            // ignore
+          }
+        }
         if (found) {
           setReviewerData(found);
           if (found.penilaian) {
-            setValue('skor_rekam_jejak', found.penilaian.skor_rekam_jejak);
-            setValue('skor_substansi', found.penilaian.skor_substansi);
-            setValue('skor_rab', found.penilaian.skor_rab);
-            setValue('catatan_reviewer', found.penilaian.catatan_reviewer || '');
-            setValue('rekomendasi', found.penilaian.rekomendasi);
+            setValue('skor_rekam_jejak', found.penilaian.skor_rekam_jejak || 0);
+            setValue('skor_substansi', found.penilaian.skor_substansi || 0);
+            setValue('skor_rab', found.penilaian.skor_rencana_anggaran || found.penilaian.skor_rab || 0);
+            setValue('catatan_reviewer', found.penilaian.catatan_revisi || found.penilaian.catatan_reviewer || '');
+            setValue('rekomendasi', (found.penilaian.rekomendasi === 'diterima' ? 'terima' : (found.penilaian.rekomendasi === 'ditolak' ? 'tolak' : found.penilaian.rekomendasi)) || 'terima');
           }
         }
       } catch (err) {
@@ -97,7 +112,16 @@ export default function EvaluateProposalPage({ params }: { params: Promise<{ id:
     try {
       setSubmitting(true);
       setErrorMsg(null);
-      await sippmService.submitPenilaian(Number(resolvedParams.id), data);
+      const targetId = reviewerData?.id || Number(resolvedParams.id);
+      await sippmService.submitPenilaian(targetId, {
+        skor_rekam_jejak: data.skor_rekam_jejak,
+        skor_substansi: data.skor_substansi,
+        skor_rab: data.skor_rab,
+        skor_rencana_anggaran: data.skor_rab,
+        catatan_reviewer: data.catatan_reviewer,
+        catatan_revisi: data.catatan_reviewer,
+        rekomendasi: data.rekomendasi === 'terima' ? 'diterima' : (data.rekomendasi === 'tolak' ? 'ditolak' : data.rekomendasi),
+      } as any);
       toast.success('Penilaian desk evaluation berhasil disimpan!');
       router.push('/sippm/reviewer');
     } catch (err: any) {

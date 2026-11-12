@@ -406,7 +406,9 @@ export default function DataPendaftarPage() {
                     {row.nama_lengkap}
                     {row.sumber_pendaftaran === 'manual' && <Badge variant="spmb" className="text-2xs">Manual</Badge>}
                   </span>
-                  <span className="text-2xs text-slate-500">NIK: {row.nik || '-'}</span>
+                  <span className="text-2xs text-slate-500">
+                    {row.nomor_paspor ? `Paspor: ${row.nomor_paspor}` : `NIK: ${row.nik || '-'}`}
+                  </span>
                 </div>
               )
             },
@@ -548,8 +550,8 @@ export default function DataPendaftarPage() {
 
                 <div className="grid grid-cols-2 gap-2 text-xs">
                   <div>
-                    <span className="text-slate-400 block text-2xs font-medium">NIK</span>
-                    <span className="text-slate-700 font-semibold">{row.nik || '-'}</span>
+                    <span className="text-slate-400 block text-2xs font-medium">{row.nomor_paspor ? 'Paspor' : 'NIK'}</span>
+                    <span className="text-slate-700 font-semibold">{row.nomor_paspor || row.nik || '-'}</span>
                   </div>
                   <div>
                     <span className="text-slate-400 block text-2xs font-medium">Prodi Pilihan</span>
@@ -645,7 +647,7 @@ export default function DataPendaftarPage() {
         <div className="space-y-5">
           <Input 
             label="Pencarian Global"
-            placeholder="Ketik nama, NIK, atau No. Pendaftaran..."
+            placeholder="Ketik nama, NIK, paspor, atau No. Pendaftaran..."
             value={filterSearch}
             onChange={(e) => setFilterSearch(e.target.value)}
           />

@@ -17,6 +17,7 @@ import { DataTable, type ColumnDef } from '@/components/ui/DataTable';
 import { Textarea } from '@/components/ui/Textarea';
 import { spmbService } from '@/services/spmb.service';
 import { useAuth } from '@/hooks/useAuth';
+import { validateApplicantIdentity } from '@/lib/spmb/applicant-identity';
 
 const manualRegistrationSchema = z.object({
   email: z.string().trim().email('Email calon wajib diisi dengan format yang benar.').max(255),
@@ -25,13 +26,19 @@ const manualRegistrationSchema = z.object({
   program_studi_id: z.string().min(1, 'Program studi wajib dipilih.'),
   program_studi_pilihan2_id: z.string().optional(),
   nama_lengkap: z.string().trim().min(1, 'Nama lengkap wajib diisi.').max(255),
-  nik: z.string().trim().min(1, 'NIK wajib diisi.').max(20),
+  nik: z.string().trim().max(20).optional(),
+  kewarganegaraan_id: z.string().min(1, 'Kewarganegaraan wajib dipilih.'),
+  nomor_paspor: z.string().max(50).optional(),
+  negara_penerbit_paspor: z.string().max(100).optional(),
+  negara_kewarganegaraan: z.string().max(100).optional(),
+  kode_negara_kewarganegaraan: z.string().max(2).optional(),
   tanggal_lahir: z.string().optional(),
   tempat_lahir: z.string().max(100).optional(),
   jenis_kelamin: z.string().optional(),
   agama: z.string().max(50).optional(),
   status_sipil: z.string().max(50).optional(),
   kewarganegaraan: z.string().max(50).optional(),
+  negara_domisili: z.string().max(100).optional(),
   no_hp: z.string().trim().min(1, 'Nomor HP wajib diisi.').max(30),
   alamat: z.string().trim().min(1, 'Alamat wajib diisi.').max(2000),
   provinsi: z.string().max(100).optional(),
@@ -67,10 +74,28 @@ const manualRegistrationSchema = z.object({
   ket_info_daftar: z.string().max(255).optional(),
   referrer_user_id: z.string().optional(),
   pihak_ketiga_user_ids: z.array(z.string()).max(20),
+}).superRefine((values, context) => {
+  const identityErrors = validateApplicantIdentity({
+    nationalityCode: values.kewarganegaraan || '',
+    nik: values.nik || '',
+    passportNumber: values.nomor_paspor || '',
+    passportIssuingCountry: values.negara_penerbit_paspor || '',
+    citizenshipCountry: values.negara_kewarganegaraan || '',
+    citizenshipCountryCode: values.kode_negara_kewarganegaraan || '',
+    residenceCountry: values.negara_domisili || '',
+    address: values.alamat,
+    province: values.provinsi || '',
+    city: values.kota_kabupaten || '',
+    district: values.kecamatan || '',
+  });
+  for (const [path, message] of Object.entries(identityErrors)) {
+    context.addIssue({ code: 'custom', path: [path], message });
+  }
 });
 
 type ManualRegistrationValues = z.infer<typeof manualRegistrationSchema>;
 type SelectOption = { value: string; label: string };
+type NationalityOption = SelectOption & { code: string };
 
 const GENDER_OPTIONS: SelectOption[] = [
   { value: '', label: 'Pilih jenis kelamin' },
@@ -103,6 +128,7 @@ export default function CreateManualPendaftaranPage() {
   const canManage = hasPermission('spmb.manage');
   const [waveOptions, setWaveOptions] = useState<SelectOption[]>([]);
   const [typeOptions, setTypeOptions] = useState<SelectOption[]>([]);
+  const [nationalityOptions, setNationalityOptions] = useState<NationalityOption[]>([]);
   const [programOptions, setProgramOptions] = useState<SelectOption[]>([]);
   const [loadingOptions, setLoadingOptions] = useState(true);
   const [proofFile, setProofFile] = useState<File | null>(null);
@@ -127,12 +153,18 @@ export default function CreateManualPendaftaranPage() {
       program_studi_pilihan2_id: '',
       nama_lengkap: '',
       nik: '',
+      kewarganegaraan_id: '',
+      nomor_paspor: '',
+      negara_penerbit_paspor: '',
+      negara_kewarganegaraan: '',
+      kode_negara_kewarganegaraan: '',
       tanggal_lahir: '',
       tempat_lahir: '',
       jenis_kelamin: '',
       agama: '',
       status_sipil: '',
       kewarganegaraan: 'WNI',
+      negara_domisili: 'Indonesia',
       no_hp: '',
       alamat: '',
       provinsi: '',
@@ -180,6 +212,13 @@ export default function CreateManualPendaftaranPage() {
     defaultValues: { name: '', email: '', phone: '' },
   });
   const selectedThirdPartyIds = useWatch({ control, name: 'pihak_ketiga_user_ids' }) || [];
+  const selectedNationality = useWatch({ control, name: 'kewarganegaraan' }) || 'WNI';
+  const selectedResidenceCountry = useWatch({ control, name: 'negara_domisili' }) || '';
+  const isWna = selectedNationality.toUpperCase() === 'WNA';
+  const normalizedResidenceCountry = selectedResidenceCountry.trim().toUpperCase();
+  const residenceInIndonesia = normalizedResidenceCountry === 'ID'
+    || normalizedResidenceCountry === 'IDN'
+    || normalizedResidenceCountry === 'INDONESIA';
   const selectedThirdPartyList = selectedThirdPartyIds.map((id) => {
     const option = thirdPartyOptions.find((item) => item.value === id);
     const [name, username, email] = option?.label.split(' • ') || ['Akun terpilih', '-', '-'];
@@ -195,10 +234,11 @@ export default function CreateManualPendaftaranPage() {
     if (!canManage) return;
     const loadOptions = async () => {
       try {
-        const [waves, types, programs] = await Promise.all([
+        const [waves, types, programs, nationalities] = await Promise.all([
           spmbService.getGelombang({ status: 'aktif', per_page: 100 }),
           spmbService.getMasterTipeJalur({ limit: 100 }),
           spmbService.getProgramStudi(),
+          spmbService.getReferensi('kewarganegaraan'),
         ]);
         const waveData = (waves?.data || []) as Array<{ id: number; nama: string; jalur_masuk?: { nama?: string } }>;
         const typeData = (types?.data || []) as Array<{ id: number; nama: string }>;
@@ -212,6 +252,18 @@ export default function CreateManualPendaftaranPage() {
           value: String(item.id),
           label: `${item.nama}${item.jenjang ? ` (${item.jenjang})` : ''}`,
         })));
+        const nationalityData = Array.isArray(nationalities?.data) ? nationalities.data : [];
+        const mappedNationalities: NationalityOption[] = nationalityData.map((item: { id: number; nama: string; kode?: string }) => ({
+          value: String(item.id),
+          label: item.nama,
+          code: String(item.kode || '').toUpperCase(),
+        }));
+        setNationalityOptions(mappedNationalities);
+        const wni = mappedNationalities.find((item) => item.code === 'WNI');
+        if (wni) {
+          setValue('kewarganegaraan_id', wni.value);
+          setValue('kewarganegaraan', wni.code);
+        }
       } catch (error: unknown) {
         const message = error instanceof Error ? error.message : 'Gagal memuat pilihan pendaftaran.';
         toast.error(message);
@@ -220,7 +272,7 @@ export default function CreateManualPendaftaranPage() {
       }
     };
     loadOptions();
-  }, [canManage]);
+  }, [canManage, setValue]);
 
   const loadReferrers = useCallback(async (search: string) => {
     try {
@@ -385,7 +437,39 @@ export default function CreateManualPendaftaranPage() {
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
             <Input label="Nama Lengkap" required error={errors.nama_lengkap?.message} {...register('nama_lengkap')} />
             <Input type="email" label="Email Calon" required error={errors.email?.message} {...register('email')} />
-            <Input label="NIK" required error={errors.nik?.message} {...register('nik')} />
+            <Controller name="kewarganegaraan_id" control={control} render={({ field }) => (
+              <AsyncSelect
+                label="Kewarganegaraan"
+                required
+                loadOptions={async (search) => nationalityOptions
+                  .filter((option) => `${option.label} ${option.code}`.toLowerCase().includes(search.toLowerCase()))
+                  .map(({ value, label }) => ({ value, label }))}
+                defaultOptions={nationalityOptions.map(({ value, label }) => ({ value, label }))}
+                isDisabled={loadingOptions}
+                value={field.value}
+                onChange={(option: { value: string } | null) => {
+                  const reference = nationalityOptions.find((item) => item.value === String(option?.value || ''));
+                  field.onChange(reference?.value || '');
+                  setValue('kewarganegaraan', reference?.code || '');
+                  if (reference?.code === 'WNA') setValue('nik', '');
+                  if (reference?.code === 'WNI') {
+                    setValue('nomor_paspor', '');
+                    setValue('negara_penerbit_paspor', '');
+                  }
+                }}
+                error={errors.kewarganegaraan_id?.message}
+              />
+            )} />
+            {isWna ? (
+              <>
+                <Input label="Nomor Paspor" required error={errors.nomor_paspor?.message} {...register('nomor_paspor')} />
+                <Input label="Negara Penerbit Paspor" required error={errors.negara_penerbit_paspor?.message} {...register('negara_penerbit_paspor')} />
+                <Input label="Negara Kewarganegaraan" required error={errors.negara_kewarganegaraan?.message} {...register('negara_kewarganegaraan')} />
+                <Input label="Kode Negara (ISO 2 Huruf)" required maxLength={2} error={errors.kode_negara_kewarganegaraan?.message} {...register('kode_negara_kewarganegaraan')} />
+              </>
+            ) : (
+              <Input label="NIK" required error={errors.nik?.message} {...register('nik')} />
+            )}
             <Input type="date" label="Tanggal Lahir" error={errors.tanggal_lahir?.message} {...register('tanggal_lahir')} />
             <Input label="Tempat Lahir" {...register('tempat_lahir')} />
             <Controller name="jenis_kelamin" control={control} render={({ field }) => (
@@ -393,14 +477,14 @@ export default function CreateManualPendaftaranPage() {
             )} />
             <Input label="Agama" {...register('agama')} />
             <Input label="Status Sipil" {...register('status_sipil')} />
-            <Input label="Kewarganegaraan" {...register('kewarganegaraan')} />
             <Input label="Nomor Handphone" required error={errors.no_hp?.message} {...register('no_hp')} />
           </div>
           <Textarea label="Alamat Domisili" required rows={3} error={errors.alamat?.message} {...register('alamat')} />
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
-            <Input label="Provinsi" {...register('provinsi')} />
-            <Input label="Kabupaten/Kota" {...register('kota_kabupaten')} />
-            <Input label="Kecamatan" {...register('kecamatan')} />
+            <Input label="Negara Domisili" required error={errors.negara_domisili?.message} {...register('negara_domisili')} />
+            <Input label={residenceInIndonesia ? 'Provinsi' : 'Provinsi / State / Region'} required={residenceInIndonesia} error={errors.provinsi?.message} {...register('provinsi')} />
+            <Input label={residenceInIndonesia ? 'Kabupaten/Kota' : 'Kota / City'} required={residenceInIndonesia} error={errors.kota_kabupaten?.message} {...register('kota_kabupaten')} />
+            <Input label={residenceInIndonesia ? 'Kecamatan' : 'Distrik / District'} required={residenceInIndonesia} error={errors.kecamatan?.message} {...register('kecamatan')} />
             <Input label="Kode Pos" {...register('kode_pos')} />
           </div>
         </section>

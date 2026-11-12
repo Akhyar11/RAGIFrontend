@@ -54,6 +54,7 @@ import { useSpmbStore } from '@/store/spmbStore';
 import { useUiStore } from '@/store/uiStore';
 import api from '@/lib/axios';
 import type { BiayaBebanItem, SpmbKodeDiskonPreview } from '@/types/spmb.types';
+import { isIndonesiaCountry, validateApplicantIdentity } from '@/lib/spmb/applicant-identity';
 
 
 const spmbRegistrasiSchema = z.object({
@@ -67,19 +68,25 @@ const spmbRegistrasiSchema = z.object({
   ket_info_daftar: z.string().min(1, 'Keterangan info pendaftaran wajib diisi'),
   
   nama_lengkap: z.string().min(3, 'Nama lengkap minimal 3 karakter'),
-  nik: z.string().regex(/^[0-9]{16}$/, 'NIK wajib 16 digit angka'),
+  nik: z.string().optional(),
+  kewarganegaraan_id: z.string().min(1, 'Kewarganegaraan wajib dipilih.'),
+  nomor_paspor: z.string().optional(),
+  negara_penerbit_paspor: z.string().optional(),
+  negara_kewarganegaraan: z.string().optional(),
+  kode_negara_kewarganegaraan: z.string().optional(),
   tempat_lahir: z.string().min(2, 'Tempat lahir wajib diisi'),
   tanggal_lahir: z.string().min(1, 'Tanggal lahir wajib diisi'),
   jenis_kelamin: z.string().min(1, 'Jenis kelamin wajib dipilih'),
   status_sipil: z.string().min(1, 'Status sipil wajib dipilih'),
   agama: z.string().optional(),
-  kewarganegaraan: z.string().optional(),
+  kewarganegaraan: z.string().min(1, 'Kewarganegaraan wajib dipilih.'),
   
   no_hp: z.string().min(10, 'Nomor HP minimal 10 digit').regex(/^[0-9\-\+\s]+$/, 'Format nomor HP tidak valid'),
-  provinsi: z.string().min(2, 'Provinsi domisili wajib diisi'),
-  kota_kabupaten: z.string().min(2, 'Kota/Kabupaten wajib diisi'),
-  kecamatan: z.string().min(2, 'Kecamatan wajib diisi'),
+  provinsi: z.string().optional(),
+  kota_kabupaten: z.string().optional(),
+  kecamatan: z.string().optional(),
   kode_pos: z.string().optional(),
+  negara_domisili: z.string().min(2, 'Negara domisili wajib diisi.'),
   alamat: z.string().min(5, 'Alamat rumah lengkap minimal 5 karakter'),
   
   asal_lulusan: z.string().min(1, 'Asal lulusan wajib dipilih'),
@@ -115,7 +122,24 @@ const spmbRegistrasiSchema = z.object({
     .refine((val) => !val || /^REF-[A-Z0-9]{6}$/i.test(val.trim()), {
       message: 'Format kode referral tidak valid (contoh: REF-A1B2C3)',
     }),
-});
+  }).superRefine((values, context) => {
+    const identityErrors = validateApplicantIdentity({
+      nationalityCode: values.kewarganegaraan,
+      nik: values.nik || '',
+      passportNumber: values.nomor_paspor || '',
+      passportIssuingCountry: values.negara_penerbit_paspor || '',
+      citizenshipCountry: values.negara_kewarganegaraan || '',
+      citizenshipCountryCode: values.kode_negara_kewarganegaraan || '',
+      residenceCountry: values.negara_domisili,
+      address: values.alamat,
+      province: values.provinsi || '',
+      city: values.kota_kabupaten || '',
+      district: values.kecamatan || '',
+    });
+    for (const [path, message] of Object.entries(identityErrors)) {
+      context.addIssue({ code: 'custom', path: [path], message });
+    }
+  });
 
 type SpmbFormValues = z.infer<typeof spmbRegistrasiSchema>;
 
@@ -190,6 +214,12 @@ interface DokumenItemConfig {
   icon: any;
 }
 
+interface NationalityOption {
+  value: string;
+  label: string;
+  code: string;
+}
+
 const DEFAULT_FALLBACK_DOCUMENTS: DokumenItemConfig[] = [
   { key: 'ktp', label: 'KTP / Kartu Identitas', required: true, hint: 'Format PDF/JPG/PNG, NIK terlihat jelas, maks 5MB', icon: CreditCard },
   { key: 'kk', label: 'Kartu Keluarga (KK)', required: true, hint: 'Format PDF/JPG/PNG, lembar KK asli/legalisir, maks 5MB', icon: FileText },
@@ -197,6 +227,14 @@ const DEFAULT_FALLBACK_DOCUMENTS: DokumenItemConfig[] = [
   { key: 'ijazah', label: 'Ijazah / SKL', required: true, hint: 'Format PDF/JPG/PNG, lembar nilai & stempel, maks 5MB', icon: Award },
   { key: 'rapor', label: 'Transkrip Nilai / Rapor Semester 1-5', required: false, hint: 'Format PDF/JPG/PNG, gabungan halaman nilai rapor, maks 5MB', icon: FileSpreadsheet },
 ];
+
+function getFallbackDocuments(isWna: boolean): DokumenItemConfig[] {
+  if (!isWna) return DEFAULT_FALLBACK_DOCUMENTS;
+  return [
+    { key: 'paspor', label: 'Paspor', required: true, hint: 'Halaman identitas paspor yang masih berlaku, maks 5MB', icon: CreditCard },
+    ...DEFAULT_FALLBACK_DOCUMENTS.filter((document) => document.key !== 'ktp' && document.key !== 'kk'),
+  ];
+}
 
 function getDokumenConfigFromRequirement(req: any): DokumenItemConfig {
   const key = req.jenis_dokumen || String(req.id);
@@ -252,7 +290,7 @@ function DokumenUploadPanel({
 }) {
   const safeUploaded = uploadedBerkas || {};
   const safeUploading = uploadingState || {};
-  const displayDocs = documents && documents.length > 0 ? documents : DEFAULT_FALLBACK_DOCUMENTS;
+  const displayDocs = documents;
 
   return (
     <div className="space-y-5">
@@ -398,13 +436,19 @@ export default function RegistrasiSpmbPage() {
       ket_info_daftar: '',
       nama_lengkap: '',
       nik: '',
+      kewarganegaraan_id: '',
+      nomor_paspor: '',
+      negara_penerbit_paspor: '',
+      negara_kewarganegaraan: '',
+      kode_negara_kewarganegaraan: '',
       tempat_lahir: '',
       tanggal_lahir: '',
       jenis_kelamin: '',
       status_sipil: '',
       agama: '',
-      kewarganegaraan: 'WNI',
+      kewarganegaraan: '',
       no_hp: '',
+      negara_domisili: 'Indonesia',
       provinsi: '',
       kota_kabupaten: '',
       kecamatan: '',
@@ -469,6 +513,7 @@ export default function RegistrasiSpmbPage() {
   const [loadingReset, setLoadingReset] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
   const [tipeJalurOptions, setTipeJalurOptions] = useState<{ value: string; label: string }[]>([]);
+  const [nationalityOptions, setNationalityOptions] = useState<NationalityOption[]>([]);
   const [berkasRequirements, setBerkasRequirements] = useState<DokumenItemConfig[]>(DEFAULT_FALLBACK_DOCUMENTS);
   const [loadingBerkas, setLoadingBerkas] = useState(false);
   const [referralCheck, setReferralCheck] = useState<{
@@ -519,6 +564,11 @@ export default function RegistrasiSpmbPage() {
   }, [referralCodeValue]);
 
   const selectedJalur = watch('jalur_id');
+  const nationalityId = watch('kewarganegaraan_id');
+  const nationalityCode = watch('kewarganegaraan');
+  const residenceCountry = watch('negara_domisili');
+  const isWna = nationalityCode.toUpperCase() === 'WNA';
+  const hasIndonesianResidence = isIndonesiaCountry(residenceCountry);
   const selectedGelombang = watch('gelombang_id');
   const selectedTipeJalur = watch('master_tipe_jalur_id');
   const selectedProdi = watch('program_studi_id');
@@ -576,14 +626,26 @@ export default function RegistrasiSpmbPage() {
         const configs = items.map(getDokumenConfigFromRequirement);
         setBerkasRequirements(configs);
       } else {
-        setBerkasRequirements(DEFAULT_FALLBACK_DOCUMENTS);
+        setBerkasRequirements(getFallbackDocuments(isWna));
       }
     } catch (err) {
       console.warn('Failed to fetch berkas requirements from API:', err);
-      setBerkasRequirements(DEFAULT_FALLBACK_DOCUMENTS);
+      setBerkasRequirements(getFallbackDocuments(isWna));
     } finally {
       setLoadingBerkas(false);
     }
+  };
+
+  const fetchNationalityOptions = async (): Promise<NationalityOption[]> => {
+    const response = await spmbService.getReferensi('kewarganegaraan');
+    const rows = Array.isArray(response?.data) ? response.data : [];
+    const options = rows.map((row: any) => ({
+      value: String(row.id),
+      label: row.nama,
+      code: String(row.kode || '').toUpperCase(),
+    }));
+    setNationalityOptions(options);
+    return options;
   };
 
   useEffect(() => {
@@ -591,6 +653,15 @@ export default function RegistrasiSpmbPage() {
     fetchJalur();
     fetchProdi();
     loadTipeJalur('');
+    fetchNationalityOptions()
+      .then((options: NationalityOption[]) => {
+        const wni = options.find((option) => option.code === 'WNI');
+        if (wni && !getValues('kewarganegaraan_id')) {
+          setValue('kewarganegaraan_id', wni.value);
+          setValue('kewarganegaraan', wni.code);
+        }
+      })
+      .catch(() => toast.error('Referensi kewarganegaraan gagal dimuat.'));
     checkExistingRegistration();
     const currentModuleCode = window.location.pathname.split('/')[1] || '';
     fetchModuleColor(currentModuleCode);
@@ -601,7 +672,7 @@ export default function RegistrasiSpmbPage() {
     if (selectedJalur) {
       fetchBerkasRequirements(selectedJalur);
     }
-  }, [selectedJalur]);
+  }, [selectedJalur, isWna]);
 
   const loadTipeJalur = async (inputValue: string) => {
     try {
@@ -636,6 +707,11 @@ export default function RegistrasiSpmbPage() {
       if (res.data && res.data.pendaftaran) {
         const { pendaftaran, tagihan, tagihan_list } = res.data;
         const p = pendaftaran;
+        const references = await fetchNationalityOptions();
+        const nationalityOption = references.find((option: any) =>
+          String(option.value) === String(p.kewarganegaraan_id || '') ||
+          option.code === String(p.kewarganegaraan || '').toUpperCase()
+        );
         const discountUsage = p.kode_diskon_usage || p.kodeDiskonUsage;
         setDiscountLocked(Boolean(tagihan?.tagihan || discountUsage));
 
@@ -653,13 +729,19 @@ export default function RegistrasiSpmbPage() {
           kode_diskon: discountUsage?.kode_diskon || '',
           nama_lengkap: p.nama_lengkap || '',
           nik: p.nik || '',
+          kewarganegaraan_id: nationalityOption?.value || '',
+          nomor_paspor: p.nomor_paspor || '',
+          negara_penerbit_paspor: p.negara_penerbit_paspor || '',
+          negara_kewarganegaraan: p.negara_kewarganegaraan || '',
+          kode_negara_kewarganegaraan: p.kode_negara_kewarganegaraan || '',
           tanggal_lahir: p.tanggal_lahir ? p.tanggal_lahir.split('T')[0] : '',
           tempat_lahir: p.tempat_lahir || '',
           jenis_kelamin: p.jenis_kelamin || '',
           status_sipil: p.status_sipil || '',
           agama: p.agama || '',
-          kewarganegaraan: p.kewarganegaraan || 'WNI',
+          kewarganegaraan: nationalityOption?.code || p.kewarganegaraan || '',
           no_hp: p.no_hp || '',
+          negara_domisili: p.negara_domisili || 'Indonesia',
           alamat: p.alamat || '',
           provinsi: p.provinsi || '',
           kota_kabupaten: p.kota_kabupaten || '',
@@ -734,7 +816,7 @@ export default function RegistrasiSpmbPage() {
               targetStep = 5;
             } else if (p.no_hp || p.alamat) {
               targetStep = 4;
-            } else if (p.nama_lengkap && p.nik) {
+            } else if (p.nama_lengkap && (p.nik || p.nomor_paspor)) {
               targetStep = 3;
             } else if (p.program_studi_id && (p.gelombang_id || p.gelombang_penerimaan?.jalur_masuk_id)) {
               targetStep = 2;
@@ -804,15 +886,25 @@ export default function RegistrasiSpmbPage() {
       }
       setValue('nama_lengkap', p.nama_lengkap || '');
       setValue('nik', p.nik || '');
+      setValue('nomor_paspor', p.nomor_paspor || '');
+      setValue('negara_penerbit_paspor', p.negara_penerbit_paspor || '');
+      setValue('negara_kewarganegaraan', p.negara_kewarganegaraan || '');
+      setValue('kode_negara_kewarganegaraan', p.kode_negara_kewarganegaraan || '');
       if (p.tanggal_lahir) {
         setValue('tanggal_lahir', p.tanggal_lahir.split('T')[0]);
       }
       setValue('tempat_lahir', p.tempat_lahir || '');
       setValue('jenis_kelamin', p.jenis_kelamin || 'L');
       setValue('agama', p.agama || '');
-      setValue('kewarganegaraan', p.kewarganegaraan || 'WNI');
+      const nationalityOption = nationalityOptions.find((option) =>
+        String(option.value) === String(p.kewarganegaraan_id || '') ||
+        option.code === String(p.kewarganegaraan || '').toUpperCase()
+      );
+      setValue('kewarganegaraan_id', nationalityOption?.value || '');
+      setValue('kewarganegaraan', nationalityOption?.code || p.kewarganegaraan || '');
       setValue('no_hp', p.no_hp || '');
       setValue('alamat', p.alamat || '');
+      setValue('negara_domisili', p.negara_domisili || 'Indonesia');
       setValue('provinsi', p.provinsi || '');
       setValue('kota_kabupaten', p.kota_kabupaten || '');
       setValue('kecamatan', p.kecamatan || '');
@@ -978,8 +1070,17 @@ export default function RegistrasiSpmbPage() {
   const handleNextStep = async () => {
     let fieldsToValidate: string[] = [];
     if (currentStep === 1) fieldsToValidate = ['jalur_id', 'gelombang_id', 'program_studi_id', 'master_tipe_jalur_id'];
-    else if (currentStep === 2) fieldsToValidate = ['nama_lengkap', 'nik', 'tempat_lahir', 'tanggal_lahir', 'jenis_kelamin', 'status_sipil'];
-    else if (currentStep === 3) fieldsToValidate = ['no_hp', 'provinsi', 'kota_kabupaten', 'kecamatan', 'alamat'];
+    else if (currentStep === 2) fieldsToValidate = [
+      'nama_lengkap', 'kewarganegaraan_id', 'kewarganegaraan',
+      ...(isWna
+        ? ['nomor_paspor', 'negara_penerbit_paspor', 'negara_kewarganegaraan', 'kode_negara_kewarganegaraan']
+        : ['nik']),
+      'tempat_lahir', 'tanggal_lahir', 'jenis_kelamin', 'status_sipil',
+    ];
+    else if (currentStep === 3) fieldsToValidate = [
+      'no_hp', 'negara_domisili', 'alamat',
+      ...(hasIndonesianResidence ? ['provinsi', 'kota_kabupaten', 'kecamatan'] : []),
+    ];
     else if (currentStep === 4) fieldsToValidate = ['asal_sekolah', 'alamat_sekolah', 'jurusan_sekolah', 'tahun_lulus'];
     else if (currentStep === 5) fieldsToValidate = ['nama_ayah', 'nama_ibu', 'nama_ortu', 'alamat_ortu', 'telp_ortu', 'info_daftar', 'ket_info_daftar'];
     else if (currentStep === 6) fieldsToValidate = [];
@@ -992,6 +1093,7 @@ export default function RegistrasiSpmbPage() {
         const rawValues = getValues();
         const payload: any = {
           ...rawValues,
+          kewarganegaraan_id: rawValues.kewarganegaraan_id ? Number(rawValues.kewarganegaraan_id) : null,
           program_studi_id: rawValues.program_studi_id ? Number(rawValues.program_studi_id) : 1,
           gelombang_id: rawValues.gelombang_id ? Number(rawValues.gelombang_id) : 1,
         };
@@ -1036,19 +1138,18 @@ export default function RegistrasiSpmbPage() {
       data.program_studi_id = data.program_studi_id ? Number(data.program_studi_id) : 1;
       const res = await spmbService.submitBiodata(data);
       if (res.status === 'success' || res.data) {
-        try {
-          await spmbService.finalizePendaftaran();
-        } catch (finErr) {
-          console.warn('Finalize call warning:', finErr);
-        }
+        const finalized = await spmbService.finalizePendaftaran();
         if (typeof window !== 'undefined') {
           localStorage.removeItem('spmb_reg_current_step');
         }
         toast.success(res.message || 'Pendaftaran Berhasil Dikirim!');
-        setSuksesData(res.data);
+        setSuksesData(finalized?.data || res.data);
       }
-    } catch {
-      toast.error('Gagal menyimpan pendaftaran. Silakan periksa kembali kelengkapan data Anda.');
+    } catch (error: any) {
+      const validationMessage = Object.values(error?.response?.data?.errors || {})
+        .flat()
+        .find((message): message is string => typeof message === 'string');
+      toast.error(validationMessage || error?.response?.data?.message || 'Gagal menyimpan pendaftaran. Silakan periksa kembali kelengkapan data Anda.');
     } finally {
       setLoading(false);
     }
@@ -1710,6 +1811,67 @@ export default function RegistrasiSpmbPage() {
                   error={errors.nama_lengkap?.message}
                   {...register('nama_lengkap')}
                 />
+                <Controller
+                  name="kewarganegaraan_id"
+                  control={control}
+                  render={({ field }) => (
+                    <AsyncSelect
+                      label="Kewarganegaraan *"
+                      loadOptions={async (search) => {
+                        const options = nationalityOptions.length ? nationalityOptions : await fetchNationalityOptions();
+                        return options
+                          .filter((option) => `${option.label} ${option.code}`.toLowerCase().includes(search.toLowerCase()))
+                          .map(({ value, label }) => ({ value, label }));
+                      }}
+                      defaultOptions
+                      value={field.value}
+                      onChange={(option: { value: string } | null) => {
+                        const selected = nationalityOptions.find((item) => item.value === String(option?.value || ''));
+                        field.onChange(selected?.value || '');
+                        setValue('kewarganegaraan', selected?.code || '');
+                        if (selected?.code === 'WNA') setValue('nik', '');
+                        if (selected?.code === 'WNI') {
+                          setValue('nomor_paspor', '');
+                          setValue('negara_penerbit_paspor', '');
+                        }
+                      }}
+                      error={errors.kewarganegaraan_id?.message}
+                      placeholder="Pilih kewarganegaraan"
+                    />
+                  )}
+                />
+              </div>
+
+              {isWna ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                  <Input
+                    label="Nomor Paspor *"
+                    placeholder="Nomor paspor yang masih berlaku"
+                    maxLength={50}
+                    error={errors.nomor_paspor?.message}
+                    {...register('nomor_paspor')}
+                  />
+                  <Input
+                    label="Negara Penerbit Paspor *"
+                    placeholder="Contoh: Malaysia"
+                    error={errors.negara_penerbit_paspor?.message}
+                    {...register('negara_penerbit_paspor')}
+                  />
+                  <Input
+                    label="Negara Kewarganegaraan *"
+                    placeholder="Contoh: Malaysia"
+                    error={errors.negara_kewarganegaraan?.message}
+                    {...register('negara_kewarganegaraan')}
+                  />
+                  <Input
+                    label="Kode Negara (ISO 2 Huruf) *"
+                    placeholder="Contoh: MY"
+                    maxLength={2}
+                    error={errors.kode_negara_kewarganegaraan?.message}
+                    {...register('kode_negara_kewarganegaraan')}
+                  />
+                </div>
+              ) : (
                 <Input
                   label="NIK (Nomor Induk Kependudukan) *"
                   placeholder="16 digit NIK sesuai KTP/KK"
@@ -1717,7 +1879,7 @@ export default function RegistrasiSpmbPage() {
                   error={errors.nik?.message}
                   {...register('nik')}
                 />
-              </div>
+              )}
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
                 <Input
@@ -1782,13 +1944,6 @@ export default function RegistrasiSpmbPage() {
                 />
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                <Input
-                  label="Kewarganegaraan"
-                  placeholder="WNI / WNA"
-                  {...register('kewarganegaraan')}
-                />
-              </div>
             </div>
           )}
 
@@ -1817,23 +1972,37 @@ export default function RegistrasiSpmbPage() {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 <Input
-                  label="Provinsi Domisili *"
-                  placeholder="Nama Provinsi"
-                  error={errors.provinsi?.message}
-                  {...register('provinsi')}
+                  label="Negara Domisili *"
+                  placeholder="Contoh: Indonesia, Malaysia, Singapura"
+                  error={errors.negara_domisili?.message}
+                  {...register('negara_domisili')}
                 />
-                <Input
-                  label="Kota / Kabupaten *"
-                  placeholder="Nama Kota/Kabupaten"
-                  error={errors.kota_kabupaten?.message}
-                  {...register('kota_kabupaten')}
-                />
+                {hasIndonesianResidence ? (
+                  <Input
+                    label="Provinsi Domisili *"
+                    placeholder="Nama Provinsi"
+                    error={errors.provinsi?.message}
+                    {...register('provinsi')}
+                  />
+                ) : (
+                  <Input
+                    label="Provinsi / State / Region"
+                    placeholder="Wilayah administratif (jika ada)"
+                    {...register('provinsi')}
+                  />
+                )}
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                 <Input
-                  label="Kecamatan *"
-                  placeholder="Nama Kecamatan"
+                  label={hasIndonesianResidence ? 'Kota / Kabupaten *' : 'Kota / City'}
+                  placeholder={hasIndonesianResidence ? 'Nama Kota/Kabupaten' : 'Nama kota'}
+                  error={errors.kota_kabupaten?.message}
+                  {...register('kota_kabupaten')}
+                />
+                <Input
+                  label={hasIndonesianResidence ? 'Kecamatan *' : 'Distrik / District'}
+                  placeholder={hasIndonesianResidence ? 'Nama Kecamatan' : 'Distrik (jika ada)'}
                   error={errors.kecamatan?.message}
                   {...register('kecamatan')}
                 />
@@ -1845,8 +2014,8 @@ export default function RegistrasiSpmbPage() {
               </div>
 
               <Textarea
-                label="Alamat Lengkap Jalan / RT / RW *"
-                placeholder="Jalan, No. Rumah, RT/RW, Kelurahan/Desa"
+                label="Alamat Lengkap *"
+                placeholder={hasIndonesianResidence ? 'Jalan, No. Rumah, RT/RW, Kelurahan/Desa' : 'Street address, building, unit, postal details'}
                 rows={3}
                 error={errors.alamat?.message}
                 {...register('alamat')}
@@ -2194,7 +2363,8 @@ export default function RegistrasiSpmbPage() {
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
                     <div><span className="text-slate-400">Nama:</span> <span className="font-semibold text-slate-800">{formValues.nama_lengkap || '-'}</span></div>
-                    <div><span className="text-slate-400">NIK:</span> <span className="font-semibold text-slate-800">{formValues.nik || '-'}</span></div>
+                    <div><span className="text-slate-400">{isWna ? 'Paspor:' : 'NIK:'}</span> <span className="font-semibold text-slate-800">{isWna ? formValues.nomor_paspor || '-' : formValues.nik || '-'}</span></div>
+                    <div><span className="text-slate-400">Kewarganegaraan:</span> <span className="font-semibold text-slate-800">{nationalityOptions.find((option) => option.value === nationalityId)?.label || '-'}</span></div>
                     <div><span className="text-slate-400">TTL:</span> <span className="font-semibold text-slate-800">{formValues.tempat_lahir}, {formValues.tanggal_lahir}</span></div>
                     <div><span className="text-slate-400">Gender:</span> <span className="font-semibold text-slate-800">{formValues.jenis_kelamin === 'L' ? 'Laki-Laki' : 'Perempuan'}</span></div>
                   </div>
@@ -2216,7 +2386,7 @@ export default function RegistrasiSpmbPage() {
                     ) : (
                       <div><span className="text-slate-400">PT Asal:</span> <span className="font-semibold text-slate-800">{formValues.asal_pt || '-'}</span></div>
                     )}
-                    <div className="sm:col-span-2"><span className="text-slate-400">Alamat:</span> <span className="font-semibold text-slate-800">{formValues.alamat}, {formValues.kecamatan}, {formValues.kota_kabupaten}</span></div>
+                    <div className="sm:col-span-2"><span className="text-slate-400">Alamat:</span> <span className="font-semibold text-slate-800">{[formValues.alamat, formValues.kecamatan, formValues.kota_kabupaten, formValues.provinsi, formValues.negara_domisili].filter(Boolean).join(', ') || '-'}</span></div>
                   </div>
                 </div>
 

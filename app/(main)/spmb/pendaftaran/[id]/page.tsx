@@ -832,7 +832,7 @@ export default function DetailPendaftaranPage({ params }: { params: Promise<{ id
             </div>
             <div className="flex items-center gap-1 text-slate-500 font-semibold">
               <CreditCard size={13} className="text-slate-400 shrink-0" />
-              <span>NIK: {pendaftar.nik || '-'}</span>
+              <span>{pendaftar.nomor_paspor ? `Paspor: ${pendaftar.nomor_paspor}` : `NIK: ${pendaftar.nik || '-'}`}</span>
             </div>
           </div>
         </div>
@@ -856,6 +856,10 @@ export default function DetailPendaftaranPage({ params }: { params: Promise<{ id
               <MetadataItem label="Jenis Kelamin" value={pendaftar.jenis_kelamin === 'L' ? 'Laki-laki' : pendaftar.jenis_kelamin === 'P' ? 'Perempuan' : '-'} />
               <MetadataItem label="Agama" value={pendaftar.agama} />
               <MetadataItem label="Kewarganegaraan" value={pendaftar.kewarganegaraan} />
+              <MetadataItem label="Negara Kewarganegaraan" value={pendaftar.negara_kewarganegaraan} />
+              <MetadataItem label="Kode Negara" value={pendaftar.kode_negara_kewarganegaraan} />
+              <MetadataItem label="Negara Penerbit Paspor" value={pendaftar.negara_penerbit_paspor} />
+              <MetadataItem label="Negara Domisili" value={pendaftar.negara_domisili} />
               <MetadataItem label="No. Handphone" value={pendaftar.no_hp || pendaftar.user?.phone} />
               <MetadataItem label="Email Account" value={pendaftar.user?.email || pendaftar.user?.username} />
             </div>

@@ -59,6 +59,8 @@ const AVAILABLE_PLACEHOLDERS = [
   { token: '{no_pendaftaran}', desc: 'Nomor Pendaftaran peserta' },
   { token: '{nama}', desc: 'Nama lengkap peserta' },
   { token: '{nik}', desc: 'NIK peserta' },
+  { token: '{nomor_paspor}', desc: 'Nomor paspor peserta WNA' },
+  { token: '{kewarganegaraan}', desc: 'Kewarganegaraan peserta' },
   { token: '{tempat_lahir}', desc: 'Tempat lahir peserta' },
   { token: '{tanggal_lahir}', desc: 'Tanggal lahir peserta' },
   { token: '{asal_sekolah}', desc: 'Nama sekolah / institusi asal' },

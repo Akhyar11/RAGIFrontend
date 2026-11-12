@@ -10,6 +10,7 @@ import { NOTIFICATION_CHANGED_EVENT, type NotificationPreviewItem, type Notifica
 import toast from 'react-hot-toast';
 import { formatRelativeTime } from '@/lib/utils';
 import { getNotificationTarget } from '@/lib/notification-navigation';
+import { useTenantConfig } from '@/components/tenant-config-provider';
 
 /**
  * Interval polling jumlah notifikasi belum dibaca (ms).
@@ -34,6 +35,7 @@ const MAX_ITEMS = 6;
  */
 export default function NotifikasiBell() {
   const router = useRouter();
+  const tenantConfig = useTenantConfig();
 
   const [counts, setCounts] = useState<Record<NotificationSource, number>>({ system: 0, lms: 0 });
   const unreadCount = counts.system + counts.lms;
@@ -142,10 +144,10 @@ export default function NotifikasiBell() {
         }
       }
 
-      const target = getNotificationTarget(item.url);
+      const target = getNotificationTarget(item.url, tenantConfig);
       if (target) router.push(target);
     },
-    [router]
+    [router, tenantConfig]
   );
 
   const handleMarkAllRead = useCallback(async () => {

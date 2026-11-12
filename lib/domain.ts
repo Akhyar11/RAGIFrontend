@@ -270,11 +270,16 @@ export function getCookie(name: string): string | null {
  *     getModuleUrl('sso')    -> "/dashboard"
  *     getModuleUrl('siakad', '/krs') -> "/siakad/krs"
  */
-export function getModuleUrl(moduleCode: string, path: string = '', currentHostname?: string): string {
+export function getModuleUrl(
+  moduleCode: string,
+  path: string = '',
+  currentHostname?: string,
+  tenantConfig: TenantConfig = getStaticTenantConfig(),
+): string {
   const host = (currentHostname || (typeof window !== 'undefined' ? window.location.hostname : '')).trim().toLowerCase().split(':')[0];
   const ctx = resolveDomainContext(host);
   const code = (moduleCode || '').toLowerCase().trim();
-  const config = getStaticTenantConfig();
+  const config = tenantConfig;
 
   let cleanPath = path.trim();
   if (cleanPath && !cleanPath.startsWith('/')) {

@@ -20,6 +20,7 @@ import { Skeleton } from '@/components/ui/Skeleton';
 import { formatDateTime } from '@/lib/utils';
 import { moduleService, AppModule } from '@/services/module.service';
 import { getModuleUrl } from '@/lib/domain';
+import { useTenantConfig } from '@/components/tenant-config-provider';
 import type { User } from '@/types/auth.types';
 
 interface SummaryItem {
@@ -33,6 +34,7 @@ interface SummaryItem {
 
 export default function DashboardPage() {
   const { user } = useAuth();
+  const tenantConfig = useTenantConfig();
   const [appModules, setAppModules] = useState<AppModule[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -280,7 +282,7 @@ export default function DashboardPage() {
                     icon={<ArrowRight size={15} />}
                     onClick={() => {
                       toast.success(`Membuka ${mod.name}…`);
-                      const targetUrl = getModuleUrl(mod.code);
+                      const targetUrl = getModuleUrl(mod.code, '', undefined, tenantConfig);
                       window.open(targetUrl, '_blank', 'noopener,noreferrer');
                     }}
                   >

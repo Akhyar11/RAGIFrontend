@@ -21,6 +21,7 @@ import {
 import { moduleService, AppModule } from '@/services/module.service';
 import { getAuthTokenKey, getCookie, getModuleUrl } from '@/lib/domain';
 import { useAuthStore } from '@/store/authStore';
+import { useTenantConfig } from '@/components/tenant-config-provider';
 
 const MODULE_META: Record<string, { subpath: string; icon: LucideIcon }> = {
   sso: {
@@ -66,6 +67,7 @@ const MODULE_META: Record<string, { subpath: string; icon: LucideIcon }> = {
 };
 
 export function AppLauncher() {
+  const tenantConfig = useTenantConfig();
   const [isOpen, setIsOpen] = useState(false);
   const [moduleResult, setModuleResult] = useState<{
     identity: string;
@@ -180,7 +182,7 @@ export function AppLauncher() {
                   subpath: '',
                   icon: LayoutGrid,
                 };
-                const targetHref = getModuleUrl(app.code, meta.subpath);
+                const targetHref = getModuleUrl(app.code, meta.subpath, undefined, tenantConfig);
                 const IconComp = meta.icon;
                 const primaryColor = app.primary_color || 'var(--module-primary, #3b82f6)';
 

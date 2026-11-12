@@ -196,7 +196,7 @@ export default function ApiSettingsPage() {
     setEditItem(item);
     reset({
       url_api: item.url_api || '',
-      token: item.token || '',
+      token: '',
       auth_type: item.auth_type || 'bearer',
       is_active: item.is_active,
     });
@@ -208,10 +208,11 @@ export default function ApiSettingsPage() {
       setIsSubmitting(true);
       const payload: UpdateApiIntegrationPayload = {
         url_api: data.url_api ? data.url_api.trim() : null,
-        token: data.token !== undefined ? data.token : null,
         auth_type: data.auth_type,
         is_active: data.is_active,
       };
+      const newToken = data.token?.trim();
+      if (newToken) payload.token = newToken;
 
       const res = await adminService.updateApiIntegration(editItem.id, payload);
       if (res.status === 'success') {
@@ -710,9 +711,12 @@ Ketentuan:
                   <Input
                     label="Token / Kredensial API"
                     type="password"
-                    placeholder="Masukkan token atau API Key..."
+                    placeholder={editItem.token_configured ? 'Token tersimpan. Isi hanya untuk menggantinya.' : 'Masukkan token atau API Key...'}
                     value={field.value || ''}
                     onChange={field.onChange}
+                    hint={editItem.token_configured
+                      ? 'Token sudah tersimpan dan tidak ditampilkan demi keamanan. Biarkan kosong untuk mempertahankannya.'
+                      : 'Belum ada token tersimpan. Masukkan token API untuk konfigurasi ini.'}
                     error={errors.token?.message}
                   />
                 )}

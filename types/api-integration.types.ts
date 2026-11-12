@@ -7,7 +7,7 @@ export interface IamApiIntegration {
   description: string | null;
   expected_schema: Record<string, any> | null;
   url_api: string | null;
-  token: string | null;
+  token_configured: boolean;
   auth_type: 'bearer' | 'header_key';
   is_active: boolean;
   last_synced_at: string | null;

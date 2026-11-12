@@ -12,6 +12,9 @@ interface ModalProps {
   onClose: () => void;
   title?: string;
   size?: ModalSize;
+  className?: string;
+  bodyClassName?: string;
+  footerClassName?: string;
   children: React.ReactNode;
   footer?: React.ReactNode;
   closeOnOverlay?: boolean;
@@ -23,6 +26,9 @@ export function Modal({
   onClose,
   title,
   size = 'md',
+  className,
+  bodyClassName,
+  footerClassName,
   children,
   footer,
   closeOnOverlay = true,
@@ -61,7 +67,7 @@ export function Modal({
     >
       <div
         ref={modalRef}
-        className={cn('modal', `modal-${size}`)}
+        className={cn('modal', `modal-${size}`, className)}
       >
         {title && (
           <div className="modal-header">
@@ -77,8 +83,8 @@ export function Modal({
             </button>
           </div>
         )}
-        <div className="modal-body">{children}</div>
-        {footer && <div className="modal-footer">{footer}</div>}
+        <div className={cn('modal-body', bodyClassName)}>{children}</div>
+        {footer && <div className={cn('modal-footer', footerClassName)}>{footer}</div>}
       </div>
     </div>
   );

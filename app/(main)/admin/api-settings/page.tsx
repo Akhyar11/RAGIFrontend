@@ -610,91 +610,113 @@ Ketentuan:
         open={!!editItem}
         onClose={() => setEditItem(null)}
         title={`Konfigurasi ${editItem?.name || 'Integrasi API'}`}
+        size="lg"
+        className="flex max-h-[90vh] flex-col !overflow-hidden"
+        bodyClassName="min-h-0 flex-1 overflow-y-auto"
+        footerClassName="shrink-0"
+        footer={editItem ? (
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <Button type="button" variant="outline" onClick={() => setEditItem(null)}>
+              Batal
+            </Button>
+            <Button type="submit" form="api-integration-config-form" isLoading={isSubmitting}>
+              Simpan Konfigurasi
+            </Button>
+          </div>
+        ) : undefined}
       >
         {editItem && (
-          <form onSubmit={handleSubmit(onSubmitEdit)} className="space-y-4">
-            <div className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-3 text-xs space-y-1">
-              <div className="flex justify-between">
-                <span className="text-slate-500">Kunci Sistem (Slug):</span>
-                <span className="font-mono font-bold text-slate-800 dark:text-slate-200">{editItem.key}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-500">Method HTTP:</span>
-                <span className="px-2 py-0.5 text-2xs font-bold rounded font-mono bg-slate-100 text-slate-800 border border-slate-300">
-                  {editItem.http_method}
-                </span>
+          <form id="api-integration-config-form" onSubmit={handleSubmit(onSubmitEdit)} className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div className="col-span-full rounded-lg border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-4">
+              <div className="flex items-center justify-between gap-4">
+                <div className="flex min-w-0 items-center gap-3">
+                  <span
+                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border"
+                    style={{
+                      borderColor: 'var(--module-primary-subtle, var(--border-light))',
+                      backgroundColor: 'var(--module-primary-subtle, var(--gray-100))',
+                      color: 'var(--module-primary, var(--text-primary))',
+                    }}
+                  >
+                    <Globe size={18} />
+                  </span>
+                  <div className="min-w-0">
+                    <span className="block text-2xs font-semibold text-slate-500">Integrasi sistem</span>
+                    <code className="block break-all font-mono text-xs font-bold text-slate-800">{editItem.key}</code>
+                  </div>
+                </div>
+                <Badge variant="success">{editItem.http_method}</Badge>
               </div>
               {editItem.description && (
-                <div className="pt-1 text-slate-600 dark:text-slate-400 border-t border-slate-200 dark:border-slate-800 mt-2">
+                <p className="mb-0 mt-3 border-t border-slate-200 pt-3 text-xs leading-relaxed text-slate-600">
                   {editItem.description}
-                </div>
+                </p>
               )}
             </div>
 
-            <Controller
-              control={control}
-              name="url_api"
-              render={({ field }) => (
-                <Input
-                  label="URL Endpoint API *"
-                  placeholder="https://sistem-lama.kampus.ac.id/api/..."
-                  value={field.value || ''}
-                  onChange={field.onChange}
-                  error={errors.url_api?.message}
-                />
-              )}
-            />
+            <div className="col-span-full">
+              <Controller
+                control={control}
+                name="url_api"
+                render={({ field }) => (
+                  <Input
+                    label="URL Endpoint API *"
+                    placeholder="https://sistem-lama.kampus.ac.id/api/..."
+                    value={field.value || ''}
+                    onChange={field.onChange}
+                    error={errors.url_api?.message}
+                  />
+                )}
+              />
+            </div>
 
-            <Controller
-              control={control}
-              name="auth_type"
-              render={({ field }) => (
-                <Select
-                  label="Metode Autentikasi *"
-                  value={field.value}
-                  onChange={field.onChange}
-                  options={AUTH_TYPE_OPTIONS}
-                  error={errors.auth_type?.message}
-                />
-              )}
-            />
+            <div>
+              <Controller
+                control={control}
+                name="auth_type"
+                render={({ field }) => (
+                  <Select
+                    label="Metode Autentikasi *"
+                    value={field.value}
+                    onChange={field.onChange}
+                    options={AUTH_TYPE_OPTIONS}
+                    error={errors.auth_type?.message}
+                  />
+                )}
+              />
+            </div>
 
-            <Controller
-              control={control}
-              name="token"
-              render={({ field }) => (
-                <Input
-                  label="Token / Kredensial API"
-                  type="password"
-                  placeholder="Masukkan token atau API Key..."
-                  value={field.value || ''}
-                  onChange={field.onChange}
-                  error={errors.token?.message}
-                />
-              )}
-            />
+            <div>
+              <Controller
+                control={control}
+                name="is_active"
+                render={({ field }) => (
+                  <Select
+                    label="Status Aktif *"
+                    value={field.value ? 'true' : 'false'}
+                    onChange={(val) => field.onChange(val === 'true')}
+                    options={ACTIVE_STATUS_FORM_OPTIONS}
+                    error={errors.is_active?.message}
+                  />
+                )}
+              />
+            </div>
 
-            <Controller
-              control={control}
-              name="is_active"
-              render={({ field }) => (
-                <Select
-                  label="Status Aktif *"
-                  value={field.value ? 'true' : 'false'}
-                  onChange={(val) => field.onChange(val === 'true')}
-                  options={ACTIVE_STATUS_FORM_OPTIONS}
-                  error={errors.is_active?.message}
-                />
-              )}
-            />
-
-            <div className="flex justify-end gap-2 pt-2">
-              <Button type="button" variant="outline" onClick={() => setEditItem(null)}>
-                Batal
-              </Button>
-              <Button type="submit" isLoading={isSubmitting}>
-                Simpan Konfigurasi
-              </Button>
+            <div className="col-span-full">
+              <Controller
+                control={control}
+                name="token"
+                render={({ field }) => (
+                  <Input
+                    label="Token / Kredensial API"
+                    type="password"
+                    placeholder="Masukkan token atau API Key..."
+                    value={field.value || ''}
+                    onChange={field.onChange}
+                    error={errors.token?.message}
+                  />
+                )}
+              />
             </div>
           </form>
         )}

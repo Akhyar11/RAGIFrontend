@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { PageHeader } from '@/components/layout/PageHeader';
-import { InboxTabs } from '@/components/notifications/InboxTabs';
 import { NOTIFICATION_CHANGED_EVENT } from '@/types/notification.types';
 import { DataTable, ColumnDef } from '@/components/ui/DataTable';
 import { Drawer } from '@/components/ui/Drawer';
@@ -360,8 +359,6 @@ export default function LmsNotifikasiPage() {
           </div>
         }
       />
-
-      <InboxTabs active="lms" />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <StatCard

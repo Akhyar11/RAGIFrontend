@@ -6,6 +6,11 @@ test.use({ actionTimeout: 15000 });
 
 async function setupInbox(page, { lmsUnavailable = false } = {}) {
   const calls = [];
+  const corsHeaders = {
+    'access-control-allow-origin': new URL(baseURL).origin,
+    'access-control-allow-headers': 'Authorization, Content-Type, Accept, X-Environment, X-Tenant-Host',
+    'access-control-allow-methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
+  };
   const system = [{
     id: 1, module_id: 3, module: { id: 3, name: 'Penerimaan', code: 'spmb', primary_color: null },
     type: 'application_submitted', title: 'Pendaftaran berhasil dikirim', message: 'Menunggu verifikasi',
@@ -21,13 +26,13 @@ async function setupInbox(page, { lmsUnavailable = false } = {}) {
     const url = new URL(request.url());
     const path = url.pathname;
     calls.push({ path, method: request.method(), search: url.search });
-    const json = (data, extra = {}) => route.fulfill({ json: { status: 'success', message: 'OK', data, ...extra } });
-    if (request.method() === 'OPTIONS') return route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*' } });
+    const json = (data, extra = {}) => route.fulfill({ headers: corsHeaders, json: { status: 'success', message: 'OK', data, ...extra } });
+    if (request.method() === 'OPTIONS') return route.fulfill({ status: 204, headers: corsHeaders });
     if (path.endsWith('/auth/me')) return json({ id: 7, username: 'calon', name: 'Calon', email: 'calon@example.test', roles: [], permissions: [], is_superadmin: false });
     const isLms = path.includes('/lms/notifikasi');
     const isSystem = path.includes('/notifications');
     if (!isLms && !isSystem) return json([]);
-    if (isLms && lmsUnavailable) return route.fulfill({ status: 503, json: { status: 'error', message: 'LMS unavailable' } });
+    if (isLms && lmsUnavailable) return route.fulfill({ status: 503, headers: corsHeaders, json: { status: 'error', message: 'LMS unavailable' } });
     const items = isLms ? lms : system;
     if (path.endsWith('/unread-count')) return json({ unread_count: items.filter((item) => !item.is_read).length });
     if (path.endsWith('/read-all')) {
@@ -51,7 +56,7 @@ async function setupInbox(page, { lmsUnavailable = false } = {}) {
 test('pengguna biasa dapat membuka inbox dan bell mempertahankan sumber dengan ID sama', async ({ page }) => {
   const state = await setupInbox(page);
   await page.goto(`${baseURL}/notifikasi`);
-  await expect(page.getByRole('heading', { name: 'Notifikasi Sistem' })).toBeVisible({ timeout: 30000 });
+  await expect(page.getByRole('heading', { name: 'Notifikasi', exact: true })).toBeVisible({ timeout: 30000 });
   const bell = page.getByRole('button', { name: 'Notifikasi', exact: true });
   await expect(bell).toContainText('2');
   await bell.click();
@@ -65,14 +70,14 @@ test('pengguna biasa dapat membuka inbox dan bell mempertahankan sumber dengan I
   await page.getByRole('button', { name: 'Tandai Semua Dibaca', exact: true }).click();
   await expect(page.getByText('0 belum dibaca', { exact: false })).toBeVisible();
   expect(state.calls.some((call) => call.path.endsWith('/notifications/read-all'))).toBe(true);
-  expect(state.calls.some((call) => call.path.endsWith('/lms/notifikasi/read-all'))).toBe(false);
+  expect(state.calls.some((call) => call.path.endsWith('/lms/notifikasi/read-all'))).toBe(true);
   expect(state.errors).toEqual([]);
 });
 
 test('sumber gagal tidak menghilangkan notifikasi dari sumber lain', async ({ page }) => {
   const state = await setupInbox(page, { lmsUnavailable: true });
   await page.goto(`${baseURL}/notifikasi`);
-  await expect(page.getByRole('heading', { name: 'Notifikasi Sistem' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Notifikasi', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Notifikasi', exact: true }).click();
   const panel = page.getByRole('menu');
   await expect(panel.getByText('Pendaftaran berhasil dikirim')).toBeVisible();
@@ -83,18 +88,19 @@ test('sumber gagal tidak menghilangkan notifikasi dari sumber lain', async ({ pa
   expect(state.errors).toEqual([]);
 });
 
-test('inbox sistem memfilter lewat server dan inbox LMS tetap dapat dibuka', async ({ page }) => {
+test('inbox terpadu menampilkan semua sumber tanpa tab dan filter pencarian berfungsi', async ({ page }) => {
   const state = await setupInbox(page);
-  await page.goto(`${baseURL}/notifikasi`);
-  await expect(page.getByRole('heading', { name: 'Notifikasi Sistem' })).toBeVisible();
+  await page.goto(`${baseURL}/notifikasi?sumber=lms`);
+  await expect(page.getByRole('heading', { name: 'Notifikasi', exact: true })).toBeVisible();
+  const rows = page.getByRole('row');
+  await expect(rows.filter({ hasText: 'Pendaftaran berhasil dikirim' })).toBeVisible();
+  await expect(rows.filter({ hasText: 'Informasi LMS tetap tersedia' })).toBeVisible();
+  await expect(page.getByRole('navigation', { name: 'Sumber notifikasi' })).toHaveCount(0);
   await page.getByRole('button', { name: 'Filter', exact: true }).click();
   await page.getByLabel('Pencarian').fill('tidak-ada');
   await page.getByRole('button', { name: 'Terapkan', exact: true }).click();
-  await expect(page.getByText('Belum ada notifikasi sistem.')).toBeVisible();
+  await expect(page.getByText('Belum ada notifikasi.')).toBeVisible();
   expect(state.calls.some((call) => call.search.includes('search=tidak-ada'))).toBe(true);
-  await page.getByRole('navigation', { name: 'Sumber notifikasi' }).getByRole('link', { name: 'LMS', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Notifikasi', exact: true })).toBeVisible();
-  await expect(page.getByText('Informasi LMS tetap tersedia')).toBeVisible();
   expect(state.errors).toEqual([]);
 });
 

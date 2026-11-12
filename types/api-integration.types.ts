@@ -37,3 +37,16 @@ export interface TestApiIntegrationResult {
   response_sample: any;
   expected_schema: any;
 }
+
+export interface ApiIntegrationSyncResult {
+  source_total: number;
+  created: number;
+  updated: number;
+  skipped: number;
+  skipped_items: Array<{
+    source_id: string | number | null;
+    kode_prodi: string | null;
+    row: number;
+    reason: string;
+  }>;
+}

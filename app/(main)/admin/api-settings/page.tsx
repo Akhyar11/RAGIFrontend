@@ -17,6 +17,7 @@ import type {
   IamApiIntegration,
   UpdateApiIntegrationPayload,
   TestApiIntegrationResult,
+  ApiIntegrationSyncResult,
 } from '@/types/api-integration.types';
 import type { PaginationMeta } from '@/types/api.types';
 import { useForm, Controller } from 'react-hook-form';
@@ -24,6 +25,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { toast } from 'react-hot-toast';
 import { useAuth } from '@/hooks/useAuth';
+import { isAxiosError } from 'axios';
 import {
   Filter,
   Edit2,
@@ -36,6 +38,9 @@ import {
   Lock,
   Layers,
   Clock,
+  Copy,
+  RefreshCw,
+  Check,
 } from 'lucide-react';
 
 const updateSchema = z.object({
@@ -116,6 +121,9 @@ export default function ApiSettingsPage() {
   const [isTesting, setIsTesting] = useState<boolean>(false);
   const [testResult, setTestResult] = useState<TestApiIntegrationResult | null>(null);
   const [testError, setTestError] = useState<string | null>(null);
+  const [syncItem, setSyncItem] = useState<IamApiIntegration | null>(null);
+  const [syncResult, setSyncResult] = useState<ApiIntegrationSyncResult | null>(null);
+  const [isSyncing, setIsSyncing] = useState<boolean>(false);
 
   const {
     control,
@@ -246,6 +254,68 @@ export default function ApiSettingsPage() {
       fetchData();
     } finally {
       setIsTesting(false);
+    }
+  };
+
+  const handleCopyMigrationPrompt = async (item: IamApiIntegration) => {
+    const prompt = `Saya sedang menyiapkan integrasi migrasi Program Studi dari sistem sumber ke SIAKAD.
+
+Bantu siapkan endpoint API sumber yang read-only dengan method GET untuk mengambil daftar Program Studi. Ikuti kontrak data berikut:
+${JSON.stringify(item.expected_schema, null, 2)}
+
+Contoh satu data:
+{
+  "source_id": 123,
+  "kode_prodi": "TI-D3",
+  "kode_prodi_dikti": null,
+  "nama": "Teknik Informatika",
+  "jenjang": "D3",
+  "akreditasi": null,
+  "is_active": true,
+  "fakultas": null
+}
+
+Ketentuan:
+- Pertahankan source_id yang stabil untuk keperluan rekonsiliasi; jangan gunakan source_id sebagai ID database tujuan.
+- kode_prodi harus konsisten dan unik. kode_prodi_dikti dan akreditasi boleh null jika tidak tersedia.
+- jenjang dan akreditasi harus dapat dipetakan ke master referensi SIAKAD; laporkan nilai yang belum cocok, jangan mengarang kode.
+- Sistem sumber saat ini tidak memiliki data fakultas. Isi fakultas dengan null dan jangan menebak atau membuat pemetaan fakultas.
+- Kembalikan JSON berupa array data atau objek dengan properti data berisi array. Sertakan pagination bila datanya banyak.
+- Jelaskan URL endpoint, format autentikasi, parameter pagination/filter yang tersedia, serta contoh respons sukses dan error.
+- Jangan melakukan perubahan atau impor data ke database tujuan; berikan rancangan dan hasil validasi terlebih dahulu.`;
+
+    try {
+      if (!navigator.clipboard?.writeText) {
+        throw new Error('Clipboard tidak didukung oleh browser ini.');
+      }
+      await navigator.clipboard.writeText(prompt);
+      toast.success('Prompt migrasi Program Studi berhasil disalin');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Gagal menyalin prompt');
+    }
+  };
+
+  const handleRunSync = async () => {
+    if (!syncItem) return;
+
+    try {
+      setIsSyncing(true);
+      setSyncResult(null);
+      const response = await adminService.syncApiIntegration(syncItem.id);
+      if (response.status === 'success' && response.data) {
+        setSyncResult(response.data);
+        toast.success(response.message || 'Sinkronisasi selesai');
+        fetchData();
+      }
+    } catch (error: unknown) {
+      const message = isAxiosError<{ message?: string }>(error)
+        ? error.response?.data?.message
+        : error instanceof Error
+          ? error.message
+          : undefined;
+      toast.error(message || 'Sinkronisasi gagal dijalankan');
+    } finally {
+      setIsSyncing(false);
     }
   };
 
@@ -380,6 +450,26 @@ export default function ApiSettingsPage() {
           onClick: () => setSchemaItem(row),
         });
 
+        if (canManage) {
+          actionItems.push({
+            label: 'Jalankan Sync',
+            icon: <RefreshCw size={14} />,
+            disabled: !row.is_active || !row.url_api,
+            onClick: () => {
+              setSyncItem(row);
+              setSyncResult(null);
+            },
+          });
+        }
+
+        if (row.key === 'siakad_program_studi') {
+          actionItems.push({
+            label: 'Salin Prompt Migrasi Prodi',
+            icon: <Copy size={14} />,
+            onClick: () => handleCopyMigrationPrompt(row),
+          });
+        }
+
         return (
           <div className="flex justify-end">
             <DropdownMenu items={actionItems} />
@@ -420,10 +510,10 @@ export default function ApiSettingsPage() {
         </div>
         <div>
           <span className="font-bold text-gray-900 block mb-0.5 text-xs">
-            Integrasi Terproteksi Sistem (Read & Update Saja)
+            Integrasi Terproteksi Sistem
           </span>
           <p className="text-gray-600 leading-relaxed">
-            Daftar integrasi API di bawah ini dikunci oleh sistem untuk menjamin stabilitas migrasi data lintas modul. Administrator cukup mengonfigurasi <span className="font-semibold text-gray-900">URL API</span> dan <span className="font-semibold text-gray-900">Token</span> dari sistem lama, serta memvalidasi kesesuaian data melalui tombol <span className="font-semibold text-gray-900">Uji Koneksi</span>.
+            Daftar integrasi API di bawah ini dikunci oleh sistem. Konfigurasikan <span className="font-semibold text-gray-900">URL API</span> dan <span className="font-semibold text-gray-900">Token</span>, jalankan <span className="font-semibold text-gray-900">Uji Koneksi</span>, lalu gunakan aksi <span className="font-semibold text-gray-900">Jalankan Sync</span> untuk mengambil dan mengisi data tujuan.
           </p>
         </div>
       </div>
@@ -704,6 +794,76 @@ export default function ApiSettingsPage() {
               >
                 Jalankan Tes Ping
               </Button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      <Modal
+        open={!!syncItem}
+        onClose={() => {
+          if (!isSyncing) setSyncItem(null);
+        }}
+        title={`Sinkronisasi: ${syncItem?.name}`}
+        closeOnOverlay={!isSyncing}
+      >
+        {syncItem && (
+          <div className="space-y-4">
+            <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-950">
+              Data akan diambil dari endpoint sumber dan diterapkan pada master tujuan. Data yang tidak lolos validasi akan dilewati dan dirinci setelah proses.
+            </div>
+
+            {syncResult && (
+              <div className="space-y-3">
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                  {[
+                    { label: 'Data Sumber', value: syncResult.source_total },
+                    { label: 'Dibuat', value: syncResult.created },
+                    { label: 'Diperbarui', value: syncResult.updated },
+                    { label: 'Dilewati', value: syncResult.skipped },
+                  ].map((item) => (
+                    <div key={item.label} className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-center">
+                      <div className="text-lg font-bold text-slate-900">{item.value}</div>
+                      <div className="text-2xs text-slate-600">{item.label}</div>
+                    </div>
+                  ))}
+                </div>
+
+                {syncResult.skipped_items.length > 0 && (
+                  <div className="max-h-60 space-y-2 overflow-y-auto rounded-lg border border-slate-200 p-3">
+                    <h3 className="text-xs font-bold text-slate-800">Data yang dilewati</h3>
+                    {syncResult.skipped_items.map((item, index) => (
+                      <div key={`${item.source_id ?? item.row}-${index}`} className="border-b border-slate-100 pb-2 text-2xs last:border-0">
+                        <div className="font-semibold text-slate-800">
+                          {item.kode_prodi || 'Kode tidak tersedia'} · Baris {item.row}
+                        </div>
+                        <div className="text-slate-600">{item.reason}</div>
+                      </div>
+                    ))}
+                    {syncResult.skipped > syncResult.skipped_items.length && (
+                      <p className="text-2xs text-slate-500">
+                        {syncResult.skipped - syncResult.skipped_items.length} data dilewati lainnya tidak ditampilkan.
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="outline" onClick={() => setSyncItem(null)} disabled={isSyncing}>
+                {syncResult ? 'Tutup' : 'Batal'}
+              </Button>
+              {!syncResult && (
+                <Button
+                  icon={isSyncing ? undefined : <Check size={16} />}
+                  onClick={handleRunSync}
+                  isLoading={isSyncing}
+                  disabled={!syncItem.url_api || !syncItem.is_active}
+                >
+                  Mulai Sinkronisasi
+                </Button>
+              )}
             </div>
           </div>
         )}

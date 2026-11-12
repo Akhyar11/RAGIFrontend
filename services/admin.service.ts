@@ -192,4 +192,11 @@ export const adminService = {
     const { data } = await apiClient.post<ApiResponse<import('@/types/api-integration.types').TestApiIntegrationResult>>(`/admin/api-integrations/${id}/test`, payload ?? {});
     return data;
   },
+
+  syncApiIntegration: async (
+    id: number | string
+  ): Promise<ApiResponse<import('@/types/api-integration.types').ApiIntegrationSyncResult>> => {
+    const { data } = await apiClient.post<ApiResponse<import('@/types/api-integration.types').ApiIntegrationSyncResult>>(`/admin/api-integrations/${id}/sync`);
+    return data;
+  },
 };

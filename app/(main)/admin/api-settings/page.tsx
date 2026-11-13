@@ -836,7 +836,7 @@ Ketentuan:
         {syncItem && (
           <div className="space-y-4">
             <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-950">
-              Data akan diambil dari endpoint sumber dan diterapkan pada master tujuan. Data yang tidak lolos validasi akan dilewati dan dirinci setelah proses.
+              Data akan diambil dari endpoint sumber dan diterapkan pada master tujuan. Status aktif/nonaktif mengikuti sumber; data nonaktif tidak tampil pada daftar aktif. Data yang tidak lolos validasi akan dilewati dan dirinci setelah proses.
             </div>
 
             {syncResult && (

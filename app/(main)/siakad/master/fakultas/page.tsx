@@ -33,6 +33,12 @@ const SORT_PRODI_DIR_OPTIONS = [
   { value: 'desc', label: 'Z - A (Turun)' },
 ];
 
+const PRODI_STATUS_OPTIONS = [
+  { value: '', label: 'Semua Status' },
+  { value: 'true', label: 'Aktif' },
+  { value: 'false', label: 'Nonaktif' },
+];
+
 export default function FakultasPage() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<'fakultas' | 'prodi' | 'admin_prodi' | 'plotting_menu'>('fakultas');
@@ -51,6 +57,7 @@ export default function FakultasPage() {
   const [filterFakultasId, setFilterFakultasId] = useState('');
   const [filterJenjang, setFilterJenjang] = useState('');
   const [filterAkreditasi, setFilterAkreditasi] = useState('');
+  const [filterStatus, setFilterStatus] = useState('');
   const [filterSortBy, setFilterSortBy] = useState('nama');
   const [filterSortDir, setFilterSortDir] = useState<'asc' | 'desc'>('asc');
   const [appliedFilters, setAppliedFilters] = useState({
@@ -58,6 +65,7 @@ export default function FakultasPage() {
     fakultasId: '',
     jenjang: '',
     akreditasi: '',
+    isActive: '',
     sortBy: 'nama',
     sortDir: 'asc' as 'asc' | 'desc',
   });
@@ -83,6 +91,8 @@ export default function FakultasPage() {
           fakultas_id: appliedFilters.fakultasId || undefined,
           jenjang: appliedFilters.jenjang || undefined,
           akreditasi: appliedFilters.akreditasi || undefined,
+          is_active: appliedFilters.isActive || undefined,
+          include_inactive: true,
           sort_by: appliedFilters.sortBy,
           sort_order: appliedFilters.sortDir,
         }),
@@ -197,7 +207,14 @@ export default function FakultasPage() {
       render: (row) => (
         <div>
           <span className="font-bold text-slate-900 text-xs block">{row.nama}</span>
-          <span className="text-2xs text-slate-500">{row.fakultas?.nama || '-'}</span>
+          <div className="mt-1 flex flex-wrap items-center gap-2">
+            <span className="text-2xs text-slate-500">
+              {row.fakultas?.nama || 'Fakultas belum dipetakan'}
+            </span>
+            <Badge variant={row.is_active ? 'green' : 'gray'}>
+              {row.is_active ? 'Aktif' : 'Nonaktif'}
+            </Badge>
+          </div>
         </div>
       ),
     },
@@ -463,6 +480,7 @@ export default function FakultasPage() {
                 setFilterFakultasId('');
                 setFilterJenjang('');
                 setFilterAkreditasi('');
+                setFilterStatus('');
                 setFilterSortBy('nama');
                 setFilterSortDir('asc');
                 setAppliedFilters({
@@ -470,6 +488,7 @@ export default function FakultasPage() {
                   fakultasId: '',
                   jenjang: '',
                   akreditasi: '',
+                  isActive: '',
                   sortBy: 'nama',
                   sortDir: 'asc',
                 });
@@ -487,6 +506,7 @@ export default function FakultasPage() {
                   fakultasId: filterFakultasId,
                   jenjang: filterJenjang,
                   akreditasi: filterAkreditasi,
+                  isActive: filterStatus,
                   sortBy: filterSortBy,
                   sortDir: filterSortDir,
                 });
@@ -532,6 +552,13 @@ export default function FakultasPage() {
             value={filterAkreditasi || ''}
             onChange={(val: any) => setFilterAkreditasi(val ? String(val) : '')}
             isClearable
+          />
+
+          <Select
+            label="Status Program Studi"
+            value={filterStatus}
+            onChange={(val: any) => setFilterStatus(val ? String(val) : '')}
+            options={PRODI_STATUS_OPTIONS}
           />
 
           <hr className="border-t border-slate-200 my-1" />

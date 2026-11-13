@@ -47,6 +47,7 @@ Evaluasi HANYA baris baru (+) yang ditambahkan atau diubah. Abaikan baris kontek
    - Wajib `<DataTable />` dari `@/components/ui/DataTable` untuk tabel data (dilarang manual `<table>`).
    - Kontras Warna Tabel Model SIMPEG: Header `bg-slate-50/90 border-b border-slate-200`, baris data `bg-white hover:bg-slate-50`.
    - Hirarki Font: Header tabel `text-xs` (12px) bold uppercase; isi sel primer MAKSIMAL `text-xs` (12px, dilarang `text-sm`/`text-base`); subteks/meta/badge `text-2xs` (10px).
+    - Status pada kolom tersendiri: default gunakan komponen status UI kit, tetapi jika pengguna secara eksplisit meminta teks biasa (tanpa badge), jangan menolaknya atau memaksa badge; label status harus berada di kolom `STATUS` sendiri dan memakai `text-2xs`.
    - Menu Aksi Titik 3: Wajib `<DropdownMenu />` dari `@/components/ui/DropdownMenu` untuk aksi tabel (Edit, Hapus, Detail). Dilarang tombol aksi horizontal di baris sel.
    - Konfirmasi Destruktif: Wajib modal konfirmasi bertema UI (`<ConfirmDialog />`). DILARANG KERAS `window.confirm()`, `confirm()`, `alert()`.
    - Tombol Header & Strictly Text 'Filter':

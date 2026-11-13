@@ -259,6 +259,7 @@ Agar tampilan tabel seimbang, padat, dan proporsional tanpa ada teks sel yang me
 - **Ukuran Font Header Tabel (`<th>`)**: Wajib berukuran baku **`0.75rem` (12px / Tailwind `text-xs`)** dengan `font-bold` (700), uppercase, dan tracking renggang (`0.05em`).
 - **Ukuran Font Isi Sel Tabel (`<td>`)**: Maksimal berukuran **`0.75rem` (12px / Tailwind `text-xs`)**. **DILARANG KERAS** menggunakan ukuran `text-sm` (14px), `text-base` (16px), atau lebih besar pada teks di dalam sel tabel.
 - **Teks Sekunder / Meta / Label Keterangan / Subtext**: Wajib berukuran **`0.625rem` (10px / Tailwind `text-2xs`)** dengan warna sekunder (`text-slate-400` atau `text-slate-500`).
+- **Status Kolom Teks Biasa atas Permintaan Eksplisit**: Jika pengguna meminta status sebagai kolom tabel tersendiri tanpa badge, hormati bentuk tersebut. Tampilkan label status teks biasa di kolom `STATUS` menggunakan `text-2xs`; jangan memaksakan `<Badge>` hanya demi konvensi visual. Tanpa permintaan eksplisit, gunakan badge/status component standar.
 - **Global Clamping Protection**: Di `app/globals.css`, selector `.table td` wajib membatasi ukuran font maksimal agar elemen inline tidak menembus batas 12px:
   ```css
   .table td .text-sm,

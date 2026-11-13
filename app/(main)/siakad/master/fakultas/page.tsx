@@ -207,14 +207,9 @@ export default function FakultasPage() {
       render: (row) => (
         <div>
           <span className="font-bold text-slate-900 text-xs block">{row.nama}</span>
-          <div className="mt-1 flex flex-wrap items-center gap-2">
-            <span className="text-2xs text-slate-500">
-              {row.fakultas?.nama || 'Fakultas belum dipetakan'}
-            </span>
-            <Badge variant={row.is_active ? 'green' : 'gray'}>
-              {row.is_active ? 'Aktif' : 'Nonaktif'}
-            </Badge>
-          </div>
+          <span className="mt-1 block text-2xs text-slate-500">
+            {row.fakultas?.nama || 'Fakultas belum dipetakan'}
+          </span>
         </div>
       ),
     },
@@ -225,6 +220,16 @@ export default function FakultasPage() {
       render: (row) => (
         <span className="font-mono text-xs font-bold text-slate-700">
           {row.jenjang || '-'}
+        </span>
+      ),
+    },
+    {
+      key: 'is_active',
+      label: 'STATUS',
+      align: 'center',
+      render: (row) => (
+        <span className={`text-2xs font-medium ${row.is_active ? 'text-slate-700' : 'text-slate-500'}`}>
+          {row.is_active ? 'Aktif' : 'Nonaktif'}
         </span>
       ),
     },

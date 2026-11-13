@@ -477,6 +477,11 @@ export const siakadService = {
     return response.data;
   },
 
+  getProdiById: async (id: number): Promise<ApiResponse<any>> => {
+    const response = await apiClient.get(`/v1/siakad/akademik/prodi/${id}`);
+    return response.data;
+  },
+
   createProdi: async (payload: any): Promise<ApiResponse<any>> => {
     const response = await apiClient.post('/v1/siakad/akademik/prodi', payload);
     return response.data;

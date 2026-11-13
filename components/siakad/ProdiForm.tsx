@@ -10,8 +10,8 @@ import { AsyncSelect } from '@/components/ui/AsyncSelect';
 import { SIAKAD_OPTION_TYPES, useSiakadOptions } from '@/lib/siakad-options';
 import { siakadService } from '@/services/siakad.service';
 
-export const prodiSchema = z.object({
-  fakultas_id: z.number({ error: 'Fakultas induk wajib dipilih' }).min(1, 'Fakultas induk wajib dipilih'),
+const baseProdiSchema = z.object({
+  fakultas_id: z.number().nullable(),
   kaprodi_id: z.number().nullable().optional(),
   kode_prodi: z.string().min(1, 'Kode prodi wajib diisi').max(20, 'Kode maksimal 20 karakter'),
   kode_prodi_dikti: z.string().max(20, 'Kode DIKTI maksimal 20 karakter').optional().or(z.literal('')),
@@ -20,7 +20,13 @@ export const prodiSchema = z.object({
   akreditasi: z.string().optional().or(z.literal('')),
 });
 
-export type ProdiFormValues = z.infer<typeof prodiSchema>;
+const createProdiSchema = baseProdiSchema.extend({
+  fakultas_id: z.number({ error: 'Fakultas induk wajib dipilih' }).min(1, 'Fakultas induk wajib dipilih'),
+});
+
+const editProdiSchema = baseProdiSchema;
+
+export type ProdiFormValues = z.infer<typeof baseProdiSchema>;
 
 interface ProdiFormProps {
   fakultasOptions: { value: number; label: string }[];
@@ -50,9 +56,9 @@ export function ProdiForm({ fakultasOptions, defaultValues, onSubmit, onCancel, 
     handleSubmit,
     formState: { errors, isSubmitting },
   } = useForm<ProdiFormValues>({
-    resolver: zodResolver(prodiSchema),
+    resolver: zodResolver(isEditing ? editProdiSchema : createProdiSchema),
     defaultValues: {
-      fakultas_id: 0,
+      fakultas_id: isEditing ? null : 0,
       kaprodi_id: null,
       kode_prodi: '',
       kode_prodi_dikti: '',
@@ -75,13 +81,14 @@ export function ProdiForm({ fakultasOptions, defaultValues, onSubmit, onCancel, 
           render={({ field }) => (
             <Select
               label="Fakultas Induk"
-              required
+              required={!isEditing}
               placeholder="Pilih fakultas..."
               options={fakultasOptions}
-              value={field.value || ''}
-              onChange={(val: any) => field.onChange(Number(val))}
-              isDisabled={isEditing}
+              value={field.value ?? ''}
+              onChange={(val: any) => field.onChange(val ? Number(val) : null)}
+              isClearable={isEditing}
               error={errors.fakultas_id?.message}
+              hint={isEditing ? 'Kosongkan jika fakultas belum dipetakan.' : undefined}
             />
           )}
         />

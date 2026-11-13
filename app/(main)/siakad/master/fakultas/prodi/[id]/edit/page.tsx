@@ -20,16 +20,19 @@ export default function EditProdiPage() {
   useEffect(() => {
     const load = async () => {
       try {
-        const [fRes, pRes] = await Promise.all([siakadService.getFakultas(), siakadService.getProdi({})]);
+        const [fRes, pRes] = await Promise.all([
+          siakadService.getFakultas(),
+          siakadService.getProdiById(id),
+        ]);
         if (fRes.data) setFakultas(fRes.data);
-        const item = (pRes.data || []).find((p: any) => p.id === id);
+        const item = pRes.data;
         if (!item) {
           toast.error('Program studi tidak ditemukan');
           router.push('/siakad/master/fakultas');
           return;
         }
         setInitial({
-          fakultas_id: item.fakultas_id,
+          fakultas_id: item.fakultas_id ?? null,
           kaprodi_id: item.kaprodi_id || null,
           kode_prodi: item.kode_prodi,
           kode_prodi_dikti: item.kode_prodi_dikti || '',
@@ -92,7 +95,7 @@ export default function EditProdiPage() {
             </span>
             <div>
               <p className="text-xs font-extrabold text-slate-900">Identitas, Kepemimpinan & Akreditasi</p>
-              <p className="text-xs text-slate-500 mt-0.5">Kode dan fakultas induk tidak dapat diubah setelah dibuat.</p>
+              <p className="text-xs text-slate-500 mt-0.5">Kode tidak dapat diubah. Fakultas induk boleh dibiarkan kosong jika belum dipetakan.</p>
             </div>
           </div>
           {initial ? (

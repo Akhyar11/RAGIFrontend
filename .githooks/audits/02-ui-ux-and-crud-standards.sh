@@ -70,7 +70,14 @@ Evaluasi HANYA baris baru (+) yang ditambahkan atau diubah. Abaikan baris kontek
 
 4. STANDAR STATE MANAGEMENT:
    - Global state wajib menggunakan Zustand di `@/store/`.
-   - Data tabel/halaman spesifik dilarang dimasukkan ke Zustand global (cukup local `useState`/React Query).
+    - Data tabel/halaman spesifik dilarang dimasukkan ke Zustand global (cukup local `useState`/React Query).
+
+5. STANDAR PENGATURAN API, TOKEN & SYNC OPERASIONAL:
+    - Pengaturan integrasi hanya mengubah koneksi untuk entri registry yang sudah ada; jangan menambahkan CRUD bebas definisi integrasi tanpa permintaan eksplisit.
+    - Respons hanya memberi boolean `token_configured`. Jangan pernah mengisi ulang atau menampilkan token tersimpan; field edit selalu kosong, memberi tahu “sudah/belum tersimpan”, dan menjelaskan bahwa kosong berarti mempertahankan, bukan menghapus.
+    - Payload update tidak boleh menyertakan token kosong/null untuk perubahan URL/auth/status; token hanya ikut dikirim ketika pengguna memasukkan token baru.
+    - Tampilkan skema auth dengan header yang benar (`Authorization: Bearer` vs `X-API-KEY`) agar admin dapat mencocokkan kontrak sumber.
+    - Bedakan Uji Koneksi (read-only) dari Jalankan Sync (menulis target). Sync harus melalui service API backend yang dikonfigurasi, memberi konfirmasi/loading/anti-double-submit, lalu menampilkan fetched/created/updated/skipped beserta alasan skip dan error aman. Jangan mengklaim sync sukses dari ping HTTP saja.
 
 ========================================================================================
 

@@ -15,6 +15,7 @@ Sebelum mengeksekusi tugas apapun, Anda WAJIB memeriksa daftar skill di bawah in
 | --- | --- | --- |
 | `ui-components-standard` | `.agent/skills/ui_components_standard/SKILL.md` | Diminta membuat atau memodifikasi komponen UI, styling, layouting. |
 | `api-integration-standard` | `.agent/skills/api_integration_standard/SKILL.md` | Menghubungkan API, membuat service baru, HTTP request. |
+| `api-settings-workflow` | `.agent/skills/api_settings_workflow/SKILL.md` | Membuat/mengubah UI Pengaturan API, kredensial/auth, Uji Koneksi, aksi Sync, dan ringkasan hasil impor. |
 | `state-management-standard` | `.agent/skills/state_management_standard/SKILL.md` | Membuat atau mengubah global state menggunakan Zustand. |
 | `form-validation-standard` | `.agent/skills/form_validation_standard/SKILL.md` | Membuat form baru atau menambahkan validasi input. |
 | `nextjs-routing-standard` | `.agent/skills/nextjs_routing_standard/SKILL.md` | Membuat halaman/route baru, middleware, atau server/client components. |

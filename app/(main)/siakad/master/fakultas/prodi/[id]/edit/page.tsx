@@ -39,6 +39,7 @@ export default function EditProdiPage() {
           nama: item.nama,
           jenjang: item.jenjang || '',
           akreditasi: item.akreditasi || '',
+          is_active: Boolean(item.is_active),
           kaprodiOption: item.kaprodi
             ? { value: item.kaprodi.id, label: `${item.kaprodi.nama_lengkap} — NIDN ${item.kaprodi.nidn || '-'}` }
             : null,

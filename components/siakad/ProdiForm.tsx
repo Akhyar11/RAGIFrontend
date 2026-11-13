@@ -18,6 +18,7 @@ const baseProdiSchema = z.object({
   nama: z.string().min(3, 'Nama prodi minimal 3 karakter').max(255, 'Nama maksimal 255 karakter'),
   jenjang: z.string().min(1, 'Jenjang wajib dipilih'),
   akreditasi: z.string().optional().or(z.literal('')),
+  is_active: z.boolean().optional(),
 });
 
 const createProdiSchema = baseProdiSchema.extend({
@@ -25,6 +26,11 @@ const createProdiSchema = baseProdiSchema.extend({
 });
 
 const editProdiSchema = baseProdiSchema;
+
+const PRODI_ACTIVE_OPTIONS = [
+  { value: 'true', label: 'Aktif' },
+  { value: 'false', label: 'Nonaktif' },
+];
 
 export type ProdiFormValues = z.infer<typeof baseProdiSchema>;
 
@@ -65,6 +71,7 @@ export function ProdiForm({ fakultasOptions, defaultValues, onSubmit, onCancel, 
       nama: '',
       jenjang: '',
       akreditasi: '',
+      is_active: true,
       ...defaultValues,
     },
   });
@@ -106,7 +113,7 @@ export function ProdiForm({ fakultasOptions, defaultValues, onSubmit, onCancel, 
             />
           )}
         />
-        <Input label="Kode Prodi Internal" required disabled={isEditing} placeholder="cth. IF" error={errors.kode_prodi?.message} {...register('kode_prodi')} />
+        <Input label="Kode Prodi Internal" required placeholder="cth. IF" error={errors.kode_prodi?.message} {...register('kode_prodi')} />
         <Input label="Kode Prodi PDDIKTI" placeholder="cth. 55201" error={errors.kode_prodi_dikti?.message} {...register('kode_prodi_dikti')} />
         <div className="md:col-span-2">
           <Input label="Nama Program Studi" required placeholder="cth. Teknik Informatika" error={errors.nama?.message} {...register('nama')} />
@@ -142,6 +149,21 @@ export function ProdiForm({ fakultasOptions, defaultValues, onSubmit, onCancel, 
             />
           )}
         />
+        {isEditing && (
+          <Controller
+            name="is_active"
+            control={control}
+            render={({ field }) => (
+              <Select
+                label="Status Program Studi"
+                value={field.value === false ? 'false' : 'true'}
+                onChange={(value: any) => field.onChange(value === 'true')}
+                options={PRODI_ACTIVE_OPTIONS}
+                error={errors.is_active?.message}
+              />
+            )}
+          />
+        )}
       </div>
       <div className="flex items-center justify-end gap-2 pt-4 border-t border-slate-100">
         <Button type="button" variant="secondary" onClick={onCancel}>

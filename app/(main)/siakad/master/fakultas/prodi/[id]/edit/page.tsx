@@ -53,7 +53,25 @@ export default function EditProdiPage() {
 
   const handleSubmit = async (values: ProdiFormValues) => {
     try {
-      await siakadService.updateProdi(id, values);
+      const response = await siakadService.updateProdi(id, values);
+      const savedProgram = response.data;
+      const expectedFacultyId = values.fakultas_id ? Number(values.fakultas_id) : null;
+      const expectedKaprodiId = values.kaprodi_id ? Number(values.kaprodi_id) : null;
+      const expectedDiktiCode = values.kode_prodi_dikti?.trim() || null;
+      const expectedAccreditation = values.akreditasi?.trim() || null;
+      const didNotPersist = !savedProgram
+        || String(savedProgram.kode_prodi) !== values.kode_prodi.trim()
+        || savedProgram.nama !== values.nama.trim()
+        || String(savedProgram.jenjang) !== values.jenjang
+        || (savedProgram.fakultas_id ? Number(savedProgram.fakultas_id) : null) !== expectedFacultyId
+        || (savedProgram.kaprodi_id ? Number(savedProgram.kaprodi_id) : null) !== expectedKaprodiId
+        || (savedProgram.kode_prodi_dikti || null) !== expectedDiktiCode
+        || (savedProgram.akreditasi || null) !== expectedAccreditation
+        || Boolean(savedProgram.is_active) !== Boolean(values.is_active);
+
+      if (didNotPersist) {
+        throw new Error('Server belum menerapkan semua perubahan. Perbarui backend dan database, lalu coba lagi.');
+      }
       toast.success('Program studi berhasil diperbarui');
       router.push('/siakad/master/fakultas');
     } catch (err: any) {

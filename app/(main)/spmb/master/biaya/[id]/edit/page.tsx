@@ -17,6 +17,7 @@ import { ToggleSwitch } from '@/components/ui/ToggleSwitch';
 import { spmbService } from '@/services/spmb.service';
 import { arsipService } from '@/services/arsip.service';
 import { formatRupiah } from '@/lib/utils';
+import { EVIDENCE_TYPE_OPTIONS } from '@/lib/spmb/master-biaya-options';
 import type { MasterKomponenBiaya, MasterTipeJalur, MasterBiayaSpmb } from '@/types/spmb.types';
 import type { CheckSkResult } from '@/types/arsip.types';
 import toast from 'react-hot-toast';
@@ -24,7 +25,10 @@ import toast from 'react-hot-toast';
 const masterBiayaEditFormSchema = z.object({
   master_tipe_jalur_id: z.string().min(1, 'Tipe jalur masuk wajib dipilih'),
   program_studi_id: z.string().min(1, 'Program studi wajib dipilih'),
-  nomor_sk: z.string().min(1, 'Nomor SK wajib diisi').max(100, 'Nomor SK maksimal 100 karakter'),
+  evidence_type: z.enum(['arsip', 'upload']),
+  nomor_sk: z.string().max(150, 'Nomor SK maksimal 150 karakter').optional().or(z.literal('')),
+  dokumen_pendukung: z.any().optional(),
+  has_existing_document: z.boolean(),
   is_active: z.boolean(),
   keterangan: z.string().max(255, 'Keterangan maksimal 255 karakter').optional().or(z.literal('')),
   items: z.array(
@@ -39,6 +43,13 @@ const masterBiayaEditFormSchema = z.object({
       keterangan: z.string().optional().nullable(),
     })
   ),
+}).superRefine((values, context) => {
+  if (values.evidence_type === 'arsip' && !values.nomor_sk?.trim()) {
+    context.addIssue({ code: 'custom', path: ['nomor_sk'], message: 'Nomor SK wajib diisi.' });
+  }
+  if (values.evidence_type === 'upload' && !values.dokumen_pendukung?.length && !values.has_existing_document) {
+    context.addIssue({ code: 'custom', path: ['dokumen_pendukung'], message: 'Dokumen pendukung wajib tersedia.' });
+  }
 });
 
 type MasterBiayaEditFormValues = z.infer<typeof masterBiayaEditFormSchema>;
@@ -54,6 +65,7 @@ export default function EditMasterBiayaPage() {
 
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [dokumenPendukungUrl, setDokumenPendukungUrl] = useState<string | null>(null);
   const isLoadedRef = useRef(false);
 
   const [skCheck, setSkCheck] = useState<{
@@ -76,7 +88,10 @@ export default function EditMasterBiayaPage() {
     defaultValues: {
       master_tipe_jalur_id: '',
       program_studi_id: '',
+      evidence_type: 'arsip',
       nomor_sk: '',
+      dokumen_pendukung: undefined,
+      has_existing_document: false,
       is_active: true,
       keterangan: '',
       items: [],
@@ -90,6 +105,8 @@ export default function EditMasterBiayaPage() {
 
   const watchItems = useWatch({ control, name: 'items' });
   const watchNomorSk = useWatch({ control, name: 'nomor_sk' });
+  const evidenceType = useWatch({ control, name: 'evidence_type' });
+  const hasExistingDocument = useWatch({ control, name: 'has_existing_document' });
 
   useEffect(() => {
     if (skCheck.status !== 'idle' && skCheck.data?.nomor_surat !== (watchNomorSk || '').trim()) {
@@ -167,7 +184,10 @@ export default function EditMasterBiayaPage() {
         if (data) {
           setValue('master_tipe_jalur_id', data.master_tipe_jalur_id ? String(data.master_tipe_jalur_id) : '');
           setValue('program_studi_id', String(data.program_studi_id));
+          setValue('evidence_type', data.dokumen_pendukung_url ? 'upload' : 'arsip');
           setValue('nomor_sk', data.nomor_sk || '');
+          setValue('has_existing_document', Boolean(data.dokumen_pendukung_url));
+          setDokumenPendukungUrl(data.dokumen_pendukung_url || null);
           setValue('is_active', Boolean(data.is_active));
           setValue('keterangan', data.keterangan || '');
 
@@ -237,13 +257,9 @@ export default function EditMasterBiayaPage() {
       return;
     }
 
-    const trimmedSk = values.nomor_sk?.trim();
-    if (!trimmedSk) {
-      toast.error('Nomor SK penetapan biaya wajib diisi');
-      return;
-    }
+    const trimmedSk = values.evidence_type === 'arsip' ? values.nomor_sk?.trim() : '';
 
-    if (skCheck.status !== 'valid' || skCheck.data?.nomor_surat !== trimmedSk) {
+    if (values.evidence_type === 'arsip' && trimmedSk && (skCheck.status !== 'valid' || skCheck.data?.nomor_surat !== trimmedSk)) {
       try {
         setSubmitting(true);
         const checkRes = await arsipService.checkNomorSk(trimmedSk);
@@ -272,10 +288,12 @@ export default function EditMasterBiayaPage() {
 
     try {
       setSubmitting(true);
-      await spmbService.updateMasterBiaya(id, {
+      await spmbService.updateMasterBiayaWithEvidence(id, {
         master_tipe_jalur_id: Number(values.master_tipe_jalur_id),
         program_studi_id: Number(values.program_studi_id),
-        nomor_sk: trimmedSk,
+        evidence_type: values.evidence_type,
+        nomor_sk: trimmedSk || undefined,
+        dokumen_pendukung: values.evidence_type === 'upload' ? values.dokumen_pendukung?.[0] : undefined,
         is_active: values.is_active,
         keterangan: values.keterangan?.trim() || undefined,
         items: values.items.map((it) => ({
@@ -387,12 +405,33 @@ export default function EditMasterBiayaPage() {
                   )}
                 />
 
-                {/* Field Nomor SK dengan Tombol CEK ke Modul Arsip */}
-                <div className="col-span-full space-y-2">
+                <Controller
+                  control={control}
+                  name="evidence_type"
+                  render={({ field }) => (
+                    <Select
+                      label="Dasar Dokumen"
+                      required
+                      value={field.value}
+                      onChange={(value) => {
+                        field.onChange(value);
+                        setValue('nomor_sk', '');
+                        setValue('dokumen_pendukung', undefined);
+                        if (value === 'arsip') setValue('has_existing_document', false);
+                        setSkCheck({ status: 'idle', data: null });
+                      }}
+                      options={EVIDENCE_TYPE_OPTIONS}
+                      error={errors.evidence_type?.message}
+                      hint="Pilih satu dasar penetapan biaya."
+                    />
+                  )}
+                />
+
+                {evidenceType === 'arsip' ? <div className="col-span-full space-y-2">
                   <div className="flex items-end gap-2">
                     <div className="flex-1">
                       <Input
-                        label="Nomor SK Penetapan Biaya *"
+                        label="Nomor SK Penetapan Biaya"
                         required
                         placeholder="Contoh: 001/SK-BIAYA/UTI/2026"
                         className="font-mono uppercase"
@@ -414,7 +453,7 @@ export default function EditMasterBiayaPage() {
                     </Button>
                   </div>
                   <p className="text-2xs text-slate-500">
-                    Nomor SK resmi dari modul Arsip wajib diisi sebagai dasar penetapan tarif biaya institusi (memastikan SK terdaftar dan dokumen fisik tidak kosong).
+                    Nomor SK resmi diverifikasi melalui modul Arsip dan harus memiliki dokumen fisik.
                   </p>
 
                   {/* Feedback Status Cek SK */}
@@ -469,7 +508,35 @@ export default function EditMasterBiayaPage() {
                       </div>
                     </div>
                   )}
-                </div>
+                </div> : (
+                  <div className="col-span-full space-y-2">
+                    <Input
+                      type="file"
+                      label="Dokumen Pendukung"
+                      required={!hasExistingDocument}
+                      accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
+                      error={errors.dokumen_pendukung?.message as string | undefined}
+                      {...register('dokumen_pendukung', {
+                        onChange: (event) => {
+                          if (event.target.files?.length) {
+                            setValue('has_existing_document', true);
+                          }
+                        },
+                      })}
+                    />
+                    <p className="form-hint">PDF, JPG, JPEG, atau PNG. Maksimal 5 MB. File disimpan privat.</p>
+                    {dokumenPendukungUrl && (
+                      <a
+                        href={dokumenPendukungUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-xs font-semibold text-[var(--module-primary)] underline"
+                      >
+                        <ExternalLink size={14} /> Lihat dokumen pendukung saat ini
+                      </a>
+                    )}
+                  </div>
+                )}
 
                 <div className="col-span-full">
                   <Checkbox

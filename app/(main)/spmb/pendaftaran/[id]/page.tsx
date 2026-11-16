@@ -54,6 +54,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { Modal } from '@/components/ui/Modal';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { useAuth } from '@/hooks/useAuth';
+import { useAuthStore } from '@/store/authStore';
 import { SPMB_STATUS_CONFIG, SpmbStatusBadge, SpmbPaymentBadge } from '@/components/spmb/SpmbStatusBadge';
 
 
@@ -207,6 +208,7 @@ export default function DetailPendaftaranPage({ params }: { params: Promise<{ id
 
   const { hasPermission } = useAuth();
   const canKonversiMahasiswa = hasPermission('spmb.manage');
+  const [authHydrated, setAuthHydrated] = useState(() => useAuthStore.persist.hasHydrated());
 
   const [pendaftar, setPendaftar] = useState<PendaftaranCalonMhs | null>(null);
   const [loading, setLoading] = useState(true);
@@ -715,10 +717,21 @@ export default function DetailPendaftaranPage({ params }: { params: Promise<{ id
   };
 
   useEffect(() => {
-    if (id) {
-      fetchDetail(id);
+    if (useAuthStore.persist.hasHydrated()) {
+      setAuthHydrated(true);
+      return;
     }
-  }, [id]);
+    return useAuthStore.persist.onFinishHydration(() => setAuthHydrated(true));
+  }, []);
+
+  useEffect(() => {
+    if (!authHydrated) return;
+    if (id && canKonversiMahasiswa) {
+      fetchDetail(id);
+    } else if (id) {
+      router.replace('/spmb/pendaftaran/biodata');
+    }
+  }, [id, canKonversiMahasiswa, authHydrated, router]);
 
   // Document Verification Handler
   const handleVerifyBerkas = async (berkasId: number, isVerified: boolean) => {
@@ -749,7 +762,7 @@ export default function DetailPendaftaranPage({ params }: { params: Promise<{ id
     }
   };
 
-  if (loading || !pendaftar) {
+  if (!authHydrated || loading || !pendaftar) {
     return (
       <div className="space-y-6 pb-12">
         <PageHeader 

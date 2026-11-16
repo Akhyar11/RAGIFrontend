@@ -50,6 +50,8 @@ import { Textarea } from '@/components/ui/Textarea';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { spmbService, PendaftaranCalonMhs, PendaftaranBerkas } from '@/services/spmb.service';
+import { spmbPaymentService } from '@/services/spmb-payment.service';
+import { openMidtransSnap } from '@/lib/spmb/midtrans-snap';
 import { useSpmbStore } from '@/store/spmbStore';
 import { useUiStore } from '@/store/uiStore';
 import api from '@/lib/axios';
@@ -506,6 +508,7 @@ export default function RegistrasiSpmbPage() {
   const [bebanPendaftaran, setBebanPendaftaran] = useState<BiayaBebanItem[]>([]);
   const [biayaSource, setBiayaSource] = useState<'master' | 'none'>('none');
   const [totalBebanDaftarUlang, setTotalBebanDaftarUlang] = useState(0);
+  const [biayaPendaftaranSukses, setBiayaPendaftaranSukses] = useState<{ items: BiayaBebanItem[]; total: number } | null>(null);
   const [isEditingBiodata, setIsEditingBiodata] = useState(false);
   const [copiedVa, setCopiedVa] = useState(false);
   const [isCheckingRegistration, setIsCheckingRegistration] = useState(true);
@@ -516,6 +519,7 @@ export default function RegistrasiSpmbPage() {
   const [nationalityOptions, setNationalityOptions] = useState<NationalityOption[]>([]);
   const [berkasRequirements, setBerkasRequirements] = useState<DokumenItemConfig[]>(DEFAULT_FALLBACK_DOCUMENTS);
   const [loadingBerkas, setLoadingBerkas] = useState(false);
+  const [issuingRegistrationInvoice, setIssuingRegistrationInvoice] = useState(false);
   const [referralCheck, setReferralCheck] = useState<{
     status: 'idle' | 'checking' | 'valid' | 'invalid';
     name?: string;
@@ -841,6 +845,33 @@ export default function RegistrasiSpmbPage() {
   const [uploadingState, setUploadingState] = useState<Record<string, boolean>>({});
   const [uploadedBerkas, setUploadedBerkas] = useState<Record<string, any>>({});
 
+  useEffect(() => {
+    const pendaftaran = suksesData?.pendaftaran;
+    if (!pendaftaran || isEditingBiodata || !pendaftaran.master_tipe_jalur_id || !pendaftaran.program_studi_id) {
+      setBiayaPendaftaranSukses(null);
+      return;
+    }
+
+    let active = true;
+    spmbService.getBiayaPendaftaran({
+      master_tipe_jalur_id: Number(pendaftaran.master_tipe_jalur_id),
+      program_studi_id: Number(pendaftaran.program_studi_id),
+    }).then((response) => {
+      if (!active) return;
+      const items = response?.data?.beban_pendaftaran || [];
+      setBiayaPendaftaranSukses({
+        items,
+        total: Number(response?.data?.total_pendaftaran || 0),
+      });
+    }).catch(() => {
+      if (active) setBiayaPendaftaranSukses(null);
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [suksesData?.pendaftaran?.id, suksesData?.pendaftaran?.master_tipe_jalur_id, suksesData?.pendaftaran?.program_studi_id, isEditingBiodata]);
+
   const handleFileUpload = async (jenisBerkas: string, file: File, requirementId?: number) => {
     if (!file) return;
 
@@ -939,6 +970,65 @@ export default function RegistrasiSpmbPage() {
     }
   };
 
+  const handleRegistrationPayment = async (issueInvoice = false) => {
+    if (issueInvoice && (!biayaPendaftaranSukses || biayaPendaftaranSukses.total <= 0)) {
+      toast.error('Belum ada komponen biaya pendaftaran aktif di Master Biaya SPMB.');
+      return;
+    }
+
+    setIssuingRegistrationInvoice(true);
+    try {
+      if (issueInvoice) {
+        const response = await spmbService.issueRegistrationInvoice();
+        const current = suksesData || {};
+        const issuedData = response?.data || {};
+        const refreshed = await spmbService.getMyPendaftaran();
+        const pendaftaran = refreshed?.data?.pendaftaran || current.pendaftaran;
+        setSuksesData({
+          ...current,
+          ...issuedData,
+          ...refreshed?.data,
+          pendaftaran,
+          tagihan: issuedData.tagihan ? issuedData : refreshed?.data?.tagihan || issuedData,
+          tagihan_list: refreshed?.data?.tagihan_list || issuedData.tagihan_list || [],
+        });
+        toast.success('Invoice berhasil diterbitkan.');
+      }
+
+      const paymentResponse = await spmbPaymentService.bills({ tahap: 'pendaftaran', per_page: 100 });
+      const unpaidBills = (paymentResponse.data || []).filter((bill) => bill.status !== 'lunas' && bill.sisa_tagihan > 0);
+      if (unpaidBills.length === 1) {
+        const checkoutResponse = await spmbPaymentService.checkout(unpaidBills[0].id);
+        const checkout = checkoutResponse.data;
+        if (checkout?.method === 'snap') {
+          const opened = await openMidtransSnap(checkout, {
+            onSuccess: () => {
+              toast.success('Pembayaran berhasil dikirim. Menunggu konfirmasi Midtrans.');
+            },
+            onPending: () => {
+              toast('Pembayaran menunggu penyelesaian.', { icon: '⏳' });
+            },
+            onError: () => {
+              toast.error('Pembayaran Midtrans gagal atau ditolak. Silakan coba kembali.');
+            },
+            onClose: () => undefined,
+          });
+          if (!opened) throw new Error('Midtrans Snap gagal dimuat. Periksa konfigurasi Client Key.');
+          return;
+        }
+      }
+
+      router.push('/spmb/pembayaran?tahap=pendaftaran');
+    } catch (error: any) {
+      const validationMessage = Object.values(error?.response?.data?.errors || {})
+        .flat()
+        .find((message): message is string => typeof message === 'string');
+      toast.error(validationMessage || error?.response?.data?.message || error?.message || 'Gagal menyiapkan pembayaran pendaftaran.');
+    } finally {
+      setIssuingRegistrationInvoice(false);
+    }
+  };
+
   useEffect(() => {
     if (!suksesData) return;
     const isLunas = suksesData.pendaftaran?.status_pembayaran === 'lunas';
@@ -981,22 +1071,17 @@ export default function RegistrasiSpmbPage() {
     }
   }, [selectedJalur]);
 
-  useEffect(() => {
-    if (selectedJalur && selectedGelombang) {
-      fetchTarif(selectedJalur, selectedGelombang);
-    } else {
-      setTarif(0);
-    }
-  }, [selectedJalur, selectedGelombang]);
-
   // Rincian beban awal pendaftaran berdasarkan Master Biaya tipe jalur + prodi
   useEffect(() => {
     const loadBeban = async () => {
       if (!selectedTipeJalur || !selectedProdi) {
         setBebanPendaftaran([]);
         setTotalBebanDaftarUlang(0);
+        setTarif(0);
+        setBiayaSource('none');
         return;
       }
+      setLoadingTarif(true);
       try {
         const res = await spmbService.getBiayaPendaftaran({
           master_tipe_jalur_id: Number(selectedTipeJalur),
@@ -1004,12 +1089,16 @@ export default function RegistrasiSpmbPage() {
         });
         const info = res?.data;
         setBebanPendaftaran(info?.beban_pendaftaran || []);
-        setBiayaSource(info?.source === 'master' ? 'master' : 'none');
+        setBiayaSource(info?.beban_pendaftaran?.length > 0 ? 'master' : 'none');
         setTotalBebanDaftarUlang(Number(info?.total_daftar_ulang || 0));
-        const totalPendaftaran = Number(info?.total_pendaftaran || 0);
-        if (totalPendaftaran > 0) setTarif(totalPendaftaran);
+        setTarif(Number(info?.total_pendaftaran || 0));
       } catch (error) {
         console.error(error);
+        setBebanPendaftaran([]);
+        setTarif(0);
+        setBiayaSource('none');
+      } finally {
+        setLoadingTarif(false);
       }
     };
     loadBeban();
@@ -1046,22 +1135,6 @@ export default function RegistrasiSpmbPage() {
     } catch (error) {
       console.error(error);
       return [];
-    }
-  };
-
-  const fetchTarif = async (jalurId: any, gelombangId: any) => {
-    setLoadingTarif(true);
-    try {
-      const res = await api.get('/spmb/tarif', {
-        params: { jalur_id: jalurId, gelombang_id: gelombangId },
-      });
-      setTarif(res.data?.data?.nominal || res.data?.nominal || 0);
-    } catch {
-      // Fallback lookup from gelombang data
-      const g = gelombangRaw.find((x) => String(x.id) === String(gelombangId));
-      setTarif(Number(g?.biaya_pendaftaran || 0));
-    } finally {
-      setLoadingTarif(false);
     }
   };
 
@@ -1220,9 +1293,11 @@ export default function RegistrasiSpmbPage() {
     const rawBank = vaObj?.bank_kode || vaObj?.bank_code || vaObj?.bank_nama || '';
     const bankCode = rawBank ? rawBank.replace(/^Bank\s+/i, '').trim().toUpperCase() : '';
     const registrationBills = (suksesData.tagihan_list || tagihan?.tagihan_list || []).filter((item: { tagihan: { tipe_referensi?: string | null } }) => item.tagihan.tipe_referensi !== 'spmb_daftar_ulang');
+    const hasRegistrationInvoice = registrationBills.length > 0 || Boolean(tagihan?.tagihan?.id || tagihan?.id);
     const mappedBills = registrationBills.some((item: { tagihan: { payment_gateway_config_id?: number | null } }) => !!item.tagihan.payment_gateway_config_id);
     const amountForBill = (bill: { total_tagihan?: number | string; total_denda?: number | string; total_potongan?: number | string }) => Math.max(0, Number(bill.total_tagihan || 0) + Number(bill.total_denda || 0) - Number(bill.total_potongan || 0));
     const totalBayar = registrationBills.length ? registrationBills.reduce((sum: number, item: { tagihan: Parameters<typeof amountForBill>[0] }) => sum + amountForBill(item.tagihan), 0) : amountForBill(tagihan?.tagihan || tagihan || {});
+    const totalTampilan = hasRegistrationInvoice ? totalBayar : Number(biayaPendaftaranSukses?.total || 0);
 
     return (
       <div className="animate-fade-in space-y-6 max-w-3xl mx-auto py-4" style={dynamicStyles}>
@@ -1279,7 +1354,15 @@ export default function RegistrasiSpmbPage() {
             </div>
 
             <div className="space-y-4 text-sm">
-              {mappedBills ? <p className="text-xs">Tagihan mengikuti kanal pembayaran pada komponen biaya. Buka halaman Pembayaran SPMB untuk melihat seluruh tagihan dan melanjutkan pembayaran.</p> : <>
+              {mappedBills ? <p className="text-xs">Tagihan mengikuti kanal pembayaran pada komponen biaya. Buka halaman Pembayaran SPMB untuk melihat seluruh tagihan dan melanjutkan pembayaran.</p> : !hasRegistrationInvoice ? (
+                <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
+                  Tagihan pendaftaran belum diterbitkan. Instruksi Virtual Account akan muncul setelah invoice terbit dan kanal VA tersedia.
+                </p>
+              ) : !vaNumber ? (
+                <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
+                  Tagihan sudah tersedia, tetapi nomor Virtual Account belum diterbitkan. Buka halaman Pembayaran SPMB untuk melihat instruksi yang tersedia.
+                </p>
+              ) : <>
               <div className="flex flex-col sm:flex-row sm:items-center justify-between py-2 border-b border-slate-100 gap-1">
                 <span className="text-slate-500 font-medium">Bank Tujuan</span>
                 <span className="font-extrabold text-slate-800 uppercase tracking-wide bg-slate-100 px-3 py-1 rounded-lg border border-slate-200/60 text-xs sm:text-sm self-start sm:self-auto">
@@ -1313,7 +1396,7 @@ export default function RegistrasiSpmbPage() {
                   {(() => {
                     const vaObj = suksesData?.tagihan?.virtual_account || suksesData?.virtual_account;
                     const rawExp = vaObj?.expired_at || suksesData?.tagihan?.tagihan?.jatuh_tempo || suksesData?.tagihan?.jatuh_tempo;
-                    if (!rawExp) return '30 Hari Sejak Diterbitkan';
+                    if (!rawExp) return 'Tidak tersedia';
                     return new Date(rawExp).toLocaleDateString('id-ID', {
                       day: 'numeric',
                       month: 'long',
@@ -1329,9 +1412,18 @@ export default function RegistrasiSpmbPage() {
               <div className="flex flex-col sm:flex-row sm:items-center justify-between py-2 gap-1">
                 <span className="text-slate-500 font-medium">Total Tagihan</span>
                 <span className="font-black text-slate-900 text-xl sm:text-2xl text-primary-900">
-                  Rp {new Intl.NumberFormat('id-ID').format(totalBayar)}
+                  {hasRegistrationInvoice
+                    ? `Rp ${new Intl.NumberFormat('id-ID').format(totalBayar)}`
+                    : totalTampilan > 0
+                      ? `Rp ${new Intl.NumberFormat('id-ID').format(totalTampilan)}`
+                      : 'Belum diatur'}
                 </span>
               </div>
+              {!hasRegistrationInvoice && totalTampilan > 0 && (
+                <p className="text-right text-2xs text-slate-500">
+                  Total berdasarkan Master Biaya. Invoice belum diterbitkan.
+                </p>
+              )}
             </div>
           </div>
 
@@ -1353,6 +1445,10 @@ export default function RegistrasiSpmbPage() {
                   <span className="badge badge-green text-xs font-extrabold px-3 py-1">
                     ✓ LUNAS
                   </span>
+                ) : !hasRegistrationInvoice ? (
+                  <span className="inline-flex items-center gap-1.5 bg-slate-100 border border-slate-200 text-slate-700 text-xs font-bold px-3 py-1 rounded-full">
+                    Tagihan Belum Terbit
+                  </span>
                 ) : (
                   <span className="inline-flex items-center gap-1.5 bg-amber-50 border border-amber-200 text-amber-800 text-xs font-bold px-3 py-1 rounded-full">
                     <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping" />
@@ -1367,6 +1463,26 @@ export default function RegistrasiSpmbPage() {
                 <ShieldCheck size={18} className="text-emerald-600 shrink-0" />
                 <span>Pembayaran Berhasil Dilunasi &amp; Terverifikasi oleh SIKEU!</span>
               </div>
+            ) : !hasRegistrationInvoice ? (
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-1">
+                <p className="text-xs text-slate-500">
+                  {totalTampilan > 0
+                    ? 'Terbitkan invoice dari nominal Master Biaya untuk melanjutkan ke pembayaran.'
+                    : 'Pembayaran belum dapat dilakukan karena komponen beban pendaftaran belum diatur.'}
+                </p>
+                <Button
+                  type="button"
+                  variant="primary"
+                  size="sm"
+                  loading={issuingRegistrationInvoice}
+                  disabled={issuingRegistrationInvoice || totalTampilan <= 0}
+                  onClick={() => handleRegistrationPayment(true)}
+                  className="w-full sm:w-auto text-xs font-bold shrink-0"
+                  icon={<CreditCard size={16} />}
+                >
+                  Buat Tagihan &amp; Bayar
+                </Button>
+              </div>
             ) : (
               <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-1">
                 <p className="text-xs text-slate-500">
@@ -1376,13 +1492,13 @@ export default function RegistrasiSpmbPage() {
                   type="button"
                   variant="primary"
                   size="sm"
-                  onClick={() => router.push('/spmb/pembayaran?tahap=pendaftaran')}
+                  onClick={() => handleRegistrationPayment(false)}
                   className="w-full sm:w-auto text-xs font-bold shrink-0"
                   icon={<CreditCard size={16} />}
                 >
                   Bayar Sekarang
                 </Button>
-                {!mappedBills && <Button
+                {!mappedBills && hasRegistrationInvoice && <Button
                   type="button"
                   variant="outline"
                   size="sm"
@@ -1662,7 +1778,7 @@ export default function RegistrasiSpmbPage() {
                   <span className="text-2xs text-slate-500 font-medium">(Opsional)</span>
                 </div>
                 <p className="text-xs leading-relaxed text-slate-500">
-                  Kode hanya mengurangi komponen Master Biaya SPMB yang ditandai sebagai beban pendaftaran. Tarif fallback dan biaya daftar ulang tidak termasuk.
+                  Kode hanya mengurangi komponen Master Biaya SPMB yang ditandai sebagai beban pendaftaran. Komponen daftar ulang tidak termasuk.
                 </p>
                 <div className="flex items-end gap-2">
                   <div className="flex-1">
@@ -1755,7 +1871,7 @@ export default function RegistrasiSpmbPage() {
                       </p>
                     </div>
                     <div className="text-lg font-extrabold text-primary-700">
-                      {loadingTarif ? <Loader2 size={16} className="animate-spin" /> : `Rp ${tarif.toLocaleString('id-ID')}`}
+                      {loadingTarif ? <Loader2 size={16} className="animate-spin" /> : tarif > 0 ? `Rp ${tarif.toLocaleString('id-ID')}` : 'Belum diatur'}
                     </div>
                   </div>
 
@@ -1782,8 +1898,7 @@ export default function RegistrasiSpmbPage() {
 
                   {biayaSource !== 'master' && (
                     <p className="mt-3 text-2xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-                      Master Biaya SPMB belum dikonfigurasi untuk tipe jalur &amp; program studi ini. Nominal mengikuti
-                      tarif pendaftaran SIKEU/gelombang (potongan komponen tidak dapat diterapkan).
+                      Komponen beban pendaftaran belum dikonfigurasi di Master Biaya SPMB untuk tipe jalur dan program studi ini. Tagihan belum dapat diterbitkan.
                     </p>
                   )}
                 </div>

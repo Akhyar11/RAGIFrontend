@@ -48,6 +48,7 @@ import { Badge } from '@/components/ui/Badge';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { useAuth } from '@/hooks/useAuth';
+import { useAuthStore } from '@/store/authStore';
 
 import { SPMB_STATUS_CONFIG, SpmbStatusBadge, SpmbPaymentBadge } from '@/components/spmb/SpmbStatusBadge';
 
@@ -134,6 +135,9 @@ function DetailSection({
 export default function DataPendaftarPage() {
   const { hasPermission } = useAuth();
   const canKonversiMahasiswa = hasPermission('spmb.manage');
+  const canViewAllPendaftar = canKonversiMahasiswa;
+  const router = useRouter();
+  const [authHydrated, setAuthHydrated] = useState(() => useAuthStore.persist.hasHydrated());
 
   const [data, setData] = useState<PendaftaranCalonMhs[]>([]);
   const [loading, setLoading] = useState(false);
@@ -259,6 +263,7 @@ export default function DataPendaftarPage() {
     try {
       setLoading(true);
       setIsForbidden(false);
+
       const queryParams: any = {
         page,
         per_page: perPage,
@@ -316,17 +321,32 @@ export default function DataPendaftarPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, perPage, appliedFilters]);
+  }, [page, perPage, appliedFilters, canViewAllPendaftar]);
 
   useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+    if (useAuthStore.persist.hasHydrated()) {
+      setAuthHydrated(true);
+      return;
+    }
+    return useAuthStore.persist.onFinishHydration(() => setAuthHydrated(true));
+  }, []);
 
-  const router = useRouter();
+  useEffect(() => {
+    if (!authHydrated) return;
+    if (!canViewAllPendaftar) {
+      router.replace('/spmb/pendaftaran/biodata');
+      return;
+    }
+    fetchData();
+  }, [fetchData, canViewAllPendaftar, authHydrated, router]);
 
   const handleOpenDetail = (row: PendaftaranCalonMhs) => {
     router.push(`/spmb/pendaftaran/${row.id}`);
   };
+
+  if (!authHydrated) {
+    return <div className="card animate-pulse p-6"><div className="h-5 w-1/3 rounded bg-slate-200" /></div>;
+  }
 
   if (isForbidden) {
     return (

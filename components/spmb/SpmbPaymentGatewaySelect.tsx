@@ -6,24 +6,42 @@ import { getApiErrorMessage } from '@/lib/utils';
 import { spmbPaymentService } from '@/services/spmb-payment.service';
 import type { SpmbPaymentGateway } from '@/types/spmb-payment.types';
 
-interface GatewayChoice { value: number; label: string; isDisabled?: boolean }
+interface GatewayChoice {
+  value: number | string;
+  configId: number | null;
+  gatewayName: string;
+  label: string;
+  isDisabled?: boolean;
+}
 
 function choice(gateway: SpmbPaymentGateway): GatewayChoice {
-  return { value: gateway.id, label: `${gateway.gateway_name.toUpperCase()} (${gateway.environment})${gateway.is_active ? '' : ' — nonaktif'}`, isDisabled: !gateway.is_active };
+  const name = gateway.gateway_name.replaceAll('_', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
+  const configured = gateway.is_configured ?? gateway.id !== null;
+  const status = !configured
+    ? 'belum diatur'
+    : gateway.is_active
+      ? gateway.environment || 'aktif'
+      : 'nonaktif';
+  const support = gateway.is_spmb_supported === false ? ' — belum didukung SPMB' : '';
+  return {
+    value: gateway.id ?? `unconfigured:${gateway.gateway_name}`,
+    configId: gateway.id,
+    gatewayName: gateway.gateway_name,
+    label: `${name} (${status})${support}`,
+    isDisabled: configured && !gateway.is_active,
+  };
 }
 
 interface Props {
   value: number | null | undefined;
-  initial?: SpmbPaymentGateway | null;
-  onChange: (value: number | null) => void;
+  fallbackName?: string | null;
+  onChange: (configId: number | null, gatewayName: string | null) => void;
   error?: string;
   disabled?: boolean;
 }
 
-export function SpmbPaymentGatewaySelect({ value, initial, onChange, error, disabled }: Props) {
+export function SpmbPaymentGatewaySelect({ value, fallbackName, onChange, error, disabled }: Props) {
   const [loadError, setLoadError] = useState<string | null>(null);
-  const defaults = initial ? [choice(initial)] : [];
-  if (value && !initial) defaults.push({ value, label: `Kanal tersimpan (${value})`, isDisabled: true });
   const loadOptions = async (search: string): Promise<GatewayChoice[]> => {
     try {
       const response = await spmbPaymentService.gatewayOptions(search);
@@ -34,9 +52,13 @@ export function SpmbPaymentGatewaySelect({ value, initial, onChange, error, disa
       return [];
     }
   };
-  return <AsyncSelect id="spmb-payment-gateway" label="Kanal Pembayaran" value={value} isClearable isDisabled={disabled}
-    defaultOptions={defaults} loadOptions={loadOptions}
-    onChange={(option: GatewayChoice | null) => onChange(option?.value ?? null)}
-    error={error || loadError || undefined} placeholder="Gunakan kanal default SIKEU"
-    hint="Pilihan berlaku untuk tagihan baru. Kredensial dikelola di SIKEU. Komponen dengan kanal berbeda diterbitkan sebagai tagihan terpisah." />;
+  const selectedValue = value ?? (fallbackName ? `unconfigured:${fallbackName}` : null);
+  const defaultOptions = fallbackName && value == null
+    ? [{ value: selectedValue, configId: null, gatewayName: fallbackName, label: `${fallbackName} (belum diatur)` }]
+    : true;
+  return <AsyncSelect id="spmb-payment-gateway" label="Kanal Pembayaran" value={selectedValue} isClearable isDisabled={disabled}
+    defaultOptions={defaultOptions} loadOptions={loadOptions}
+    onChange={(option: GatewayChoice | null) => onChange(option?.configId ?? null, option?.gatewayName ?? null)}
+    error={error || loadError || undefined} placeholder="Gunakan default SIKEU"
+    hint="Pilihan tersimpan meski gateway belum diatur. Pembayaran baru aktif setelah konfigurasi SIKEU tersedia dan kanal didukung SPMB." />;
 }

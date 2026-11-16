@@ -42,7 +42,6 @@ export default function MasterGelombangPage() {
   const [filterTanggalBuka, setFilterTanggalBuka] = useState('');
   const [filterTanggalTutup, setFilterTanggalTutup] = useState('');
   const [filterKuota, setFilterKuota] = useState('');
-  const [filterBiaya, setFilterBiaya] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
   const [filterOrderBy, setFilterOrderBy] = useState('id');
   const [filterOrderDir, setFilterOrderDir] = useState<'asc' | 'desc'>('desc');
@@ -54,7 +53,6 @@ export default function MasterGelombangPage() {
     tanggalBuka: '',
     tanggalTutup: '',
     kuota: '',
-    biaya: '',
     status: '',
     orderBy: 'id',
     orderDir: 'desc' as 'asc' | 'desc',
@@ -71,7 +69,6 @@ export default function MasterGelombangPage() {
         tanggal_buka: appliedFilters.tanggalBuka || undefined,
         tanggal_tutup: appliedFilters.tanggalTutup || undefined,
         kuota: appliedFilters.kuota || undefined,
-        biaya: appliedFilters.biaya || undefined,
         status: appliedFilters.status || undefined,
         sort_by: appliedFilters.orderBy,
         sort_dir: appliedFilters.orderDir,
@@ -143,7 +140,6 @@ export default function MasterGelombangPage() {
     setFilterTanggalBuka('');
     setFilterTanggalTutup('');
     setFilterKuota('');
-    setFilterBiaya('');
     setFilterStatus('');
     setFilterOrderBy('id');
     setFilterOrderDir('desc');
@@ -153,7 +149,6 @@ export default function MasterGelombangPage() {
       tanggalBuka: '',
       tanggalTutup: '',
       kuota: '',
-      biaya: '',
       status: '',
       orderBy: 'id',
       orderDir: 'desc',
@@ -169,7 +164,6 @@ export default function MasterGelombangPage() {
       tanggalBuka: filterTanggalBuka,
       tanggalTutup: filterTanggalTutup,
       kuota: filterKuota,
-      biaya: filterBiaya,
       status: filterStatus,
       orderBy: filterOrderBy,
       orderDir: filterOrderDir,
@@ -184,7 +178,6 @@ export default function MasterGelombangPage() {
     appliedFilters.tanggalBuka ||
     appliedFilters.tanggalTutup ||
     appliedFilters.kuota ||
-    appliedFilters.biaya ||
     appliedFilters.status ||
     appliedFilters.orderBy !== 'id' ||
     appliedFilters.orderDir !== 'desc'
@@ -243,17 +236,6 @@ export default function MasterGelombangPage() {
           </div>
         );
       },
-    },
-    {
-      key: 'biaya_pendaftaran',
-      label: 'Biaya Pendaftaran',
-      render: (row) => (
-        <div className="flex flex-col gap-1">
-          <span className="font-bold text-slate-900 text-xs">
-            Rp {(Number(row.biaya_pendaftaran) || 0).toLocaleString('id-ID')}
-          </span>
-        </div>
-      ),
     },
     {
       key: 'status',
@@ -397,19 +379,7 @@ export default function MasterGelombangPage() {
             ]}
           />
 
-          {/* 5. Biaya Pendaftaran */}
-          <Select
-            label="Biaya Pendaftaran"
-            value={filterBiaya}
-            onChange={(val) => setFilterBiaya(val)}
-            options={[
-              { value: '', label: 'Semua Biaya' },
-              { value: 'gratis', label: 'Gratis (Rp 0)' },
-              { value: 'berbayar', label: 'Berbayar (> Rp 0)' },
-            ]}
-          />
-
-          {/* 6. Status Gelombang */}
+          {/* 5. Status Gelombang */}
           <Select
             label="Status Gelombang"
             value={filterStatus}
@@ -438,7 +408,6 @@ export default function MasterGelombangPage() {
                 { value: 'tanggal_buka', label: 'Tanggal Buka' },
                 { value: 'tanggal_tutup', label: 'Tanggal Tutup' },
                 { value: 'kuota_total', label: 'Kuota Total' },
-                { value: 'biaya_pendaftaran', label: 'Biaya Pendaftaran' },
                 { value: 'status', label: 'Status' },
               ]}
             />

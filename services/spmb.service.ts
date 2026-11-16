@@ -367,6 +367,11 @@ export const spmbService = {
     return response.data;
   },
 
+  issueRegistrationInvoice: async () => {
+    const response = await api.post('/spmb/pendaftaran/terbitkan-tagihan');
+    return response.data;
+  },
+
   finalizePendaftaran: async () => {
     const response = await api.post('/spmb/pendaftaran/finalize');
     return response.data;
@@ -518,8 +523,7 @@ export const spmbService = {
       if (allBiaya.data && Array.isArray(allBiaya.data.data) && allBiaya.data.data.length > 0) {
         return allBiaya.data;
       }
-      const fallback = await api.get('/v1/sikeu/master/tarif-spmb');
-      return fallback.data;
+      return { status: 'success', data: [] };
     } catch {
       return { status: 'success', data: [] };
     }
@@ -717,6 +721,38 @@ export const spmbService = {
     return response.data;
   },
 
+  createMasterBiayaWithEvidence: async (data: {
+    master_tipe_jalur_id: number;
+    program_studi_id: number;
+    evidence_type: 'arsip' | 'upload';
+    nomor_sk?: string;
+    dokumen_pendukung?: File;
+    is_active?: boolean;
+    keterangan?: string;
+    items: { komponen_biaya_id: number; nominal: number; dibebankan_saat_pendaftaran?: boolean; berlaku_diskon?: boolean; keterangan?: string }[];
+  }) => {
+    const formData = new FormData();
+    formData.append('master_tipe_jalur_id', String(data.master_tipe_jalur_id));
+    formData.append('program_studi_id', String(data.program_studi_id));
+    formData.append('evidence_type', data.evidence_type);
+    if (data.nomor_sk) formData.append('nomor_sk', data.nomor_sk);
+    if (data.dokumen_pendukung) formData.append('dokumen_pendukung', data.dokumen_pendukung);
+    if (data.is_active !== undefined) formData.append('is_active', data.is_active ? '1' : '0');
+    if (data.keterangan) formData.append('keterangan', data.keterangan);
+    data.items.forEach((item, index) => {
+      formData.append(`items[${index}][komponen_biaya_id]`, String(item.komponen_biaya_id));
+      formData.append(`items[${index}][nominal]`, String(item.nominal));
+      formData.append(`items[${index}][dibebankan_saat_pendaftaran]`, item.dibebankan_saat_pendaftaran ? '1' : '0');
+      formData.append(`items[${index}][berlaku_diskon]`, item.berlaku_diskon ? '1' : '0');
+      if (item.keterangan) formData.append(`items[${index}][keterangan]`, item.keterangan);
+    });
+
+    const response = await api.post('/spmb/master/biaya', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return response.data;
+  },
+
   updateMasterBiaya: async (
     id: number,
     data: {
@@ -729,6 +765,42 @@ export const spmbService = {
     }
   ) => {
     const response = await api.put(`/spmb/master/biaya/${id}`, data);
+    return response.data;
+  },
+
+  updateMasterBiayaWithEvidence: async (
+    id: number,
+    data: {
+      master_tipe_jalur_id: number;
+      program_studi_id: number;
+      evidence_type: 'arsip' | 'upload';
+      nomor_sk?: string;
+      dokumen_pendukung?: File;
+      is_active?: boolean;
+      keterangan?: string;
+      items: { komponen_biaya_id: number; nominal: number; dibebankan_saat_pendaftaran?: boolean; berlaku_diskon?: boolean; keterangan?: string }[];
+    }
+  ) => {
+    const formData = new FormData();
+    formData.append('_method', 'PUT');
+    formData.append('master_tipe_jalur_id', String(data.master_tipe_jalur_id));
+    formData.append('program_studi_id', String(data.program_studi_id));
+    formData.append('evidence_type', data.evidence_type);
+    if (data.nomor_sk) formData.append('nomor_sk', data.nomor_sk);
+    if (data.dokumen_pendukung) formData.append('dokumen_pendukung', data.dokumen_pendukung);
+    if (data.is_active !== undefined) formData.append('is_active', data.is_active ? '1' : '0');
+    if (data.keterangan) formData.append('keterangan', data.keterangan);
+    data.items.forEach((item, index) => {
+      formData.append(`items[${index}][komponen_biaya_id]`, String(item.komponen_biaya_id));
+      formData.append(`items[${index}][nominal]`, String(item.nominal));
+      formData.append(`items[${index}][dibebankan_saat_pendaftaran]`, item.dibebankan_saat_pendaftaran ? '1' : '0');
+      formData.append(`items[${index}][berlaku_diskon]`, item.berlaku_diskon ? '1' : '0');
+      if (item.keterangan) formData.append(`items[${index}][keterangan]`, item.keterangan);
+    });
+
+    const response = await api.post(`/spmb/master/biaya/${id}`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
     return response.data;
   },
 

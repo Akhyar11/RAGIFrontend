@@ -18,6 +18,10 @@ async function setup(page, { admin = false, failCheckout = false, failOptions = 
     total_potongan: 10000, total_denda: 0, total_bayar: 0, sisa_tagihan: 90000, jatuh_tempo: '2026-12-01',
     details: [{ id: 101 + index, keterangan: `Komponen ${index + 1}`, nominal: 100000 }], virtual_account: null }));
   await page.context().addCookies([{ name: 'sso_access_token', value: 'spmb-payment-test', url: baseURL }]);
+  await page.route('https://app.sandbox.midtrans.com/snap/snap.js', (route) => route.fulfill({
+    contentType: 'application/javascript',
+    body: 'window.snap = { pay: (token, callbacks) => { window.localStorage.setItem("spmb-snap-token", token); callbacks.onPending(); } };',
+  }));
   page.on('pageerror', (error) => state.errors.push(error.message));
   await page.route('**/api/**', async (route) => {
     const req = route.request();
@@ -69,6 +73,8 @@ async function setup(page, { admin = false, failCheckout = false, failOptions = 
       const bill = bills.find((item) => item.id === id);
       if (bill.gateway_name === 'bsn_h2h') return ok({ method: 'h2h', gateway_name: 'bsn_h2h', amount: 90000,
         bank_name: 'BTN Syariah', custid: 'REG-2026-123', va_fee: 1500, total_bridge: 91500 });
+      if (bill.gateway_name === 'midtrans') return ok({ method: 'snap', gateway_name: 'midtrans', environment: 'sandbox', amount: 90000,
+        snap_token: `snap-token-${id}`, client_key: 'SB-Mid-client-test' });
       return ok({ method: 'redirect', gateway_name: bill.gateway_name, amount: 90000,
         redirect_url: bill.gateway_name === 'midtrans' ? 'https://app.sandbox.midtrans.com/snap/v2/vtweb/test' : 'https://checkout.xendit.co/web/test' });
     }
@@ -81,11 +87,12 @@ test('akun calon tanpa menu admin dapat melihat tiap tagihan dan checkout mengik
   const state = await setup(page);
   await page.goto(`${baseURL}/spmb/pembayaran?tahap=pendaftaran`);
   await expect(page.getByRole('heading', { name: 'Pembayaran SPMB', exact: true })).toBeVisible();
-  const mid = page.getByRole('region', { name: 'Tagihan INV-SPMB-91', exact: true });
-  const xen = page.getByRole('region', { name: 'Tagihan INV-SPMB-92', exact: true });
-  const h2h = page.getByRole('region', { name: 'Tagihan INV-SPMB-93', exact: true });
+  const mid = page.locator('[aria-label="Tagihan INV-SPMB-91"]');
+  const xen = page.locator('[aria-label="Tagihan INV-SPMB-92"]');
+  const h2h = page.locator('[aria-label="Tagihan INV-SPMB-93"]');
   await mid.getByRole('button', { name: 'Bayar Sekarang' }).click();
-  await expect(mid.getByRole('link', { name: 'Lanjutkan ke MIDTRANS' })).toHaveAttribute('href', 'https://app.sandbox.midtrans.com/snap/v2/vtweb/test');
+  await expect.poll(() => page.evaluate(() => localStorage.getItem('spmb-snap-token'))).toBe('snap-token-91');
+  await expect(mid.getByRole('link', { name: 'Lanjutkan ke MIDTRANS' })).toHaveCount(0);
   await xen.getByRole('button', { name: 'Bayar Sekarang' }).click();
   await expect(xen.getByRole('link', { name: 'Lanjutkan ke XENDIT' })).toHaveAttribute('href', 'https://checkout.xendit.co/web/test');
   await h2h.getByRole('button', { name: 'Bayar Sekarang' }).click();

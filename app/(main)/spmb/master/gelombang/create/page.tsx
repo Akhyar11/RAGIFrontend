@@ -22,7 +22,6 @@ import { PeriodeTanggalInput } from '@/components/spmb/PeriodeTanggalInput';
 const gelombangFormSchema = z.object({
   nama: z.string().min(1, 'Nama gelombang wajib diisi').max(255, 'Nama gelombang maksimal 255 karakter'),
   jalur_masuk_id: z.number().min(1, 'Jalur masuk wajib dipilih'),
-  biaya_pendaftaran: z.number().min(0, 'Biaya pendaftaran minimal 0').optional(),
   potongan_biaya_daftar_ulang: z.number().min(0, 'Potongan biaya daftar ulang minimal 0').max(100, 'Potongan biaya daftar ulang maksimal 100').optional(),
   kuota_total: z.number().min(1, 'Kuota pendaftar minimal 1'),
   tanggal_buka: z.string().regex(/^\d{2}-\d{2}$/, 'Periode buka pendaftaran wajib diisi'),
@@ -43,7 +42,6 @@ export default function CreateGelombangPage() {
       nama: '',
       kuota_total: 100,
       status: 'draft',
-      biaya_pendaftaran: 0,
       potongan_biaya_daftar_ulang: 0,
       tanggal_buka: '',
       tanggal_tutup: '',
@@ -73,7 +71,6 @@ export default function CreateGelombangPage() {
       const payload = {
         ...data,
         jalur_masuk_id: Number(data.jalur_masuk_id),
-        biaya_pendaftaran: data.biaya_pendaftaran !== undefined ? Number(data.biaya_pendaftaran) : undefined,
         potongan_biaya_daftar_ulang: data.potongan_biaya_daftar_ulang !== undefined ? Number(data.potongan_biaya_daftar_ulang) : undefined,
       };
       await spmbService.createGelombang(payload as any);
@@ -90,7 +87,7 @@ export default function CreateGelombangPage() {
     <div className="space-y-6 animate-fade-in">
       <PageHeader 
         title="Tambah Gelombang"
-        description="Buat periode gelombang pendaftaran SPMB baru beserta biaya dan jadwalnya."
+        description="Buat periode dan kuota gelombang pendaftaran SPMB."
         action={
           <Button
             variant="outline"
@@ -147,17 +144,6 @@ export default function CreateGelombangPage() {
                   hint="Jumlah maksimal kuota pendaftar."
                   error={errors.kuota_total?.message}
                   {...register('kuota_total', { valueAsNumber: true })} 
-                />
-              </div>
-
-              <div>
-                <Input 
-                  type="number"
-                  label="Biaya Pendaftaran (Rp)"
-                  placeholder="0"
-                  hint="Nominal biaya pendaftaran gelombang ini."
-                  error={errors.biaya_pendaftaran?.message}
-                  {...register('biaya_pendaftaran', { valueAsNumber: true })} 
                 />
               </div>
 

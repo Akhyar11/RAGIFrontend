@@ -25,6 +25,7 @@ const schema = z
     nama: z.string().min(1, 'Nama komponen biaya wajib diisi').max(150, 'Nama komponen maksimal 150 karakter'),
     kategori: z.string().min(1, 'Kategori komponen biaya wajib diisi').max(50, 'Kategori maksimal 50 karakter'),
     payment_gateway_config_id: z.number().int('Kanal pembayaran tidak valid.').positive('Kanal pembayaran tidak valid.').nullable().optional(),
+    payment_gateway_name: z.string().nullable().optional(),
     tipe_potongan: z.boolean(),
     is_active: z.boolean(),
     is_referral_reward: z.boolean(),
@@ -71,6 +72,7 @@ export function KomponenBiayaForm({ mode, komponenId, initial }: KomponenBiayaFo
     control,
     handleSubmit,
     reset,
+    setValue,
     watch,
     formState: { errors },
   } = useForm<FormValues>({
@@ -80,6 +82,7 @@ export function KomponenBiayaForm({ mode, komponenId, initial }: KomponenBiayaFo
       nama: '',
       kategori: 'Daftar Ulang',
       payment_gateway_config_id: null,
+      payment_gateway_name: null,
       tipe_potongan: false,
       is_active: true,
       is_referral_reward: false,
@@ -102,6 +105,7 @@ export function KomponenBiayaForm({ mode, komponenId, initial }: KomponenBiayaFo
         nama: initial.nama || '',
         kategori: initial.kategori || 'Daftar Ulang',
         payment_gateway_config_id: initial.payment_gateway_config_id ?? null,
+        payment_gateway_name: initial.payment_gateway_name ?? initial.payment_gateway?.gateway_name ?? null,
         tipe_potongan: Boolean(initial.tipe_potongan),
         is_active: Boolean(initial.is_active),
         is_referral_reward: Boolean(initial.is_referral_reward),
@@ -143,6 +147,7 @@ export function KomponenBiayaForm({ mode, komponenId, initial }: KomponenBiayaFo
         nama: values.nama.trim(),
         kategori: values.kategori.trim(),
         payment_gateway_config_id: values.payment_gateway_config_id ?? null,
+        payment_gateway_name: values.payment_gateway_name ?? null,
         tipe_potongan: values.tipe_potongan,
         is_active: values.is_active,
         is_referral_reward: values.is_referral_reward,
@@ -219,8 +224,16 @@ export function KomponenBiayaForm({ mode, komponenId, initial }: KomponenBiayaFo
               />
 
               <Controller name="payment_gateway_config_id" control={control} render={({ field }) => (
-                <SpmbPaymentGatewaySelect value={field.value} initial={initial?.payment_gateway} onChange={field.onChange}
-                  error={errors.payment_gateway_config_id?.message} disabled={submitting} />
+                <SpmbPaymentGatewaySelect
+                  value={field.value}
+                  fallbackName={watch('payment_gateway_name')}
+                  onChange={(configId, gatewayName) => {
+                    field.onChange(configId);
+                    setValue('payment_gateway_name', gatewayName, { shouldDirty: true, shouldValidate: true });
+                  }}
+                  error={errors.payment_gateway_config_id?.message}
+                  disabled={submitting}
+                />
               )} />
 
               <Select

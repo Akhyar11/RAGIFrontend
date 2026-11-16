@@ -34,7 +34,6 @@ export interface GelombangPenerimaan {
   tanggal_pengumuman: string | null;
   kuota_total: number;
   kuota_terisi: number;
-  biaya_pendaftaran: string | number;
   potongan_biaya_daftar_ulang: string | number;
   status: 'draft' | 'aktif' | 'ditutup' | 'selesai';
   pendaftaran_dibuka?: boolean;
@@ -276,6 +275,7 @@ export interface KomponenBiayaRoleReward {
 
 export interface MasterKomponenBiaya {
   payment_gateway_config_id?: number | null;
+  payment_gateway_name?: string | null;
   payment_gateway?: import('./spmb-payment.types').SpmbPaymentGateway | null;
   id: number;
   kode: string;
@@ -323,6 +323,7 @@ export interface MasterBiayaSpmb {
   master_tipe_jalur_id: number | null;
   program_studi_id: number;
   nomor_sk?: string | null;
+  dokumen_pendukung_url?: string | null;
   total_biaya: number;
   is_active: boolean;
   keterangan?: string | null;

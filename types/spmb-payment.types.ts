@@ -1,8 +1,10 @@
 export interface SpmbPaymentGateway {
-  id: number;
+  id: number | null;
   gateway_name: string;
-  environment: string;
+  environment: string | null;
   is_active: boolean;
+  is_configured?: boolean;
+  is_spmb_supported?: boolean;
 }
 
 export interface SpmbPaymentBill {
@@ -24,10 +26,12 @@ export interface SpmbPaymentBill {
 }
 
 export interface SpmbCheckout {
-  method: 'redirect' | 'h2h' | 'virtual_account';
+  method: 'snap' | 'redirect' | 'h2h' | 'virtual_account';
   gateway_name: string | null;
   amount: number;
   redirect_url?: string;
+  snap_token?: string;
+  client_key?: string;
   order_id?: string;
   environment?: string;
   expires_at?: string | null;

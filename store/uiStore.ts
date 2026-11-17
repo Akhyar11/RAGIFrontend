@@ -17,6 +17,8 @@ interface UiState {
   is_dark_mode: boolean;
   module_color: string | null;
   module_colors: Record<string, string>;
+  /** Kode modul terakhir yang dibuka user (untuk konteks halaman profil). */
+  last_active_module: string | null;
 }
 
 interface UiActions {
@@ -31,6 +33,7 @@ interface UiActions {
   updateModuleColor: (code: string, color: string) => void;
   fetchModuleColor: (currentModuleCode: string) => Promise<void>;
   fetchAllModuleColors: () => Promise<Record<string, string>>;
+  setLastActiveModule: (code: string) => void;
 }
 
 type UiStore = UiState & UiActions;
@@ -44,6 +47,7 @@ export const useUiStore = create<UiStore>()(
       is_dark_mode: false,
       module_color: null,
       module_colors: {},
+      last_active_module: null,
 
       toggleSidebar: () => set((state) => ({ sidebar_open: !state.sidebar_open })),
       setSidebarOpen: (open) => set({ sidebar_open: open }),
@@ -54,6 +58,8 @@ export const useUiStore = create<UiStore>()(
       toggleDarkMode: () => set((state) => ({ is_dark_mode: !state.is_dark_mode })),
       
       setModuleColor: (color) => set({ module_color: color }),
+
+      setLastActiveModule: (code) => set({ last_active_module: code.toLowerCase() }),
 
       updateModuleColor: (code, color) => {
         const lowerCode = code.toLowerCase();

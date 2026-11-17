@@ -66,7 +66,8 @@ import {
 } from 'lucide-react';
 import { useUiStore } from '@/store/uiStore';
 import { useAuth } from '@/hooks/useAuth';
-import { SYSTEM_MODULES, APP_NAME, ROUTES } from '@/lib/constants';
+import { useDomain } from '@/hooks/useDomain';
+import { SYSTEM_MODULES, APP_NAME, ROUTES, DEFAULT_MODULE_CODE, TENANT_DEFAULT } from '@/lib/constants';
 import { menuService } from '@/services/menu.service';
 import { moduleService, AppModule } from '@/services/module.service';
 import { SystemLogo } from '@/components/layout/SystemLogo';
@@ -216,7 +217,10 @@ export function Sidebar({ tenantModule }: { tenantModule: string }) {
   const currentTab = searchParams.get('tab');
   
   const { sidebar_open, toggleSidebar } = useUiStore();
+  const lastActiveModule = useUiStore((s) => s.last_active_module);
+  const setLastActiveModule = useUiStore((s) => s.setLastActiveModule);
   const { user } = useAuth();
+  const { isDev: isDevHost, moduleSlug: domainModuleSlug } = useDomain();
 
   const [dynamicMenus, setDynamicMenus] = useState<Menu[]>([]);
   const [loading, setLoading] = useState(true);
@@ -258,44 +262,109 @@ export function Sidebar({ tenantModule }: { tenantModule: string }) {
     persistFavorites(favorites.includes(url) ? favorites.filter((u) => u !== url) : [...favorites, url]);
   };
 
-  const getModule = () => {
-    if (tenantModule !== 'default') return tenantModule;
-    let mod = 'sso';
-    if (pathname.startsWith('/simpeg')) mod = 'simpeg';
-    else if (pathname.startsWith('/sippm')) mod = 'sippm';
-    else if (pathname.startsWith('/sikeu')) mod = 'sikeu';
-    else if (pathname.startsWith('/spmb')) mod = 'spmb';
-    else if (pathname.startsWith('/sinapra')) mod = 'sinapra';
-    else if (pathname.startsWith('/siakad')) mod = 'siakad';
-    else if (pathname.startsWith('/lms')) mod = 'lms';
-    else if (pathname.startsWith('/arsip')) mod = 'arsip';
+  // Modul portal (SSO) = entitas Master Modul yang tidak terdaftar sebagai
+  // modul fungsional di SYSTEM_MODULES. Tanpa hardcode kode modul — bila
+  // superadmin mengubah nama/kode modul portal, brand & fallback ikut berubah.
+  const portalModule = useMemo(
+    () =>
+      appModules.find(
+        (m) => !SYSTEM_MODULES.some((s) => s.value === m.code?.toLowerCase())
+      ) ??
+      appModules[0] ??
+      null,
+    [appModules]
+  );
 
-    if (typeof window !== 'undefined') {
-      if (pathname.startsWith('/profile')) {
-        const savedMod = localStorage.getItem('last_active_module');
-        if (savedMod) return savedMod;
-      } else {
-        localStorage.setItem('last_active_module', mod);
+  // Segmen pertama path yang terdaftar sebagai modul: Master Modul (sumber
+  // kebenaran) atau konstanta prefix rute aplikasi.
+  const pathModule = useMemo(() => {
+    const seg = pathname.split('/').filter(Boolean)[0]?.toLowerCase() || '';
+    if (!seg) return null;
+    const known =
+      appModules.some((m) => (m.code || '').toLowerCase() === seg) ||
+      SYSTEM_MODULES.some((m) => m.value === seg);
+    return known ? seg : null;
+  }, [pathname, appModules]);
+
+  // Modul yang men-drive menu kiri. Urutan prioritas:
+  // 1. Segmen path yang terdaftar sebagai modul (navigasi antar-modul di host
+  //    yang sama tidak me-remount layout, jadi `tenantModule` dari server bisa
+  //    masih menunjuk modul sebelumnya — path harus menang).
+  // 2. Host dev tanpa subdomain modul (localhost) memakai satu host untuk semua
+  //    modul & portal, sehingga modul ditentukan dari path, bukan konteks tenant
+  //    basi dari server.
+  // 3. Konteks tenant subdomain dari server (produksi / *.localhost).
+  // 4. Portal (SSO) sebagai default.
+  const moduleCode = useMemo(() => {
+    const portalCode = (portalModule?.code || DEFAULT_MODULE_CODE).toLowerCase();
+
+    if (pathModule) return pathModule;
+
+    const seg = pathname.split('/').filter(Boolean)[0]?.toLowerCase() || '';
+
+    if (isDevHost && !domainModuleSlug) {
+      // Modul dinamis yang belum termuat di daftar Master Modul: header server
+      // pada full load masih valid untuk segmen path yang sama.
+      if (seg && seg === tenantModule.toLowerCase()) return seg;
+
+      // Halaman profil mempertahankan menu modul terakhir yang dibuka.
+      if (pathname.startsWith(ROUTES.PROFILE)) {
+        const saved = lastActiveModule?.toLowerCase();
+        if (saved && appModules.some((m) => (m.code || '').toLowerCase() === saved)) {
+          return saved;
+        }
+      }
+      return portalCode;
+    }
+
+    if (tenantModule !== TENANT_DEFAULT) return tenantModule;
+
+    if (pathname.startsWith(ROUTES.PROFILE)) {
+      const saved = lastActiveModule?.toLowerCase();
+      if (saved && appModules.some((m) => (m.code || '').toLowerCase() === saved)) {
+        return saved;
       }
     }
-    return mod;
-  };
+
+    return portalCode;
+  }, [
+    pathModule,
+    pathname,
+    tenantModule,
+    isDevHost,
+    domainModuleSlug,
+    appModules,
+    portalModule,
+    lastActiveModule,
+  ]);
+
+  // Ingat modul terakhir yang dibuka user (dipakai saat berada di /profile).
+  useEffect(() => {
+    if (pathModule && pathModule !== lastActiveModule) {
+      setLastActiveModule(pathModule);
+    }
+  }, [pathModule, lastActiveModule, setLastActiveModule]);
 
   useEffect(() => {
+    let cancelled = false;
+
     if (user) {
       const fetchMenus = async () => {
         try {
           setLoading(true);
           setMenuError(null);
-          const mod = getModule();
-          const menus = await menuService.getMyMenus(mod);
-          setDynamicMenus(menus || []);
+          // Jangan tampilkan menu modul sebelumnya saat modul berganti.
+          setDynamicMenus([]);
+          const menus = await menuService.getMyMenus(moduleCode);
+          if (!cancelled) setDynamicMenus(menus || []);
         } catch (error) {
           console.error("Failed to load menus", error);
-          setDynamicMenus([]);
-          setMenuError("Gagal memuat menu dari server.");
+          if (!cancelled) {
+            setDynamicMenus([]);
+            setMenuError("Gagal memuat menu dari server.");
+          }
         } finally {
-          setLoading(false);
+          if (!cancelled) setLoading(false);
         }
       };
       fetchMenus();
@@ -304,7 +373,11 @@ export function Sidebar({ tenantModule }: { tenantModule: string }) {
       setMenuError(null);
       setLoading(false);
     }
-  }, [user?.id, pathname, tenantModule]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id, moduleCode]);
 
   // Satu-satunya URL menu yang boleh aktif: exact match menang, lalu prefix TERPANJANG.
   // Mencegah dua menu beda fitur menyala bersamaan (mis. /siakad/obe + /siakad/obe/cpl).
@@ -503,30 +576,8 @@ export function Sidebar({ tenantModule }: { tenantModule: string }) {
 
   const portalLabel = 'Menu Utama';
 
-  // Modul portal (SSO) = entitas Master Modul yang tidak terdaftar sebagai
-  // modul fungsional di SYSTEM_MODULES. Tanpa hardcode string kode modul —
-  // bila superadmin mengubah nama/kode modul portal, brand ikut berubah.
-  const portalModule = useMemo(
-    () =>
-      appModules.find(
-        (m) => !SYSTEM_MODULES.some((s) => s.value === m.code?.toLowerCase())
-      ) ??
-      appModules[0] ??
-      null,
-    [appModules]
-  );
-
-  // Slug modul aktif (domain → segmen path yang cocok dengan Master Modul → memori modul terakhir).
-  const activeModuleSlug = useMemo(() => {
-    if (tenantModule !== 'default') return tenantModule;
-    const seg = pathname.split('/').filter(Boolean)[0]?.toLowerCase() || '';
-    if (seg && appModules.some((m) => m.code?.toLowerCase() === seg)) return seg;
-    if (seg === ROUTES.PROFILE.replace('/', '') && typeof window !== 'undefined') {
-      const saved = localStorage.getItem('last_active_module');
-      if (saved && appModules.some((m) => m.code?.toLowerCase() === saved.toLowerCase())) return saved;
-    }
-    return portalModule?.code ?? '';
-  }, [pathname, appModules, portalModule, tenantModule]);
+  // Slug modul aktif mengikuti sumber yang sama dengan pemuatan menu.
+  const activeModuleSlug = moduleCode;
 
   // Baris 1: nama aplikasi mengikuti Master Modul portal (setting superadmin).
   const appName = portalModule?.name || APP_NAME;
@@ -710,11 +761,10 @@ export function Sidebar({ tenantModule }: { tenantModule: string }) {
                 <button
                   type="button"
                   onClick={() => {
-                    const mod = getModule();
                     setLoading(true);
                     setMenuError(null);
                     menuService
-                      .getMyMenus(mod)
+                      .getMyMenus(moduleCode)
                       .then((m) => setDynamicMenus(m || []))
                       .catch(() => {
                         setDynamicMenus([]);

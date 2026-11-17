@@ -101,6 +101,7 @@ export const PERMISSION_ACTION_LABELS: Record<string, string> = {
 // ============================================================
 // MODULES — Modul-modul yang terdaftar di sistem kampus
 // Sesuai 10 domain ERD Ekosistem Kampus
+// (konstanta prefix rute; sumber kebenaran data tetap Master Modul via API)
 // ============================================================
 export const SYSTEM_MODULES = [
   { value: 'iam', label: 'IAM & Auth Center' },
@@ -118,6 +119,15 @@ export const SYSTEM_MODULES = [
   { value: 'kerjasama', label: 'Kerjasama' },
   { value: 'upm', label: 'UPM' },
 ] as const;
+
+/**
+ * Kode modul portal (SSO/IAM) — fallback terpusat bila daftar Master Modul
+ * belum termuat. Bukan pengganti data Master Modul.
+ */
+export const DEFAULT_MODULE_CODE = 'sso';
+
+/** Nilai header `x-tenant-module` saat request tidak berada di subdomain modul. */
+export const TENANT_DEFAULT = 'default';
 
 // ============================================================
 // PAGINATION

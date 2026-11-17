@@ -12,8 +12,10 @@ import { PageHeader } from '@/components/layout/PageHeader';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
+import { AsyncSelect } from '@/components/ui/AsyncSelect';
 import { Checkbox } from '@/components/ui/Checkbox';
 import { spmbService } from '@/services/spmb.service';
+import { SPMB_DISCOUNT_TYPE_OPTIONS } from '@/lib/spmb/discount-options';
 import type { SpmbKodeDiskon, SpmbKodeDiskonPayload, SpmbKodeDiskonTipe } from '@/types/spmb.types';
 
 const optionalPositiveNumber = z.string().refine(
@@ -25,7 +27,7 @@ const schema = z.object({
   kode: z.string().min(1, 'Kode diskon wajib diisi.').max(50, 'Kode maksimal 50 karakter.')
     .regex(/^[A-Za-z0-9_-]+$/, 'Kode hanya boleh berisi huruf, angka, tanda hubung, dan garis bawah.'),
   nama: z.string().min(1, 'Nama diskon wajib diisi.').max(150, 'Nama maksimal 150 karakter.'),
-  tipe_diskon: z.enum(['persen', 'nominal']),
+  tipe_diskon: z.enum(['persen', 'nominal', 'total_tetap'], { message: 'Jenis diskon tidak valid.' }),
   nilai: z.string().min(1, 'Nilai diskon wajib diisi.')
     .refine((value) => Number.isFinite(Number(value)) && Number(value) > 0, 'Nilai harus lebih besar dari 0.'),
   maksimum_potongan: optionalPositiveNumber,
@@ -36,6 +38,8 @@ const schema = z.object({
   berlaku_mulai: z.string(),
   berlaku_sampai: z.string(),
   is_active: z.boolean(),
+  jalur_masuk_ids: z.array(z.string()),
+  master_tipe_jalur_ids: z.array(z.string()),
 }).superRefine((values, ctx) => {
   if (values.tipe_diskon === 'persen' && Number(values.nilai) > 100) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['nilai'], message: 'Diskon persentase maksimal 100%.' });
@@ -52,19 +56,15 @@ interface KodeDiskonFormProps {
   initial?: SpmbKodeDiskon | null;
 }
 
-const tipeOptions = [
-  { value: 'persen', label: 'Persentase (%)' },
-  { value: 'nominal', label: 'Nominal (Rupiah)' },
-];
-
 export function KodeDiskonForm({ mode, initial }: KodeDiskonFormProps) {
   const router = useRouter();
   const [submitting, setSubmitting] = useState(false);
-  const { register, handleSubmit, reset, control, watch, formState: { errors } } = useForm<FormValues>({
+  const { register, handleSubmit, reset, control, watch, setValue, formState: { errors } } = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: {
       kode: '', nama: '', tipe_diskon: 'nominal', nilai: '', maksimum_potongan: '',
       batas_penggunaan: '', berlaku_mulai: '', berlaku_sampai: '', is_active: true,
+      jalur_masuk_ids: [], master_tipe_jalur_ids: [],
     },
   });
 
@@ -82,6 +82,8 @@ export function KodeDiskonForm({ mode, initial }: KodeDiskonFormProps) {
       berlaku_mulai: initial.berlaku_mulai?.slice(0, 10) || '',
       berlaku_sampai: initial.berlaku_sampai?.slice(0, 10) || '',
       is_active: Boolean(initial.is_active),
+      jalur_masuk_ids: (initial.jalur_masuk || []).map((item) => String(item.id)),
+      master_tipe_jalur_ids: (initial.jenis_pendaftaran || []).map((item) => String(item.id)),
     });
   }, [initial, reset]);
 
@@ -91,11 +93,15 @@ export function KodeDiskonForm({ mode, initial }: KodeDiskonFormProps) {
       nama: values.nama.trim(),
       tipe_diskon: values.tipe_diskon as SpmbKodeDiskonTipe,
       nilai: Number(values.nilai),
-      maksimum_potongan: values.maksimum_potongan ? Number(values.maksimum_potongan) : null,
+      maksimum_potongan: values.tipe_diskon === 'total_tetap' || !values.maksimum_potongan
+        ? null
+        : Number(values.maksimum_potongan),
       batas_penggunaan: values.batas_penggunaan ? Number(values.batas_penggunaan) : null,
       berlaku_mulai: values.berlaku_mulai || null,
       berlaku_sampai: values.berlaku_sampai || null,
       is_active: values.is_active,
+      jalur_masuk_ids: values.jalur_masuk_ids.map(Number),
+      master_tipe_jalur_ids: values.master_tipe_jalur_ids.map(Number),
     };
 
     try {
@@ -115,6 +121,22 @@ export function KodeDiskonForm({ mode, initial }: KodeDiskonFormProps) {
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const loadJalurOptions = async (search: string) => {
+    const response = await spmbService.getJalurMasuk({ name: search || undefined, limit: 100 });
+    return (response?.data || []).map((item: { id: number; kode: string; nama: string }) => ({
+      value: String(item.id),
+      label: `${item.kode} - ${item.nama}`,
+    }));
+  };
+
+  const loadRegistrationTypeOptions = async (search: string) => {
+    const response = await spmbService.getMasterTipeJalur({ search: search || undefined, limit: 100 });
+    return (response?.data || []).map((item: { id: number; kode: string; nama: string }) => ({
+      value: String(item.id),
+      label: `${item.kode} - ${item.nama}`,
+    }));
   };
 
   return (
@@ -141,18 +163,55 @@ export function KodeDiskonForm({ mode, initial }: KodeDiskonFormProps) {
                 render={({ field }) => (
                   <Select
                     label="Jenis Diskon"
-                    options={tipeOptions}
+                    options={SPMB_DISCOUNT_TYPE_OPTIONS}
                     value={field.value}
-                    onChange={field.onChange}
+                    onChange={(value) => {
+                      field.onChange(value);
+                      if (value === 'total_tetap') setValue('maksimum_potongan', '');
+                    }}
                     error={errors.tipe_diskon?.message}
                   />
                 )}
               />
-              <Input type="number" min="0.01" step="0.01" label={tipeDiskon === 'persen' ? 'Nilai Diskon (%)' : 'Nilai Diskon (Rupiah)'} required error={errors.nilai?.message} {...register('nilai')} />
-              <Input type="number" min="0.01" step="0.01" label="Maksimum Potongan (Opsional)" hint="Batas nominal maksimum untuk satu penggunaan." error={errors.maksimum_potongan?.message} {...register('maksimum_potongan')} />
+              <Input type="number" min="0.01" step="0.01" label={tipeDiskon === 'persen' ? 'Nilai Diskon (%)' : tipeDiskon === 'total_tetap' ? 'Target Total Biaya (Rupiah)' : 'Nilai Potongan (Rupiah)'} hint={tipeDiskon === 'total_tetap' ? 'Total komponen pendaftaran menjadi nilai ini atau lebih rendah bila biaya awal sudah di bawah target.' : undefined} required error={errors.nilai?.message} {...register('nilai')} />
+              {tipeDiskon !== 'total_tetap' && <Input type="number" min="0.01" step="0.01" label="Maksimum Potongan (Opsional)" hint="Batas nominal maksimum untuk satu penggunaan." error={errors.maksimum_potongan?.message} {...register('maksimum_potongan')} />}
               <Input type="number" min="1" step="1" label="Maksimal Klaim (Opsional)" hint="Kuota total pemakaian kode. Misalnya 10 berarti hanya 10 pendaftar pertama; kosongkan untuk tanpa batas." error={errors.batas_penggunaan?.message} {...register('batas_penggunaan')} />
               <Input type="date" label="Berlaku Mulai" error={errors.berlaku_mulai?.message} {...register('berlaku_mulai')} />
               <Input type="date" label="Berlaku Sampai" error={errors.berlaku_sampai?.message} {...register('berlaku_sampai')} />
+              <Controller
+                name="jalur_masuk_ids"
+                control={control}
+                render={({ field }) => (
+                  <AsyncSelect
+                    id="spmb-kode-diskon-jalur"
+                    label="Jalur Masuk (Opsional)"
+                    hint="Kosong berarti kode berlaku untuk semua jalur."
+                    isMulti
+                    isClearable
+                    defaultOptions={(initial?.jalur_masuk || []).map((item) => ({ value: String(item.id), label: `${item.kode} - ${item.nama}` }))}
+                    loadOptions={loadJalurOptions}
+                    value={field.value}
+                    onChange={(options: Array<{ value: string }> | null) => field.onChange((options || []).map((option) => option.value))}
+                  />
+                )}
+              />
+              <Controller
+                name="master_tipe_jalur_ids"
+                control={control}
+                render={({ field }) => (
+                  <AsyncSelect
+                    id="spmb-kode-diskon-jenis"
+                    label="Jenis Pendaftaran (Opsional)"
+                    hint="Kosong berarti kode berlaku untuk semua jenis pendaftaran."
+                    isMulti
+                    isClearable
+                    defaultOptions={(initial?.jenis_pendaftaran || []).map((item) => ({ value: String(item.id), label: `${item.kode} - ${item.nama}` }))}
+                    loadOptions={loadRegistrationTypeOptions}
+                    value={field.value}
+                    onChange={(options: Array<{ value: string }> | null) => field.onChange((options || []).map((option) => option.value))}
+                  />
+                )}
+              />
             </div>
 
             <Controller
@@ -174,7 +233,7 @@ export function KodeDiskonForm({ mode, initial }: KodeDiskonFormProps) {
             />
 
             <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-xs leading-relaxed text-slate-600">
-              Satu klaim dihitung saat kode diterapkan ke tagihan pendaftaran. Kode diskon hanya memotong komponen Master Biaya SPMB yang disetel sebagai beban pendaftaran; kode tidak berlaku untuk tarif fallback atau tagihan daftar ulang.
+              Kode baru dipakai saat invoice pendaftaran diterbitkan. Kode hanya menghitung komponen Master Biaya yang dibebankan saat pendaftaran; jalur dan jenis pendaftaran membatasi pemakaian bila dipilih. Target total tetap mengurangi biaya hingga nilai target, tanpa menaikkan biaya yang sudah lebih rendah. Biaya gateway tidak termasuk target.
             </div>
 
             <div className="flex justify-end gap-2 border-t border-slate-100 pt-4">

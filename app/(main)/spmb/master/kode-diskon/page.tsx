@@ -17,11 +17,7 @@ import { spmbService } from '@/services/spmb.service';
 import type { PaginationMeta } from '@/types/api.types';
 import type { SpmbKodeDiskon } from '@/types/spmb.types';
 import { formatRupiah } from '@/lib/utils';
-
-const tipeOptions = [
-  { value: 'persen', label: 'Persentase' },
-  { value: 'nominal', label: 'Nominal' },
-];
+import { SPMB_DISCOUNT_TYPE_OPTIONS } from '@/lib/spmb/discount-options';
 
 export default function MasterKodeDiskonPage() {
   const router = useRouter();
@@ -163,7 +159,7 @@ export default function MasterKodeDiskonPage() {
     },
     {
       key: 'tipe_diskon', label: 'Nilai Diskon', sortable: true,
-      render: (row) => <div className="text-xs font-semibold text-slate-800">{row.tipe_diskon === 'persen' ? `${Number(row.nilai)}%` : formatRupiah(Number(row.nilai))}<div className="text-2xs font-normal text-slate-500">{row.tipe_diskon === 'persen' ? 'Persentase' : 'Nominal'}</div></div>,
+      render: (row) => <div className="text-xs font-semibold text-slate-800">{row.tipe_diskon === 'persen' ? `${Number(row.nilai)}%` : formatRupiah(Number(row.nilai))}<div className="text-2xs font-normal text-slate-500">{SPMB_DISCOUNT_TYPE_OPTIONS.find((option) => option.value === row.tipe_diskon)?.label}</div></div>,
     },
     {
       key: 'maksimum_potongan', label: 'Batas Potongan',
@@ -225,7 +221,7 @@ export default function MasterKodeDiskonPage() {
       <Drawer open={showFilter} onClose={() => setShowFilter(false)} title="Filter Kode Diskon" footer={<div className="flex gap-2"><Button variant="outline" className="flex-1" onClick={handleResetFilter}>Reset</Button><Button className="flex-1" onClick={handleApplyFilter}>Terapkan</Button></div>}>
         <div className="space-y-4">
           <Input label="Cari Kode atau Nama" value={filterSearch} onChange={(event) => setFilterSearch(event.target.value)} placeholder="Ketik kode atau nama diskon" />
-          <Select label="Jenis Diskon" value={filterTipe} onChange={setFilterTipe} options={[{ value: '', label: 'Semua Jenis' }, ...tipeOptions]} />
+          <Select label="Jenis Diskon" value={filterTipe} onChange={setFilterTipe} options={[{ value: '', label: 'Semua Jenis' }, ...SPMB_DISCOUNT_TYPE_OPTIONS]} />
           <Select label="Status" value={filterStatus} onChange={setFilterStatus} options={[{ value: '', label: 'Semua Status' }, { value: '1', label: 'Aktif' }, { value: '0', label: 'Nonaktif' }]} />
           <div className="grid grid-cols-2 gap-4">
             <Input type="number" min="0" label="Nilai Diskon Min." value={filterNilaiMin} onChange={(event) => setFilterNilaiMin(event.target.value)} />

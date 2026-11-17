@@ -710,14 +710,14 @@ export default function RegistrasiSpmbPage() {
       const res = await spmbService.getMyPendaftaran();
       if (res.data && res.data.pendaftaran) {
         const { pendaftaran, tagihan, tagihan_list } = res.data;
+        const discountUsage = res.data.kode_diskon_usage;
         const p = pendaftaran;
         const references = await fetchNationalityOptions();
         const nationalityOption = references.find((option: any) =>
           String(option.value) === String(p.kewarganegaraan_id || '') ||
           option.code === String(p.kewarganegaraan || '').toUpperCase()
         );
-        const discountUsage = p.kode_diskon_usage || p.kodeDiskonUsage;
-        setDiscountLocked(Boolean(tagihan?.tagihan || discountUsage));
+        setDiscountLocked(Boolean(tagihan?.tagihan || discountUsage?.tagihan_id));
 
         const jalurId = p.gelombang_penerimaan?.jalur_masuk_id ? String(p.gelombang_penerimaan.jalur_masuk_id) : '';
         if (jalurId) {
@@ -730,7 +730,7 @@ export default function RegistrasiSpmbPage() {
           program_studi_id: p.program_studi_id ? String(p.program_studi_id) : '',
           program_studi_pilihan2_id: p.program_studi_pilihan2_id ? String(p.program_studi_pilihan2_id) : '',
           master_tipe_jalur_id: p.master_tipe_jalur_id ? String(p.master_tipe_jalur_id) : '',
-          kode_diskon: discountUsage?.kode_diskon || '',
+          kode_diskon: discountUsage?.kode_diskon || p.kode_diskon || '',
           nama_lengkap: p.nama_lengkap || '',
           nik: p.nik || '',
           kewarganegaraan_id: nationalityOption?.value || '',
@@ -979,7 +979,9 @@ export default function RegistrasiSpmbPage() {
     setIssuingRegistrationInvoice(true);
     try {
       if (issueInvoice) {
-        const response = await spmbService.issueRegistrationInvoice();
+        const response = await spmbService.issueRegistrationInvoice({
+          kode_diskon: String(getValues('kode_diskon') || '').trim().toUpperCase() || null,
+        });
         const current = suksesData || {};
         const issuedData = response?.data || {};
         const refreshed = await spmbService.getMyPendaftaran();
@@ -992,6 +994,7 @@ export default function RegistrasiSpmbPage() {
           tagihan: issuedData.tagihan ? issuedData : refreshed?.data?.tagihan || issuedData,
           tagihan_list: refreshed?.data?.tagihan_list || issuedData.tagihan_list || [],
         });
+        setDiscountLocked(true);
         toast.success('Invoice berhasil diterbitkan.');
       }
 
@@ -1174,9 +1177,6 @@ export default function RegistrasiSpmbPage() {
           payload.program_studi_pilihan2_id = Number(rawValues.program_studi_pilihan2_id);
         }
         const saveResponse = await spmbService.submitBiodata(payload);
-        if (saveResponse?.data?.tagihan?.tagihan || getValues('kode_diskon')) {
-          setDiscountLocked(true);
-        }
         const nextStep = Math.min(currentStep + 1, STEPS.length);
         setCurrentStep(nextStep);
         if (typeof window !== 'undefined') {
@@ -1209,15 +1209,26 @@ export default function RegistrasiSpmbPage() {
     setLoading(true);
     try {
       data.program_studi_id = data.program_studi_id ? Number(data.program_studi_id) : 1;
-      const res = await spmbService.submitBiodata(data);
-      if (res.status === 'success' || res.data) {
-        const finalized = await spmbService.finalizePendaftaran();
-        if (typeof window !== 'undefined') {
-          localStorage.removeItem('spmb_reg_current_step');
-        }
-        toast.success(res.message || 'Pendaftaran Berhasil Dikirim!');
-        setSuksesData(finalized?.data || res.data);
+      await spmbService.submitBiodata({
+        ...data,
+        kode_diskon: String(data.kode_diskon || '').trim().toUpperCase() || null,
+      });
+      const invoice = await spmbService.issueRegistrationInvoice({
+        kode_diskon: String(data.kode_diskon || '').trim().toUpperCase() || null,
+      });
+      const finalized = await spmbService.finalizePendaftaran();
+      const refreshed = await spmbService.getMyPendaftaran();
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('spmb_reg_current_step');
       }
+      setDiscountLocked(true);
+      toast.success(finalized?.message || 'Pendaftaran berhasil dikirim dan invoice diterbitkan.');
+      setSuksesData({
+        ...refreshed?.data,
+        pendaftaran: finalized?.data || refreshed?.data?.pendaftaran,
+        tagihan: invoice?.data,
+        tagihan_list: invoice?.data?.tagihan_list || refreshed?.data?.tagihan_list || [],
+      });
     } catch (error: any) {
       const validationMessage = Object.values(error?.response?.data?.errors || {})
         .flat()
@@ -1802,11 +1813,15 @@ export default function RegistrasiSpmbPage() {
                     Cek
                   </Button>
                 </div>
-                {discountLocked && (
+                {discountLocked ? (
                   <p className="text-2xs text-slate-500">
-                    Tagihan pendaftaran sudah diterbitkan atau kode sudah dipakai. Kode diskon tidak dapat ditambahkan atau diganti.
+                    Invoice pendaftaran sudah terbit. Kode diskon tidak dapat ditambah atau diganti.
                   </p>
-                )}
+                ) : discountCodeValue ? (
+                  <p className="text-2xs text-slate-500">
+                    Kode tersimpan sebagai pilihan draft dan belum memakai kuota. Kode baru diklaim saat invoice diterbitkan.
+                  </p>
+                ) : null}
                 {discountCheck.status === 'valid' && discountCheck.preview && (
                   <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-800 space-y-1">
                     <p className="flex items-center gap-2 font-semibold"><CheckCircle2 size={15} />{discountCheck.message}</p>

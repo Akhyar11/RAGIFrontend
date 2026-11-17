@@ -37,8 +37,6 @@ export interface GelombangPenerimaan {
   potongan_biaya_daftar_ulang: string | number;
   status: 'draft' | 'aktif' | 'ditutup' | 'selesai';
   pendaftaran_dibuka?: boolean;
-  created_at: string;
-  updated_at: string;
   jalur_masuk?: JalurMasuk;
 }
 
@@ -129,6 +127,8 @@ export interface Pendaftaran {
   user_id: number;
   program_studi_id: number;
   program_studi_pilihan2_id?: number | null;
+  master_tipe_jalur_id?: number | string | null;
+  jalur_id?: number | string | null;
   no_pendaftaran: string;
   nama_lengkap: string;
   nik: string | null;
@@ -141,7 +141,10 @@ export interface Pendaftaran {
   tempat_lahir: string;
   jenis_kelamin: 'L' | 'P';
   agama?: string;
+  status_sipil?: string;
   kewarganegaraan?: string;
+  kode_diskon?: string | null;
+  status_pembayaran?: string;
   negara_domisili?: string;
   no_hp?: string;
   alamat?: string;
@@ -153,6 +156,15 @@ export interface Pendaftaran {
   jurusan_sekolah?: string;
   nilai_rata_rapor?: number;
   tahun_lulus?: string;
+  asal_lulusan?: string;
+  asal_pt?: string;
+  jenis_pt?: string;
+  alamat_pt?: string;
+  jenjang_pt?: string;
+  progdi_pt?: string;
+  ipk_pt?: string;
+  nim_pt?: string;
+  tahun_lulus_pt?: string;
   npsn_sekolah?: string;
   nama_ayah?: string;
   pekerjaan_ayah?: string;
@@ -161,6 +173,11 @@ export interface Pendaftaran {
   penghasilan_ortu?: string;
   nama_wali?: string;
   telepon_wali?: string;
+  nama_ortu?: string;
+  alamat_ortu?: string;
+  telp_ortu?: string;
+  info_daftar?: string;
+  ket_info_daftar?: string;
   used_referral_code?: string | null;
   referrer_user_id?: number | null;
   referral_validated_at?: string | null;
@@ -210,7 +227,6 @@ export interface DaftarUlangInfo {
   tagihan?: {
     id?: number;
     nomor_tagihan?: string;
-    total_bayar?: number;
     status?: string;
   } | null;
   virtual_account?: {
@@ -594,7 +610,7 @@ export const SORT_DIR_OPTIONS = [
   { value: 'desc', label: 'Menurun (Desc)' },
 ] as const;
 
-export type SpmbKodeDiskonTipe = 'persen' | 'nominal';
+export type SpmbKodeDiskonTipe = 'persen' | 'nominal' | 'total_tetap';
 
 export interface SpmbKodeDiskon {
   id: number;
@@ -608,6 +624,10 @@ export interface SpmbKodeDiskon {
   berlaku_mulai: string | null;
   berlaku_sampai: string | null;
   is_active: boolean;
+  jalur_masuk?: JalurMasuk[];
+  jenis_pendaftaran?: MasterTipeJalur[];
+  jalur_masuk_ids?: number[];
+  master_tipe_jalur_ids?: number[];
   created_at?: string;
   updated_at?: string;
 }
@@ -622,6 +642,8 @@ export interface SpmbKodeDiskonPayload {
   berlaku_mulai: string | null;
   berlaku_sampai: string | null;
   is_active: boolean;
+  jalur_masuk_ids: number[];
+  master_tipe_jalur_ids: number[];
 }
 
 export interface SpmbKodeDiskonPreview {
@@ -632,5 +654,22 @@ export interface SpmbKodeDiskonPreview {
   tipe_diskon: SpmbKodeDiskonTipe;
   nilai: number;
   already_applied: boolean;
+}
+
+export interface SpmbKodeDiskonUsage {
+  id: number;
+  kode_diskon: string;
+  subtotal_komponen: number | string;
+  nominal_diskon: number | string;
+  tagihan_id: number | null;
+  digunakan_at?: string;
+}
+
+export interface SpmbPendaftaranResponse {
+  pendaftaran: Pendaftaran;
+  kode_diskon_usage: SpmbKodeDiskonUsage | null;
+  tagihan: { tagihan?: unknown; virtual_account?: unknown } | null;
+  daftar_ulang_tagihan?: { tagihan?: unknown; virtual_account?: unknown } | null;
+  tagihan_list?: Array<{ tagihan: unknown; virtual_account: unknown }>;
 }
 

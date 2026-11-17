@@ -367,8 +367,8 @@ export const spmbService = {
     return response.data;
   },
 
-  issueRegistrationInvoice: async () => {
-    const response = await api.post('/spmb/pendaftaran/terbitkan-tagihan');
+  issueRegistrationInvoice: async (payload: { kode_diskon?: string | null } = {}) => {
+    const response = await api.post('/spmb/pendaftaran/terbitkan-tagihan', payload);
     return response.data;
   },
 

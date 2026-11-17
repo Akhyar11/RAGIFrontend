@@ -15,6 +15,7 @@ import {
   FileText,
   Trash2,
   ShieldCheck,
+  Lock,
   ExternalLink,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -22,40 +23,14 @@ import toast from 'react-hot-toast';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
-import { Select } from '@/components/ui/Select';
-import { Textarea } from '@/components/ui/Textarea';
 import { simpegKebijakanPedomanService } from '@/services/simpeg.kebijakan-pedoman.service';
 import type { CheckSkResult } from '@/types/arsip.types';
-import type {
-  KebijakanPedoman,
-  MasterKategoriKebijakan,
-} from '@/types/simpeg.kebijakan-pedoman.types';
+import type { KebijakanPedoman } from '@/types/simpeg.kebijakan-pedoman.types';
 
 // Zod Schema
-const kebijakanEditFormSchema = z
-  .object({
-    nomor_surat: z.string().min(3, 'Nomor surat resmi minimal 3 karakter'),
-    judul: z.string().min(5, 'Judul kebijakan minimal 5 karakter'),
-    kategori_kebijakan_id: z.string().min(1, 'Kategori kebijakan wajib dipilih'),
-    pejabat_penetap: z.string().min(3, 'Pejabat penetap minimal 3 karakter'),
-    tanggal_penetapan: z.string().min(1, 'Tanggal penetapan wajib diisi'),
-    tanggal_berlaku: z.string().min(1, 'Tanggal mulai berlaku wajib diisi'),
-    tanggal_berakhir: z.string().optional(),
-    deskripsi: z.string().optional(),
-    is_active: z.string().min(1, 'Status keberlakuan wajib dipilih'),
-  })
-  .refine(
-    (data) => {
-      if (data.tanggal_berlaku && data.tanggal_berakhir) {
-        return new Date(data.tanggal_berakhir) >= new Date(data.tanggal_berlaku);
-      }
-      return true;
-    },
-    {
-      message: 'Tanggal berakhir harus sama atau setelah tanggal mulai berlaku',
-      path: ['tanggal_berakhir'],
-    }
-  );
+const kebijakanEditFormSchema = z.object({
+  nomor_surat: z.string().min(3, 'Nomor surat resmi minimal 3 karakter'),
+});
 
 type KebijakanEditFormValues = z.infer<typeof kebijakanEditFormSchema>;
 
@@ -65,7 +40,6 @@ export default function EditKebijakanPedomanPage() {
   const id = Number(params?.id);
 
   const [initialData, setInitialData] = useState<KebijakanPedoman | null>(null);
-  const [masters, setMasters] = useState<MasterKategoriKebijakan[]>([]);
   const [fileDokumen, setFileDokumen] = useState<File | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -79,7 +53,6 @@ export default function EditKebijakanPedomanPage() {
   const {
     register,
     handleSubmit,
-    setValue,
     reset,
     watch,
     formState: { errors },
@@ -87,46 +60,23 @@ export default function EditKebijakanPedomanPage() {
     resolver: zodResolver(kebijakanEditFormSchema),
     defaultValues: {
       nomor_surat: '',
-      judul: '',
-      kategori_kebijakan_id: '',
-      pejabat_penetap: '',
-      tanggal_penetapan: '',
-      tanggal_berlaku: '',
-      tanggal_berakhir: '',
-      deskripsi: '',
-      is_active: 'true',
     },
   });
 
   const watchedNomorSurat = watch('nomor_surat');
+  const isArsipVerified = Boolean(arsipCheckResult?.is_found);
 
-  // Load masters & existing data
+  // Load existing data
   const loadData = useCallback(async () => {
     if (!id) return;
     setIsLoading(true);
     try {
-      const [mastersRes, detailRes] = await Promise.all([
-        simpegKebijakanPedomanService.getMasters(),
-        simpegKebijakanPedomanService.getById(id),
-      ]);
-
-      if (mastersRes.status === 'success' && mastersRes.data) {
-        setMasters(mastersRes.data);
-      }
-
-      if (detailRes.status === 'success' && detailRes.data) {
-        const item = detailRes.data;
+      const res = await simpegKebijakanPedomanService.getById(id);
+      if (res.status === 'success' && res.data) {
+        const item = res.data;
         setInitialData(item);
         reset({
           nomor_surat: item.nomor_surat,
-          judul: item.judul,
-          kategori_kebijakan_id: item.kategori_kebijakan_id.toString(),
-          pejabat_penetap: item.pejabat_penetap,
-          tanggal_penetapan: item.tanggal_penetapan,
-          tanggal_berlaku: item.tanggal_berlaku,
-          tanggal_berakhir: item.tanggal_berakhir || '',
-          deskripsi: item.deskripsi || '',
-          is_active: item.is_active ? 'true' : 'false',
         });
 
         if (item.nomor_surat_arsip) {
@@ -142,6 +92,16 @@ export default function EditKebijakanPedomanPage() {
             tanggal_surat: item.nomor_surat_arsip.tanggal_surat,
             status: item.nomor_surat_arsip.status as any,
           });
+        } else {
+          // Otomatis verifikasi nomor awal jika belum ada relasi nomor_surat_arsip
+          simpegKebijakanPedomanService
+            .checkNomorArsip(item.nomor_surat)
+            .then((checkRes) => {
+              if (checkRes.data?.is_found) {
+                setArsipCheckResult(checkRes.data);
+              }
+            })
+            .catch(() => {});
         }
       }
     } catch (err: any) {
@@ -160,11 +120,13 @@ export default function EditKebijakanPedomanPage() {
     const nomor = watchedNomorSurat?.trim();
     if (!nomor) {
       setArsipError('Masukkan nomor surat terlebih dahulu untuk diverifikasi ke Arsip.');
+      setArsipCheckResult(null);
       return;
     }
 
     setIsCheckingArsip(true);
     setArsipError(null);
+    setArsipCheckResult(null);
 
     try {
       const res = await simpegKebijakanPedomanService.checkNomorArsip(nomor);
@@ -172,13 +134,7 @@ export default function EditKebijakanPedomanPage() {
       setArsipCheckResult(checkData || null);
 
       if (checkData?.is_found) {
-        if (checkData.perihal) {
-          setValue('judul', checkData.perihal, { shouldValidate: true });
-        }
-        if (checkData.tanggal_surat) {
-          setValue('tanggal_penetapan', checkData.tanggal_surat, { shouldValidate: true });
-        }
-        toast.success('Nomor surat terdaftar pada modul Arsip. Perihal otomatis ditarik.');
+        toast.success('Nomor surat terdaftar pada Arsip.');
       } else {
         setArsipError(
           'Nomor surat tidak terdaftar pada modul Arsip. Pastikan admin Arsip telah menerbitkan nomor tersebut.'
@@ -186,7 +142,7 @@ export default function EditKebijakanPedomanPage() {
       }
     } catch (err: any) {
       setArsipError(
-        err.response?.data?.message || 'Gagal memverifikasi nomor surat ke modul Arsip.'
+        err.response?.data?.message || 'Nomor surat tidak terdaftar pada modul Arsip.'
       );
     } finally {
       setIsCheckingArsip(false);
@@ -194,6 +150,8 @@ export default function EditKebijakanPedomanPage() {
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!isArsipVerified) return;
+
     const file = e.target.files?.[0];
     setFileError(null);
 
@@ -208,6 +166,7 @@ export default function EditKebijakanPedomanPage() {
       return;
     }
 
+    // Maks 10 MB
     if (file.size > 10 * 1024 * 1024) {
       setFileError('Ukuran file maksimal 10 MB.');
       setFileDokumen(null);
@@ -218,26 +177,25 @@ export default function EditKebijakanPedomanPage() {
   };
 
   const onSubmit = async (values: KebijakanEditFormValues) => {
-    if (!id) return;
+    if (!isArsipVerified || !arsipCheckResult) {
+      toast.error('Pastikan nomor surat telah terdaftar dan terverifikasi pada modul Arsip.');
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       const formData = new FormData();
+      formData.append('_method', 'PUT');
       formData.append('nomor_surat', values.nomor_surat.trim());
-      formData.append('judul', values.judul.trim());
-      formData.append('kategori_kebijakan_id', values.kategori_kebijakan_id);
-      formData.append('pejabat_penetap', values.pejabat_penetap.trim());
-      formData.append('tanggal_penetapan', values.tanggal_penetapan);
-      formData.append('tanggal_berlaku', values.tanggal_berlaku);
-      formData.append('is_active', values.is_active === 'true' ? '1' : '0');
 
-      if (values.tanggal_berakhir) {
-        formData.append('tanggal_berakhir', values.tanggal_berakhir);
-      }
-      if (values.deskripsi) {
-        formData.append('deskripsi', values.deskripsi.trim());
-      }
-      if (arsipCheckResult?.is_found && arsipCheckResult.id) {
+      if (arsipCheckResult.id) {
         formData.append('nomor_surat_arsip_id', arsipCheckResult.id.toString());
+      }
+      if (arsipCheckResult.perihal) {
+        formData.append('judul', arsipCheckResult.perihal.trim());
+      }
+      if (arsipCheckResult.tanggal_surat) {
+        formData.append('tanggal_penetapan', arsipCheckResult.tanggal_surat);
       }
 
       if (fileDokumen) {
@@ -246,7 +204,7 @@ export default function EditKebijakanPedomanPage() {
 
       const res = await simpegKebijakanPedomanService.update(id, formData);
       if (res.status === 'success') {
-        toast.success('Kebijakan berhasil diperbarui dan disinkronkan!');
+        toast.success('Kebijakan berhasil diperbarui dan disinkronkan ke Arsip!');
         router.push(`/simpeg/kebijakan-pedoman/${id}`);
       }
     } catch (err: any) {
@@ -260,26 +218,8 @@ export default function EditKebijakanPedomanPage() {
 
   if (isLoading) {
     return (
-      <div className="w-full flex-col gap-4 space-y-4">
-        <PageHeader
-          title="Ubah Kebijakan & Pedoman"
-          description="Memuat data kebijakan..."
-          action={
-            <Link href={`/simpeg/kebijakan-pedoman/${id}`}>
-              <Button
-                variant="outline"
-                size="sm"
-                className="border-[var(--module-primary)] text-[var(--module-primary)] hover:bg-[var(--module-primary-subtle)]"
-              >
-                <ArrowLeft size={16} className="mr-1.5" />
-                Kembali
-              </Button>
-            </Link>
-          }
-        />
-        <div className="bg-white rounded-xl border border-slate-200 p-8 text-center text-xs text-slate-500">
-          Sedang memuat data kebijakan...
-        </div>
+      <div className="w-full py-16 flex items-center justify-center text-slate-500 text-xs">
+        Memuat data kebijakan...
       </div>
     );
   }
@@ -288,7 +228,7 @@ export default function EditKebijakanPedomanPage() {
     <div className="w-full flex-col gap-4 space-y-4">
       <PageHeader
         title="Ubah Kebijakan & Pedoman"
-        description="Perbarui informasi dokumen kebijakan atau ganti berkas scan PDF resmi"
+        description="Perbarui nomor surat atau dokumen scan PDF resmi kebijakan kepegawaian"
         action={
           <Link href={`/simpeg/kebijakan-pedoman/${id}`}>
             <Button
@@ -303,13 +243,13 @@ export default function EditKebijakanPedomanPage() {
         }
       />
 
-      <div className="bg-white rounded-xl border border-slate-200 p-4 md:p-6 shadow-sm">
+      <div className="bg-white rounded-xl border border-slate-200 p-4 md:p-6 shadow-sm max-w-3xl">
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
           {/* Section 1: Alur Penomoran Arsip */}
           <div className="rounded-lg border border-slate-200 p-4 bg-slate-50/50 space-y-4">
             <div className="flex items-center gap-2 text-slate-800 font-semibold text-xs border-b border-slate-200 pb-2">
               <ShieldCheck size={16} className="text-[var(--module-primary)]" />
-              Verifikasi Nomor Surat Resmi (Modul Arsip)
+              Integrasi Nomor Surat Resmi (Modul Arsip)
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
@@ -331,11 +271,12 @@ export default function EditKebijakanPedomanPage() {
                   className="w-full border-[var(--module-primary)] text-[var(--module-primary)] hover:bg-[var(--module-primary-subtle)] text-xs h-10"
                 >
                   <Search size={14} className="mr-1.5" />
-                  {isCheckingArsip ? 'Memeriksa...' : 'Cek Ulang ke Arsip'}
+                  {isCheckingArsip ? 'Memeriksa...' : 'Cek ke Modul Arsip'}
                 </Button>
               </div>
             </div>
 
+            {/* Status Pesan Pengecekan Arsip: Error / Tidak Ditemukan */}
             {arsipError && (
               <div className="flex items-start gap-2.5 rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-700">
                 <AlertCircle size={16} className="text-red-600 mt-0.5 shrink-0" />
@@ -346,21 +287,41 @@ export default function EditKebijakanPedomanPage() {
               </div>
             )}
 
-            {arsipCheckResult?.is_found && (
+            {/* Status Pesan Pengecekan Arsip: Valid / Nomor Terdaftar pada Arsip */}
+            {isArsipVerified && arsipCheckResult && (
               <div className="flex items-start gap-2.5 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-800">
                 <CheckCircle2 size={16} className="text-emerald-600 mt-0.5 shrink-0" />
-                <div className="space-y-1">
+                <div className="space-y-1 w-full">
                   <div className="font-semibold text-emerald-900 flex items-center gap-1.5">
-                    Nomor Terverifikasi pada Modul Arsip
+                    Nomor Terdaftar pada Arsip
+                    <span className="px-1.5 py-0.5 rounded text-2xs bg-emerald-200 text-emerald-900 font-bold uppercase">
+                      Valid
+                    </span>
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-0.5 text-2xs text-emerald-950">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1 text-2xs text-emerald-950 pt-1 border-t border-emerald-200/60">
                     <div>
-                      <span className="text-emerald-700">Perihal:</span>{' '}
-                      <span className="font-medium">{arsipCheckResult.perihal || '-'}</span>
+                      <span className="text-emerald-700 font-medium">Perihal / Judul Surat:</span>
+                      <p className="font-semibold text-slate-800 mt-0.5">
+                        {arsipCheckResult.perihal || '-'}
+                      </p>
                     </div>
                     <div>
-                      <span className="text-emerald-700">Tanggal Terbit:</span>{' '}
-                      <span className="font-medium">{arsipCheckResult.tanggal_surat || '-'}</span>
+                      <span className="text-emerald-700 font-medium">Tanggal Terbit Surat:</span>
+                      <p className="font-semibold text-slate-800 mt-0.5">
+                        {arsipCheckResult.tanggal_surat || '-'}
+                      </p>
+                    </div>
+                    <div>
+                      <span className="text-emerald-700 font-medium">Unit Kerja / Klasifikasi:</span>
+                      <p className="font-semibold text-slate-800 mt-0.5">
+                        {arsipCheckResult.kode_unit || '-'} / {arsipCheckResult.kode_klasifikasi || '-'}
+                      </p>
+                    </div>
+                    <div>
+                      <span className="text-emerald-700 font-medium">Status Arsip:</span>
+                      <p className="font-semibold text-slate-800 mt-0.5 capitalize">
+                        {arsipCheckResult.status || 'Aktif'}
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -368,101 +329,31 @@ export default function EditKebijakanPedomanPage() {
             )}
           </div>
 
-          {/* Section 2: Informasi Pokok Kebijakan */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="md:col-span-2">
-              <Input
-                label="Judul Kebijakan / Pedoman"
-                placeholder="Contoh: Pedoman Tata Tertib dan Jam Kerja Tenaga Kependidikan"
-                required
-                error={errors.judul?.message}
-                {...register('judul')}
-              />
-            </div>
-
-            <Select
-              label="Kategori Kebijakan"
-              required
-              error={errors.kategori_kebijakan_id?.message}
-              options={masters.map((m) => ({
-                value: m.id.toString(),
-                label: `${m.kode} - ${m.nama}`,
-              }))}
-              {...register('kategori_kebijakan_id')}
-            />
-
-            <Input
-              label="Pejabat Penetap"
-              required
-              error={errors.pejabat_penetap?.message}
-              {...register('pejabat_penetap')}
-            />
-
-            <Input
-              label="Tanggal Penetapan"
-              type="date"
-              required
-              error={errors.tanggal_penetapan?.message}
-              {...register('tanggal_penetapan')}
-            />
-
-            <Input
-              label="Tanggal Mulai Berlaku"
-              type="date"
-              required
-              error={errors.tanggal_berlaku?.message}
-              {...register('tanggal_berlaku')}
-            />
-
-            <Input
-              label="Tanggal Berakhir (Opsional)"
-              type="date"
-              error={errors.tanggal_berakhir?.message}
-              {...register('tanggal_berakhir')}
-            />
-
-            <Select
-              label="Status Keberlakuan"
-              options={[
-                { value: 'true', label: 'Aktif (Berlaku)' },
-                { value: 'false', label: 'Tidak Aktif (Kadaluarsa / Dicabut)' },
-              ]}
-              {...register('is_active')}
-            />
-
-            <div className="md:col-span-2">
-              <Textarea
-                label="Ringkasan / Keterangan Tambahan"
-                error={errors.deskripsi?.message}
-                {...register('deskripsi')}
-              />
-            </div>
-          </div>
-
-          {/* Section 3: Unggah Dokumen Scan PDF */}
+          {/* Section 2: Unggah Dokumen Scan PDF Resmi */}
           <div className="rounded-lg border border-slate-200 p-4 bg-slate-50/50 space-y-3">
             <div className="flex items-center justify-between border-b border-slate-200 pb-2">
-              <span className="font-semibold text-xs text-slate-800">
-                Ganti Berkas Dokumen Scan PDF (Opsional)
+              <span className="font-semibold text-xs text-slate-800 flex items-center gap-1.5">
+                Dokumen Scan PDF Resmi
+                {!isArsipVerified && (
+                  <span className="inline-flex items-center gap-1 text-2xs font-medium text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full border border-amber-200">
+                    <Lock size={10} /> Terkunci (Perlu Verifikasi Arsip)
+                  </span>
+                )}
               </span>
               <span className="text-2xs text-slate-500">
-                Format PDF, Maks. 10 MB (Kosongkan jika tidak ingin mengganti)
+                Format PDF, Maks. 10 MB (Kosongkan jika tidak ingin mengganti file)
               </span>
             </div>
 
-            {/* Berkas yang sedang aktif saat ini */}
-            {initialData?.file_dokumen_url && !fileDokumen && (
-              <div className="flex items-center justify-between p-3 bg-white rounded-lg border border-slate-200">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-lg bg-emerald-50 text-emerald-600">
-                    <FileText size={20} />
-                  </div>
+            {/* Tautan ke file scan tersimpan sebelumnya */}
+            {initialData?.file_dokumen_url && (
+              <div className="flex items-center justify-between p-3 rounded-lg border border-slate-200 bg-white text-xs">
+                <div className="flex items-center gap-2">
+                  <FileText size={18} className="text-red-500" />
                   <div>
-                    <span className="font-medium text-xs text-slate-800 block">
-                      Dokumen Scan PDF Saat Ini Tersimpan
-                    </span>
-                    <span className="text-2xs text-slate-500">
-                      Tersimpan di disk privat & tersinkronisasi ke modul Arsip
+                    <span className="font-semibold text-slate-800 block">Berkas Scan Saat Ini:</span>
+                    <span className="text-2xs text-slate-500 font-mono">
+                      {initialData.file_dokumen_path}
                     </span>
                   </div>
                 </div>
@@ -470,24 +361,41 @@ export default function EditKebijakanPedomanPage() {
                   type="button"
                   variant="outline"
                   size="sm"
-                  onClick={() =>
-                    window.open(initialData.file_dokumen_url as string, '_blank')
-                  }
-                  className="text-xs h-8"
+                  onClick={() => {
+                    window.open(initialData.file_dokumen_url as string, '_blank');
+                  }}
+                  className="text-xs border-[var(--module-primary)] text-[var(--module-primary)] hover:bg-[var(--module-primary-subtle)]"
                 >
                   <ExternalLink size={13} className="mr-1" />
-                  Pratinjau PDF
+                  Buka File
                 </Button>
               </div>
             )}
 
-            {!fileDokumen ? (
-              <label className="flex flex-col items-center justify-center border-2 border-dashed border-slate-300 rounded-lg p-5 bg-white hover:border-[var(--module-primary)] hover:bg-slate-50 cursor-pointer transition-colors">
-                <UploadCloud size={24} className="text-slate-400 mb-1" />
-                <span className="text-xs font-medium text-slate-700">
-                  Klik untuk mengunggah berkas PDF baru pengganti
+            {!isArsipVerified ? (
+              // Status SEBELUM Nomor Terdaftar pada Arsip: DOKUMEN SCAN TIDAK BISA DI-UPLOAD
+              <div className="flex flex-col items-center justify-center border-2 border-dashed border-slate-200 rounded-lg p-6 bg-slate-100/70 text-slate-400 cursor-not-allowed select-none">
+                <Lock size={26} className="text-slate-400 mb-2" />
+                <span className="text-xs font-semibold text-slate-600">
+                  Dokumen Scan PDF Belum Dapat Diunggah
                 </span>
-                <input
+                <span className="text-2xs text-slate-500 mt-1 text-center max-w-md">
+                  Silakan masukkan nomor surat resmi pada kolom di atas lalu klik{' '}
+                  <strong className="text-slate-700 font-semibold">&quot;Cek ke Modul Arsip&quot;</strong>.
+                  Setelah status <strong className="text-emerald-700 font-semibold">&quot;Nomor Terdaftar pada Arsip&quot;</strong> terkonfirmasi, tombol unggah berkas akan aktif secara otomatis.
+                </span>
+              </div>
+            ) : !fileDokumen ? (
+              // Status SETELAH Nomor Terdaftar pada Arsip: DOKUMEN LANGSUNG BISA DI-UPLOAD
+              <label className="flex flex-col items-center justify-center border-2 border-dashed border-emerald-400 rounded-lg p-6 bg-emerald-50/30 hover:border-[var(--module-primary)] hover:bg-slate-50 cursor-pointer transition-colors">
+                <UploadCloud size={30} className="text-emerald-600 mb-2" />
+                <span className="text-xs font-semibold text-slate-800">
+                  Klik untuk pilih atau seret berkas scan PDF pengganti ke sini
+                </span>
+                <span className="text-2xs text-slate-500 mt-1">
+                  Berkas PDF akan otomatis disimpan ke disk privat dan disinkronkan ke nomor surat di modul Arsip
+                </span>
+                <Input
                   type="file"
                   accept="application/pdf"
                   onChange={handleFileChange}
@@ -495,6 +403,7 @@ export default function EditKebijakanPedomanPage() {
                 />
               </label>
             ) : (
+              // Berkas PDF telah dipilih
               <div className="flex items-center justify-between p-3 bg-white rounded-lg border border-slate-200">
                 <div className="flex items-center gap-3">
                   <div className="p-2 rounded-lg bg-red-50 text-red-600">
@@ -514,7 +423,7 @@ export default function EditKebijakanPedomanPage() {
                   variant="outline"
                   size="sm"
                   onClick={() => setFileDokumen(null)}
-                  className="text-red-600 border-red-200 hover:bg-red-50 h-8"
+                  className="text-red-600 border-red-200 hover:bg-red-50 h-8 text-xs"
                 >
                   <Trash2 size={14} className="mr-1" />
                   Batal Ganti
@@ -537,10 +446,10 @@ export default function EditKebijakanPedomanPage() {
             <Button
               type="submit"
               variant="primary"
-              disabled={isSubmitting}
-              className="bg-[var(--module-primary)] text-white hover:opacity-90"
+              disabled={isSubmitting || !isArsipVerified}
+              className="bg-[var(--module-primary)] text-white hover:opacity-90 disabled:opacity-50"
             >
-              {isSubmitting ? 'Menyimpan Perubahan...' : 'Simpan Perubahan & Sinkronkan'}
+              {isSubmitting ? 'Memperbarui...' : 'Simpan Perubahan'}
             </Button>
           </div>
         </form>

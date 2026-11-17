@@ -20,7 +20,7 @@ import type {
   ApiIntegrationSyncResult,
 } from '@/types/api-integration.types';
 import type { PaginationMeta } from '@/types/api.types';
-import { useForm, Controller } from 'react-hook-form';
+import { useForm, Controller, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { toast } from 'react-hot-toast';
@@ -44,6 +44,7 @@ import {
 } from 'lucide-react';
 
 const updateSchema = z.object({
+  source_type: z.enum(['pddikti', 'custom_api']),
   url_api: z
     .string()
     .nullable()
@@ -56,6 +57,14 @@ const updateSchema = z.object({
     message: 'Pilih jenis autentikasi yang valid',
   }),
   is_active: z.boolean(),
+}).superRefine((values, context) => {
+  if (values.source_type === 'custom_api' && !values.url_api) {
+    context.addIssue({
+      code: 'custom',
+      path: ['url_api'],
+      message: 'URL endpoint wajib diisi untuk sumber Custom API.',
+    });
+  }
 });
 
 type UpdateFormValues = z.infer<typeof updateSchema>;
@@ -74,6 +83,11 @@ const STATUS_FILTER_OPTIONS = [
 const ACTIVE_STATUS_FORM_OPTIONS = [
   { value: 'true', label: 'Aktif' },
   { value: 'false', label: 'Nonaktif' },
+];
+
+const SOURCE_TYPE_OPTIONS: Array<{ value: 'pddikti' | 'custom_api'; label: string }> = [
+  { value: 'pddikti', label: 'PDDIKTI Neo Feeder' },
+  { value: 'custom_api', label: 'Custom API' },
 ];
 
 const SORT_BY_OPTIONS = [
@@ -133,12 +147,14 @@ export default function ApiSettingsPage() {
   } = useForm<UpdateFormValues>({
     resolver: zodResolver(updateSchema),
     defaultValues: {
+      source_type: 'custom_api',
       url_api: '',
       token: '',
       auth_type: 'bearer',
       is_active: true,
     },
   });
+  const selectedSourceType = useWatch({ control, name: 'source_type' });
 
   const fetchData = useCallback(async () => {
     try {
@@ -195,6 +211,7 @@ export default function ApiSettingsPage() {
   const handleOpenEdit = (item: IamApiIntegration) => {
     setEditItem(item);
     reset({
+      source_type: item.source_type || 'custom_api',
       url_api: item.url_api || '',
       token: '',
       auth_type: item.auth_type || 'bearer',
@@ -202,17 +219,23 @@ export default function ApiSettingsPage() {
     });
   };
 
+  const integrationSupportsSource = (item: IamApiIntegration, source: 'pddikti' | 'custom_api') =>
+    item.supported_sources?.includes(source) ?? source === 'custom_api';
+  const sourceUsesManagedConnection = (item: IamApiIntegration, source: 'pddikti' | 'custom_api') =>
+    item.source_schemas?.[source]?.connection_managed === true;
+
   const onSubmitEdit = async (data: UpdateFormValues) => {
     if (!editItem) return;
     try {
       setIsSubmitting(true);
       const payload: UpdateApiIntegrationPayload = {
-        url_api: data.url_api ? data.url_api.trim() : null,
+        source_type: data.source_type,
+        url_api: data.source_type === 'pddikti' ? null : (data.url_api ? data.url_api.trim() : null),
         auth_type: data.auth_type,
         is_active: data.is_active,
       };
       const newToken = data.token?.trim();
-      if (newToken) payload.token = newToken;
+      if (data.source_type === 'custom_api' && newToken) payload.token = newToken;
 
       const res = await adminService.updateApiIntegration(editItem.id, payload);
       if (res.status === 'success') {
@@ -239,7 +262,9 @@ export default function ApiSettingsPage() {
       setIsTesting(true);
       setTestResult(null);
       setTestError(null);
-      const res = await adminService.testApiIntegration(testItem.id);
+      const res = await adminService.testApiIntegration(testItem.id, {
+        source_type: testItem.source_type || 'custom_api',
+      });
       if (res.status === 'success' && res.data) {
         setTestResult(res.data);
         toast.success(res.message || 'Koneksi berhasil terhubung');
@@ -419,12 +444,16 @@ Ketentuan:
                   : 'bg-gray-50 text-gray-500 italic border-gray-200'
               }`}
             >
-              {row.url_api || 'Belum dikonfigurasi'}
+              {sourceUsesManagedConnection(row, row.source_type || 'custom_api')
+                ? 'Neo Feeder PDDikti'
+                : row.url_api || 'Belum dikonfigurasi'}
             </code>
           </div>
           <span className="text-2xs text-gray-600 mt-1 flex items-center gap-1 font-medium">
             <Lock size={11} className="text-gray-500" />
-            Auth: {row.auth_type === 'bearer' ? 'Bearer Token' : 'X-API-KEY'}
+            {sourceUsesManagedConnection(row, row.source_type || 'custom_api')
+              ? 'Kredensial dari Pengaturan Sistem'
+              : `Auth: ${row.auth_type === 'bearer' ? 'Bearer Token' : 'X-API-KEY'}`}
           </span>
         </div>
       ),
@@ -483,7 +512,7 @@ Ketentuan:
 
         if (canManage) {
           actionItems.push({
-            label: 'Konfigurasi URL & Token',
+            label: (row.supported_sources?.length ?? 1) > 1 ? 'Konfigurasi Tipe Sinkronisasi' : 'Konfigurasi URL & Token',
             icon: <Edit2 size={14} />,
             onClick: () => handleOpenEdit(row),
           });
@@ -504,7 +533,7 @@ Ketentuan:
           actionItems.push({
             label: 'Jalankan Sync',
             icon: <RefreshCw size={14} />,
-            disabled: !row.is_active || !row.url_api,
+            disabled: !row.is_active || ((row.source_type ?? 'custom_api') === 'custom_api' && !row.url_api),
             onClick: () => {
               setSyncItem(row);
               setSyncResult(null);
@@ -561,7 +590,7 @@ Ketentuan:
             Integrasi Terproteksi Sistem
           </span>
           <p className="text-gray-600 leading-relaxed">
-            Daftar integrasi API di bawah ini dikunci oleh sistem. Konfigurasikan <span className="font-semibold text-gray-900">URL API</span> dan <span className="font-semibold text-gray-900">Token</span>, jalankan <span className="font-semibold text-gray-900">Uji Koneksi</span>, lalu gunakan aksi <span className="font-semibold text-gray-900">Jalankan Sync</span> untuk mengambil dan mengisi data tujuan.
+            Daftar integrasi API di bawah ini dikunci oleh sistem. Konfigurasikan sumber integrasi, lalu jalankan <span className="font-semibold text-gray-900">Uji Koneksi</span> dan <span className="font-semibold text-gray-900">Jalankan Sync</span>. Koneksi PDDIKTI memakai kredensial Neo Feeder yang tersimpan di Pengaturan Sistem.
           </p>
         </div>
       </div>
@@ -702,6 +731,33 @@ Ketentuan:
               )}
             </div>
 
+            {(editItem.supported_sources?.length ?? 1) > 1 && (
+              <div className="col-span-full">
+                <Controller
+                  control={control}
+                  name="source_type"
+                  render={({ field }) => (
+                    <Select
+                      label="Tipe Sinkronisasi *"
+                      value={field.value}
+                      onChange={field.onChange}
+                        options={SOURCE_TYPE_OPTIONS.filter((option) => integrationSupportsSource(editItem, option.value))}
+                      error={errors.source_type?.message}
+                    />
+                  )}
+                />
+              </div>
+            )}
+
+            {sourceUsesManagedConnection(editItem, selectedSourceType) ? (
+              <div className="col-span-full rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-xs text-emerald-950">
+                <div className="font-semibold">Koneksi Neo Feeder PDDikti</div>
+                <p className="mt-1 leading-relaxed">
+                  URL Web Service, username, dan password diambil dari Pengaturan Sistem → Koneksi Neo Feeder PDDikti. Token dibuat otomatis oleh server dan tidak perlu dimasukkan di sini.
+                </p>
+              </div>
+            ) : (
+              <>
             <div className="col-span-full">
               <Controller
                 control={control}
@@ -734,22 +790,6 @@ Ketentuan:
               />
             </div>
 
-            <div>
-              <Controller
-                control={control}
-                name="is_active"
-                render={({ field }) => (
-                  <Select
-                    label="Status Aktif *"
-                    value={field.value ? 'true' : 'false'}
-                    onChange={(val) => field.onChange(val === 'true')}
-                    options={ACTIVE_STATUS_FORM_OPTIONS}
-                    error={errors.is_active?.message}
-                  />
-                )}
-              />
-            </div>
-
             <div className="col-span-full">
               <Controller
                 control={control}
@@ -765,6 +805,24 @@ Ketentuan:
                       ? 'Token sudah tersimpan dan tidak ditampilkan demi keamanan. Biarkan kosong untuk mempertahankannya.'
                       : 'Belum ada token tersimpan. Masukkan token API untuk konfigurasi ini.'}
                     error={errors.token?.message}
+                  />
+                )}
+              />
+            </div>
+              </>
+            )}
+
+            <div className="col-span-full md:col-span-1">
+              <Controller
+                control={control}
+                name="is_active"
+                render={({ field }) => (
+                  <Select
+                    label="Status Aktif *"
+                    value={field.value ? 'true' : 'false'}
+                    onChange={(val) => field.onChange(val === 'true')}
+                    options={ACTIVE_STATUS_FORM_OPTIONS}
+                    error={errors.is_active?.message}
                   />
                 )}
               />
@@ -785,7 +843,13 @@ Ketentuan:
               Format data JSON yang diharapkan oleh modul internal saat mengambil data dari endpoint ini:
             </p>
             <div className="bg-slate-900 text-slate-100 rounded-lg p-3 font-mono text-2xs overflow-x-auto max-h-96">
-              <pre>{JSON.stringify(schemaItem.expected_schema, null, 2)}</pre>
+              <pre>{JSON.stringify(
+                schemaItem.source_schemas?.[schemaItem.source_type]
+                  ? schemaItem.source_schemas[schemaItem.source_type]
+                  : schemaItem.expected_schema,
+                null,
+                2
+              )}</pre>
             </div>
             <div className="flex justify-end pt-2">
               <Button variant="outline" onClick={() => setSchemaItem(null)}>
@@ -807,8 +871,12 @@ Ketentuan:
             <div className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-3 text-xs space-y-2">
               <div className="flex items-center gap-2">
                 <Globe size={14} className="text-slate-500" />
-                <span className="font-bold text-slate-700 dark:text-slate-300">Target URL:</span>
-                <span className="font-mono truncate">{testItem.url_api || '(Belum diset)'}</span>
+                <span className="font-bold text-slate-700 dark:text-slate-300">Sumber:</span>
+                <span className="font-mono truncate">
+                  {sourceUsesManagedConnection(testItem, testItem.source_type || 'custom_api')
+                    ? `${testItem.source_schemas?.[testItem.source_type]?.source ?? 'Sumber terkelola'} → ${testItem.source_schemas?.[testItem.source_type]?.action ?? 'tes koneksi'}`
+                    : testItem.url_api || '(Belum diset)'}
+                </span>
               </div>
               <div className="flex items-center gap-2">
                 <Layers size={14} className="text-slate-500" />
@@ -863,9 +931,9 @@ Ketentuan:
                 icon={<Activity size={16} />}
                 onClick={handleRunTest}
                 isLoading={isTesting}
-                disabled={!testItem.url_api}
+                disabled={!sourceUsesManagedConnection(testItem, testItem.source_type || 'custom_api') && !testItem.url_api}
               >
-                Jalankan Tes Ping
+                {sourceUsesManagedConnection(testItem, testItem.source_type || 'custom_api') ? 'Uji Koneksi Sumber' : 'Jalankan Tes Ping'}
               </Button>
             </div>
           </div>
@@ -883,7 +951,9 @@ Ketentuan:
         {syncItem && (
           <div className="space-y-4">
             <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-950">
-              Data akan diambil dari endpoint sumber dan diterapkan pada master tujuan. Status aktif/nonaktif mengikuti sumber; data nonaktif tidak tampil pada daftar aktif. Data yang tidak lolos validasi akan dilewati dan dirinci setelah proses.
+              {sourceUsesManagedConnection(syncItem, syncItem.source_type || 'custom_api')
+                ? `Data akan diambil dari ${syncItem.source_schemas?.[syncItem.source_type]?.source ?? 'sumber terkelola'}. Pastikan relasi master tujuan sudah dipetakan sebelum sync.`
+                : 'Data akan diambil dari endpoint sumber dan diterapkan pada master tujuan. Status aktif/nonaktif mengikuti sumber; data nonaktif tidak tampil pada daftar aktif. Data yang tidak lolos validasi akan dilewati dan dirinci setelah proses.'}
             </div>
 
             {syncResult && (
@@ -932,7 +1002,7 @@ Ketentuan:
                   icon={isSyncing ? undefined : <Check size={16} />}
                   onClick={handleRunSync}
                   isLoading={isSyncing}
-                  disabled={!syncItem.url_api || !syncItem.is_active}
+                  disabled={!syncItem.is_active || (!sourceUsesManagedConnection(syncItem, syncItem.source_type || 'custom_api') && !syncItem.url_api)}
                 >
                   Mulai Sinkronisasi
                 </Button>

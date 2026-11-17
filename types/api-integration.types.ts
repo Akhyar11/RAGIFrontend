@@ -6,6 +6,9 @@ export interface IamApiIntegration {
   http_method: string;
   description: string | null;
   expected_schema: Record<string, any> | null;
+  source_type: 'pddikti' | 'custom_api';
+  supported_sources: Array<'pddikti' | 'custom_api'>;
+  source_schemas: Partial<Record<'pddikti' | 'custom_api', Record<string, unknown>>>;
   url_api: string | null;
   token_configured: boolean;
   auth_type: 'bearer' | 'header_key';
@@ -17,6 +20,7 @@ export interface IamApiIntegration {
 }
 
 export interface UpdateApiIntegrationPayload {
+  source_type: 'pddikti' | 'custom_api';
   url_api: string | null;
   token?: string | null;
   auth_type: 'bearer' | 'header_key';
@@ -24,6 +28,7 @@ export interface UpdateApiIntegrationPayload {
 }
 
 export interface TestApiIntegrationPayload {
+  source_type?: 'pddikti' | 'custom_api';
   url_api?: string | null;
   token?: string | null;
   auth_type?: 'bearer' | 'header_key';

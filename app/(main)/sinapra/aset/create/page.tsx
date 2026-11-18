@@ -13,9 +13,6 @@ import {
   ArrowLeft,
   CheckCircle2,
   ShieldAlert,
-  Layers,
-  Sparkles,
-  Info,
 } from 'lucide-react';
 
 import { PageHeader } from '@/components/layout/PageHeader';
@@ -62,7 +59,7 @@ export default function CreateAsetPage() {
 
   const [submitting, setSubmitting] = useState(false);
   const [selectedKategori, setSelectedKategori] = useState<{ value: string; label: string; kode?: string } | null>(null);
-  const [selectedRuangan, setSelectedRuangan] = useState<{ value: string; label: string; id?: number } | null>(null);
+  const [selectedRuangan, setSelectedRuangan] = useState<{ value: string; label: string; id?: number; kode?: string } | null>(null);
   const [selectedProdi, setSelectedProdi] = useState<{ value: string; label: string } | null>(null);
   const [selectedPegawai, setSelectedPegawai] = useState<{ value: string; label: string } | null>(null);
 
@@ -143,7 +140,7 @@ export default function CreateAsetPage() {
   }, [fetchPreview]);
 
   // Fallback simulasi kode jika preview server belum kembali
-  const displayKodeRuangan = previewData?.kode_ruangan || (watchRuangan ? `RF${String(watchRuangan).padStart(3, '0')}` : 'RF000');
+  const displayKodeRuangan = previewData?.kode_ruangan || selectedRuangan?.kode || 'RF000';
   const displayKodeKategori = previewData?.kode_kategori || (selectedKategori?.kode || 'AST');
   const displayStartUrut = previewData?.nomor_urut_mulai || (watchNomorUrut || 1);
   const displayEndUrut = previewData?.nomor_urut_selesai || (displayStartUrut + (watchMode === 'bulk' ? (watchJumlah || 1) : 1) - 1);
@@ -178,6 +175,7 @@ export default function CreateAsetPage() {
           value: r.id.toString(),
           label: `${r.kode} - ${r.nama}`,
           id: r.id,
+          kode: r.kode,
         }));
       }
       return [];
@@ -663,8 +661,8 @@ export default function CreateAsetPage() {
           </form>
         </div>
 
-        {/* Kolom Kanan: Preview Format & Pedoman */}
-        <div className="space-y-4">
+        {/* Kolom Kanan: Preview Format */}
+        <div>
           {/* Card Preview Format Penomoran */}
           <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs space-y-4">
             <div className="flex items-center justify-between pb-2 border-b border-slate-100">
@@ -694,92 +692,14 @@ export default function CreateAsetPage() {
               </span>
             </div>
 
-            {/* Status Info */}
-            <div className="flex items-center gap-1.5">
+            {/* Format Info (Posisikan Rata Tengah) */}
+            <div className="flex items-center justify-center">
               <Badge
                 variant="sinapra"
-                className="text-2xs font-semibold border-[var(--module-primary)] text-[var(--module-primary)] bg-[var(--module-primary-subtle)]"
+                className="text-2xs font-semibold border-[var(--module-primary)] text-[var(--module-primary)] bg-[var(--module-primary-subtle)] text-center"
               >
                 Format: {`{nomor_urut}/{kode_ruangan}/{kode_kategori}/INDO/{tahun}`}
               </Badge>
-            </div>
-
-            {/* Rincian Komponen Nomor Inventaris */}
-            <div className="space-y-2 text-2xs text-slate-600 border-t border-slate-100 pt-3">
-              <span className="font-bold text-slate-800 block text-xs">
-                Rincian Elemen Nomor:
-              </span>
-
-              <div className="flex items-start gap-2 bg-slate-50/80 p-2 rounded-md">
-                <span className="font-mono font-bold text-[var(--module-primary)] w-12 shrink-0">
-                  {watchMode === 'bulk' ? `${displayStartUrut}-${displayEndUrut}` : displayStartUrut}
-                </span>
-                <span>
-                  <strong>Nomor Urut Inventaris:</strong> Urutan otomatis berurutan dari database atau custom titik awal.
-                </span>
-              </div>
-
-              <div className="flex items-start gap-2 bg-slate-50/80 p-2 rounded-md">
-                <span className="font-mono font-bold text-slate-800 w-12 shrink-0">
-                  {displayKodeRuangan}
-                </span>
-                <span>
-                  <strong>Kode Ruangan:</strong> Diambil dari isian Lokasi Penempatan Ruangan (contoh: RF075 dari ruangan ID 75).
-                </span>
-              </div>
-
-              <div className="flex items-start gap-2 bg-slate-50/80 p-2 rounded-md">
-                <span className="font-mono font-bold text-slate-800 w-12 shrink-0">
-                  {displayKodeKategori}
-                </span>
-                <span>
-                  <strong>Kode Barang:</strong> Diambil dari kode master Kategori Aset yang dipilih.
-                </span>
-              </div>
-
-              <div className="flex items-start gap-2 bg-slate-50/80 p-2 rounded-md">
-                <span className="font-mono font-bold text-slate-800 w-12 shrink-0">
-                  INDO
-                </span>
-                <span>
-                  <strong>Kode Default Institusi:</strong> Kode identitas tetap institusi untuk seluruh aset kampus.
-                </span>
-              </div>
-
-              <div className="flex items-start gap-2 bg-slate-50/80 p-2 rounded-md">
-                <span className="font-mono font-bold text-slate-800 w-12 shrink-0">
-                  {tahunAset}
-                </span>
-                <span>
-                  <strong>Tahun Nomor Terbit:</strong> Diambil dari tahun tanggal perolehan/pembelian barang.
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* Card Pedoman & Barcode */}
-          <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-xs space-y-3">
-            <div className="flex items-center gap-2 pb-2 border-b border-slate-100">
-              <Sparkles size={16} className="text-[var(--module-primary)]" />
-              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800">
-                Panduan Registrasi Masal & Label
-              </h3>
-            </div>
-
-            <div className="text-2xs text-slate-500 space-y-2">
-              <div className="flex items-start gap-2">
-                <Layers size={14} className="text-[var(--module-primary)] shrink-0 mt-0.5" />
-                <p>
-                  <strong className="text-slate-700">Pendaftaran Masal (Bulk):</strong> Cocok untuk pembelian banyak barang sejenis di ruangan yang sama (seperti 10 monitor, 30 kursi kelas). Sistem secara aman mengalokasikan nomor urut berurutan dalam satu transaksi.
-                </p>
-              </div>
-
-              <div className="flex items-start gap-2">
-                <Info size={14} className="text-slate-400 shrink-0 mt-0.5" />
-                <p>
-                  <strong className="text-slate-700">Pencetakan QR Code & Label Fisik:</strong> Setelah disimpan, Anda dapat langsung mencetak lembar stiker barcode dan QR Code fisik pada menu aksi tabel aset.
-                </p>
-              </div>
             </div>
           </div>
         </div>

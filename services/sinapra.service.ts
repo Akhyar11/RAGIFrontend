@@ -13,6 +13,7 @@ import type {
   KategoriAsetFormPayload,
   Aset,
   AsetFormPayload,
+  PreviewNomorInventarisData,
   PenyusutanAsetResult,
   RiwayatPenyusutanAset,
   PeminjamanRuangan,
@@ -208,8 +209,19 @@ export const sinapraService = {
     return data;
   },
 
-  createAset: async (payload: AsetFormPayload): Promise<ApiResponse<Aset>> => {
-    const { data } = await apiClient.post<ApiResponse<Aset>>('/sinapra/aset', payload);
+  createAset: async (payload: AsetFormPayload): Promise<ApiResponse<Aset | Aset[]>> => {
+    const { data } = await apiClient.post<ApiResponse<Aset | Aset[]>>('/sinapra/aset', payload);
+    return data;
+  },
+
+  getPreviewNomorAset: async (params?: {
+    ruangan_id?: number;
+    kategori_id?: number;
+    tahun?: number;
+    nomor_urut?: number;
+    jumlah?: number;
+  }): Promise<ApiResponse<PreviewNomorInventarisData>> => {
+    const { data } = await apiClient.get<ApiResponse<PreviewNomorInventarisData>>('/sinapra/aset/preview-nomor', { params });
     return data;
   },
 

@@ -321,12 +321,28 @@ export interface RiwayatPenyusutanAset {
   };
 }
 
+export interface PreviewNomorInventarisData {
+  nomor_urut_mulai: number;
+  nomor_urut_selesai: number;
+  jumlah: number;
+  kode_ruangan: string;
+  kode_kategori: string;
+  default_institusi: string;
+  tahun: number;
+  preview_nomor: string;
+  preview_rentang: string;
+  formula: string;
+}
+
 export interface AsetFormPayload {
+  mode?: 'satuan' | 'bulk';
+  jumlah_barang?: number;
+  nomor_urut?: number;
   kategori_id: number;
   ruangan_id?: number | null;
   program_studi_id?: number | null;
   penanggung_jawab_pegawai_id?: number | null;
-  kode_aset: string;
+  kode_aset?: string;
   nama: string;
   merk?: string;
   nomor_seri?: string;

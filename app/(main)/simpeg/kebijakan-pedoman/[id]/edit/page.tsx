@@ -243,7 +243,7 @@ export default function EditKebijakanPedomanPage() {
         }
       />
 
-      <div className="bg-white rounded-xl border border-slate-200 p-4 md:p-6 shadow-sm max-w-3xl">
+      <div className="w-full bg-white rounded-xl border border-slate-200 p-4 md:p-6 shadow-sm">
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
           {/* Section 1: Alur Penomoran Arsip */}
           <div className="rounded-lg border border-slate-200 p-4 bg-slate-50/50 space-y-4">

@@ -35,6 +35,7 @@ export default function EditProdiPage() {
           fakultas_id: item.fakultas_id ?? null,
           kaprodi_id: item.kaprodi_id || null,
           kode_prodi: item.kode_prodi,
+          prefix_nim: item.prefix_nim || '',
           kode_prodi_dikti: item.kode_prodi_dikti || '',
           nama: item.nama,
           jenjang: item.jenjang || '',
@@ -65,6 +66,7 @@ export default function EditProdiPage() {
         || String(savedProgram.jenjang) !== values.jenjang
         || (savedProgram.fakultas_id ? Number(savedProgram.fakultas_id) : null) !== expectedFacultyId
         || (savedProgram.kaprodi_id ? Number(savedProgram.kaprodi_id) : null) !== expectedKaprodiId
+        || (savedProgram.prefix_nim || '') !== (values.prefix_nim?.trim() || '')
         || (savedProgram.kode_prodi_dikti || null) !== expectedDiktiCode
         || (savedProgram.akreditasi || null) !== expectedAccreditation
         || Boolean(savedProgram.is_active) !== Boolean(values.is_active);

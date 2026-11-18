@@ -14,6 +14,7 @@ const baseProdiSchema = z.object({
   fakultas_id: z.number().nullable(),
   kaprodi_id: z.number().nullable().optional(),
   kode_prodi: z.string().min(1, 'Kode prodi wajib diisi').max(20, 'Kode maksimal 20 karakter'),
+  prefix_nim: z.string().max(10, 'Prefix NIM maksimal 10 karakter').regex(/^[A-Za-z0-9-]*$/, 'Prefix hanya boleh berisi huruf, angka, dan tanda hubung').optional().or(z.literal('')),
   kode_prodi_dikti: z.string().max(20, 'Kode DIKTI maksimal 20 karakter').optional().or(z.literal('')),
   nama: z.string().min(3, 'Nama prodi minimal 3 karakter').max(255, 'Nama maksimal 255 karakter'),
   jenjang: z.string().min(1, 'Jenjang wajib dipilih'),
@@ -67,6 +68,7 @@ export function ProdiForm({ fakultasOptions, defaultValues, onSubmit, onCancel, 
       fakultas_id: isEditing ? null : 0,
       kaprodi_id: null,
       kode_prodi: '',
+      prefix_nim: '',
       kode_prodi_dikti: '',
       nama: '',
       jenjang: '',
@@ -114,6 +116,7 @@ export function ProdiForm({ fakultasOptions, defaultValues, onSubmit, onCancel, 
           )}
         />
         <Input label="Kode Prodi Internal" required placeholder="cth. IF" error={errors.kode_prodi?.message} {...register('kode_prodi')} />
+        <Input label="Prefix NIM" placeholder="cth. D" hint="Dipakai untuk NIM otomatis, misalnya D25001." error={errors.prefix_nim?.message} {...register('prefix_nim')} />
         <Input label="Kode Prodi PDDIKTI" placeholder="cth. 55201" error={errors.kode_prodi_dikti?.message} {...register('kode_prodi_dikti')} />
         <div className="md:col-span-2">
           <Input label="Nama Program Studi" required placeholder="cth. Teknik Informatika" error={errors.nama?.message} {...register('nama')} />

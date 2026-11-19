@@ -205,7 +205,7 @@ export default function LaporanProdiPage() {
       render: (row) => (
         <div className="space-y-0.5">
           <div className="font-bold text-slate-900 text-xs">{row.nama}</div>
-          <div className="text-[10px] text-slate-500 font-mono">
+          <div className="text-2xs text-slate-500 font-mono">
             {row.kode} • {row.fakultas}
           </div>
         </div>
@@ -217,7 +217,7 @@ export default function LaporanProdiPage() {
       render: (row) => (
         <div className="space-y-0.5">
           <div className="font-medium text-slate-800 text-xs">{row.pimpinan_unit}</div>
-          <div className="text-[10px] text-slate-500 flex items-center gap-1">
+          <div className="text-2xs text-slate-500 flex items-center gap-1">
             <Users size={12} className="text-slate-400" />
             <span>{row.total_dosen} Dosen Homebase</span>
           </div>
@@ -229,13 +229,13 @@ export default function LaporanProdiPage() {
       label: 'TARGET OUTPUT IKU 5',
       render: (row) => (
         <div className="flex items-center gap-2 text-xs">
-          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 text-[10px] font-semibold border border-blue-200">
+          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 text-2xs font-semibold border border-blue-200">
             <BookOpen size={10} /> Scopus: {row.target_scopus}
           </span>
-          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 text-[10px] font-semibold border border-emerald-200">
+          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 text-2xs font-semibold border border-emerald-200">
             <BookOpen size={10} /> Sinta: {row.target_sinta}
           </span>
-          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-purple-50 text-purple-700 text-[10px] font-semibold border border-purple-200">
+          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-purple-50 text-purple-700 text-2xs font-semibold border border-purple-200">
             <Award size={10} /> HKI: {row.target_hki}
           </span>
         </div>
@@ -249,15 +249,15 @@ export default function LaporanProdiPage() {
           <div className="flex items-center gap-2">
             <span className="text-xs font-black text-slate-900">{row.capaian_iku}%</span>
             {row.status === 'mencapai' ? (
-              <Badge variant="green" className="text-[10px]">
+              <Badge variant="green" className="text-2xs">
                 Target Tercapai
               </Badge>
             ) : row.status === 'dalam_progres' ? (
-              <Badge variant="yellow" className="text-[10px]">
+              <Badge variant="yellow" className="text-2xs">
                 Dalam Progres
               </Badge>
             ) : (
-              <Badge variant="red" className="text-[10px]">
+              <Badge variant="red" className="text-2xs">
                 Perhatian
               </Badge>
             )}
@@ -321,30 +321,27 @@ export default function LaporanProdiPage() {
         action={
           <Button
             variant="outline"
-            size="sm"
+            icon={<Filter size={16} />}
             onClick={() => setShowFilter(true)}
-            className="flex items-center gap-1.5"
+            className="font-bold"
           >
-            <Filter size={16} />
             Filter
           </Button>
         }
       />
 
-      <div className="card overflow-hidden bg-white shadow-sm border border-slate-200 rounded-xl">
-        <DataTable
-          columns={columns}
-          data={prodiList}
-          isLoading={loading}
-          meta={meta}
-          onPageChange={(p: number) => setPage(p)}
-          onLimitChange={(l: number) => {
-            setLimit(l);
-            setPage(1);
-          }}
-          emptyMessage="Belum ada data Program Studi yang terdaftar"
-        />
-      </div>
+      <DataTable
+        columns={columns}
+        data={prodiList}
+        isLoading={loading}
+        meta={meta}
+        onPageChange={(p: number) => setPage(p)}
+        onLimitChange={(l: number) => {
+          setLimit(l);
+          setPage(1);
+        }}
+        emptyMessage="Belum ada data Program Studi yang terdaftar"
+      />
 
       {/* Filter Drawer */}
       <Drawer

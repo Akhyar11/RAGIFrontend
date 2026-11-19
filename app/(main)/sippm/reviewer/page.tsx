@@ -253,8 +253,8 @@ export default function ReviewerPortalPage() {
       label: 'Judul Proposal Usulan',
       render: (row: ProposalKegiatan) => (
         <div className="space-y-0.5">
-          <div className="font-bold text-slate-900 line-clamp-1">{row.judul}</div>
-          <div className="text-xs text-indigo-700 font-medium">{row.rumpun_ilmu}</div>
+          <div className="font-bold text-slate-900 text-xs line-clamp-1">{row.judul}</div>
+          <div className="text-2xs text-indigo-700 font-medium">{row.rumpun_ilmu}</div>
         </div>
       ),
     },
@@ -291,7 +291,7 @@ export default function ReviewerPortalPage() {
       key: 'status',
       label: 'Status Tahap 1',
       render: () => (
-        <Badge variant="amber" className="font-bold text-[11px] inline-flex items-center gap-1">
+        <Badge variant="amber" className="font-bold text-2xs inline-flex items-center gap-1">
           <AlertTriangle size={12} /> Review Kaprodi
         </Badge>
       ),
@@ -332,8 +332,8 @@ export default function ReviewerPortalPage() {
       label: 'Judul Proposal Usulan',
       render: (row: ProposalKegiatan) => (
         <div className="space-y-0.5">
-          <div className="font-bold text-slate-900 line-clamp-1">{row.judul}</div>
-          <div className="text-xs text-purple-700 font-medium">{row.rumpun_ilmu}</div>
+          <div className="font-bold text-slate-900 text-xs line-clamp-1">{row.judul}</div>
+          <div className="text-2xs text-purple-700 font-medium">{row.rumpun_ilmu}</div>
         </div>
       ),
     },
@@ -365,7 +365,7 @@ export default function ReviewerPortalPage() {
       key: 'status',
       label: 'Verifikasi Tahap 1',
       render: () => (
-        <Badge variant="green" className="font-bold text-[11px] inline-flex items-center gap-1">
+        <Badge variant="green" className="font-bold text-2xs inline-flex items-center gap-1">
           <CheckCircle2 size={12} /> Disetujui Kaprodi (&gt; 80)
         </Badge>
       ),
@@ -406,8 +406,8 @@ export default function ReviewerPortalPage() {
       label: 'Judul Proposal Usulan',
       render: (row: ProposalKegiatan) => (
         <div className="space-y-0.5">
-          <div className="font-bold text-slate-900 line-clamp-1">{row.judul}</div>
-          <div className="text-xs text-emerald-700 font-medium">{row.rumpun_ilmu}</div>
+          <div className="font-bold text-slate-900 text-xs line-clamp-1">{row.judul}</div>
+          <div className="text-2xs text-emerald-700 font-medium">{row.rumpun_ilmu}</div>
         </div>
       ),
     },
@@ -439,7 +439,7 @@ export default function ReviewerPortalPage() {
       key: 'status',
       label: 'Status Reviewer',
       render: () => (
-        <Badge variant="green" className="font-bold text-[11px] inline-flex items-center gap-1">
+        <Badge variant="green" className="font-bold text-2xs inline-flex items-center gap-1">
           <CheckCircle2 size={12} /> Dual Reviewer Lolos (2/2)
         </Badge>
       ),
@@ -493,26 +493,30 @@ export default function ReviewerPortalPage() {
               onClick={() => setShowFilter(true)}
               className="font-bold"
             >
-              Filter &amp; Urutkan
+              Filter
             </Button>
           </div>
         }
       />
 
       {/* 3 STAGE TABS (Tahap 1, Tahap 2, Tahap 3) */}
-      <div className="flex items-center border-b border-slate-200 gap-2 overflow-x-auto">
+      <div className="flex border-b border-slate-200 dark:border-slate-800 gap-1 overflow-x-auto">
         <button
           onClick={() => {
             setActiveTab('tahap1');
             setPage(1);
           }}
-          className={`px-4 py-3 text-sm font-extrabold flex items-center gap-2 border-b-2 transition-all shrink-0 ${
+          className={`flex items-center gap-2 px-4 py-2.5 text-xs font-semibold rounded-t-lg transition-all border-b-2 cursor-pointer whitespace-nowrap ${
             activeTab === 'tahap1'
-              ? 'border-indigo-600 text-indigo-700 bg-indigo-50/50 rounded-t-lg'
-              : 'border-transparent text-slate-500 hover:text-slate-800'
+              ? 'border-[var(--module-primary)] text-[var(--module-primary)] bg-[var(--module-primary-subtle)]'
+              : 'border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800'
           }`}
         >
-          <Building2 size={16} /> Tahap 1: Review Kaprodi ({tahap1List.length})
+          <Building2 size={16} />
+          <span>Tahap 1: Review Kaprodi</span>
+          <Badge variant={activeTab === 'tahap1' ? 'blue' : 'gray'} className="text-2xs">
+            {tahap1List.length}
+          </Badge>
         </button>
 
         <button
@@ -520,13 +524,17 @@ export default function ReviewerPortalPage() {
             setActiveTab('tahap2');
             setPage(1);
           }}
-          className={`px-4 py-3 text-sm font-extrabold flex items-center gap-2 border-b-2 transition-all shrink-0 ${
+          className={`flex items-center gap-2 px-4 py-2.5 text-xs font-semibold rounded-t-lg transition-all border-b-2 cursor-pointer whitespace-nowrap ${
             activeTab === 'tahap2'
-              ? 'border-purple-600 text-purple-700 bg-purple-50/50 rounded-t-lg'
-              : 'border-transparent text-slate-500 hover:text-slate-800'
+              ? 'border-[var(--module-primary)] text-[var(--module-primary)] bg-[var(--module-primary-subtle)]'
+              : 'border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800'
           }`}
         >
-          <ShieldCheck size={16} /> Tahap 2: Review Admin SIPPM ({tahap2List.length})
+          <ShieldCheck size={16} />
+          <span>Tahap 2: Review Admin SIPPM</span>
+          <Badge variant={activeTab === 'tahap2' ? 'blue' : 'gray'} className="text-2xs">
+            {tahap2List.length}
+          </Badge>
         </button>
 
         <button
@@ -534,13 +542,17 @@ export default function ReviewerPortalPage() {
             setActiveTab('tahap3');
             setPage(1);
           }}
-          className={`px-4 py-3 text-sm font-extrabold flex items-center gap-2 border-b-2 transition-all shrink-0 ${
+          className={`flex items-center gap-2 px-4 py-2.5 text-xs font-semibold rounded-t-lg transition-all border-b-2 cursor-pointer whitespace-nowrap ${
             activeTab === 'tahap3'
-              ? 'border-emerald-600 text-emerald-700 bg-emerald-50/50 rounded-t-lg'
-              : 'border-transparent text-slate-500 hover:text-slate-800'
+              ? 'border-[var(--module-primary)] text-[var(--module-primary)] bg-[var(--module-primary-subtle)]'
+              : 'border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800'
           }`}
         >
-          <CheckCircle2 size={16} /> Tahap 3: Proposal Lolos Dual Reviewer ({tahap3List.length})
+          <CheckCircle2 size={16} />
+          <span>Tahap 3: Proposal Lolos Dual Reviewer</span>
+          <Badge variant={activeTab === 'tahap3' ? 'blue' : 'gray'} className="text-2xs">
+            {tahap3List.length}
+          </Badge>
         </button>
       </div>
 
@@ -715,11 +727,11 @@ export default function ReviewerPortalPage() {
                         <div>
                           <div className="font-bold text-slate-900 text-xs flex items-center gap-2">
                             {rub.nama_indikator}
-                            <Badge variant="gray" className="text-[10px] font-mono">
+                            <Badge variant="gray" className="text-2xs font-mono">
                               Bobot: {rub.bobot}%
                             </Badge>
                           </div>
-                          {rub.deskripsi && <div className="text-[11px] text-slate-500 mt-0.5">{rub.deskripsi}</div>}
+                          {rub.deskripsi && <div className="text-2xs text-slate-500 mt-0.5">{rub.deskripsi}</div>}
                         </div>
                         <div className="w-32 shrink-0">
                           <Input

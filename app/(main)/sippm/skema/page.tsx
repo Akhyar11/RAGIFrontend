@@ -200,7 +200,7 @@ export default function MasterSkemaPage() {
     {
       key: 'nama_skema',
       label: 'Nama Skema',
-      render: (row) => <span className="font-bold">{row.nama || row.nama_skema || '-'}</span>,
+      render: (row) => <span className="font-bold text-xs">{row.nama || row.nama_skema || '-'}</span>,
     },
     {
       key: 'jenis_kegiatan',
@@ -219,14 +219,14 @@ export default function MasterSkemaPage() {
       label: 'Kategori',
       render: (row) => {
         const kat = row.sumber_dana || row.kategori_skema || 'internal';
-        return <span className="capitalize font-medium opacity-80">{kat.replace(/_/g, ' ')}</span>;
+        return <span className="capitalize font-medium opacity-80 text-xs">{kat.replace(/_/g, ' ')}</span>;
       },
     },
     {
       key: 'maksimal_dana',
       label: 'Maksimal Dana',
       render: (row) => (
-        <span className="font-bold">{formatRupiah(Number(row.maksimal_anggaran || row.maksimal_dana || 0))}</span>
+        <span className="font-bold text-xs">{formatRupiah(Number(row.maksimal_anggaran || row.maksimal_dana || 0))}</span>
       ),
     },
     {

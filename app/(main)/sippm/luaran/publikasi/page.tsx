@@ -189,8 +189,8 @@ export default function PublikasiRegistryPage() {
         const namaJurnal = item.nama_jurnal_prosiding || item.nama_jurnal || 'Jurnal / Prosiding Kampus';
         return (
           <div className="space-y-0.5">
-            <div className="font-bold text-slate-900 line-clamp-1">{item.judul_artikel}</div>
-            <div className="text-xs text-purple-700 font-medium">{namaJurnal}</div>
+            <div className="font-bold text-slate-900 text-xs line-clamp-1">{item.judul_artikel}</div>
+            <div className="text-2xs text-purple-700 font-medium">{namaJurnal}</div>
           </div>
         );
       },
@@ -201,7 +201,7 @@ export default function PublikasiRegistryPage() {
       render: (item: PublikasiIlmiah) => {
         const indexingBadge = (item.indexing || item.jenis_publikasi || item.kategori_publikasi || 'scopus').replace(/_/g, ' ');
         return (
-          <Badge variant="purple" className="font-mono uppercase text-[10px]">
+          <Badge variant="purple" className="font-mono uppercase text-2xs">
             {indexingBadge}
           </Badge>
         );
@@ -247,20 +247,20 @@ export default function PublikasiRegistryPage() {
 
         if (isVerified) {
           return (
-            <Badge variant="green" className="font-bold text-[11px] inline-flex items-center gap-1">
+            <Badge variant="green" className="font-bold text-2xs inline-flex items-center gap-1">
               <CheckCircle2 size={12} /> Terverifikasi LPPM
             </Badge>
           );
         }
         if (isRejected) {
           return (
-            <Badge variant="rose" className="font-bold text-[11px] inline-flex items-center gap-1">
+            <Badge variant="rose" className="font-bold text-2xs inline-flex items-center gap-1">
               <XCircle size={12} /> Ditolak
             </Badge>
           );
         }
         return (
-          <Badge variant="amber" className="font-bold text-[11px]">
+          <Badge variant="amber" className="font-bold text-2xs">
             Menunggu Verifikasi
           </Badge>
         );
@@ -328,7 +328,7 @@ export default function PublikasiRegistryPage() {
               onClick={() => setShowFilter(true)}
               className="font-bold"
             >
-              Filter &amp; Urutkan
+              Filter
             </Button>
             <Button
               variant="primary"

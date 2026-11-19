@@ -13,6 +13,7 @@ import {
   FlaskConical,
   AlertCircle,
   ShieldAlert,
+  ArrowLeft,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { PageHeader } from '@/components/layout/PageHeader';
@@ -141,7 +142,7 @@ export default function LogbookKegiatanPage({ params }: { params: Promise<{ id: 
           title="Logbook Activities & Monev Riset"
           description="Catatan kemajuan pelaksanaan riset harian/mingguan dan verifikasi monev"
           action={
-            <Button variant="outline" size="sm" onClick={() => router.back()}>
+            <Button variant="outline" size="sm" icon={<ArrowLeft size={16} />} onClick={() => router.back()}>
               Kembali
             </Button>
           }
@@ -164,7 +165,7 @@ export default function LogbookKegiatanPage({ params }: { params: Promise<{ id: 
           title="Logbook Activities & Monev Riset"
           description="Memuat logbook kegiatan riset..."
           action={
-            <Button variant="outline" size="sm" onClick={() => router.back()}>
+            <Button variant="outline" size="sm" icon={<ArrowLeft size={16} />} onClick={() => router.back()}>
               Kembali
             </Button>
           }
@@ -183,7 +184,7 @@ export default function LogbookKegiatanPage({ params }: { params: Promise<{ id: 
         description="Catatan kemajuan pelaksanaan riset harian/mingguan dan verifikasi monev."
         action={
           <div className="flex gap-2 items-center">
-            <Button variant="outline" size="sm" onClick={() => router.back()}>
+            <Button variant="outline" size="sm" icon={<ArrowLeft size={16} />} onClick={() => router.back()}>
               Kembali
             </Button>
             <Button
@@ -221,7 +222,7 @@ export default function LogbookKegiatanPage({ params }: { params: Promise<{ id: 
               <div className="w-full h-3 rounded-full bg-slate-200 overflow-hidden border border-slate-300">
                 <div className="h-full bg-slate-700 rounded-full transition-all duration-300" style={{ width: `${maxProgress}%` }}></div>
               </div>
-              <div className="text-[11px] text-slate-500 text-center font-medium pt-0.5">
+              <div className="text-2xs text-slate-500 text-center font-medium pt-0.5">
                 {maxProgress >= 70 ? '✅ Syarat Monev & Pencairan 30% Terpenuhi' : '⏳ Capai min 70% untuk Termin 2'}
               </div>
             </div>

@@ -27,6 +27,14 @@
   --color-sippm-700: var(--sippm-700);
   --color-sippm-800: var(--sippm-800);
   --color-sippm-900: var(--sippm-900);
+
+  --text-2xs: 0.625rem;
+  --text-2xs--line-height: 0.875rem;
+}
+
+.text-2xs {
+  font-size: 0.625rem !important;
+  line-height: 0.875rem !important;
 }
 
 /* ============================================================

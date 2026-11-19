@@ -199,8 +199,8 @@ export default function PencairanPage() {
       label: 'Proposal & Ketua Dosen',
       render: (row: KontrakKegiatan) => (
         <div className="space-y-0.5">
-          <div className="font-bold text-slate-900 line-clamp-1">{row.proposal?.judul || 'Proposal Usulan'}</div>
-          <div className="text-xs text-slate-500">
+          <div className="font-bold text-slate-900 text-xs line-clamp-1">{row.proposal?.judul || 'Proposal Usulan'}</div>
+          <div className="text-2xs text-slate-500">
             Ketua: {row.proposal?.ketua?.nama_lengkap || (row.proposal as any)?.ketua_pegawai?.nama_lengkap || '-'}
           </div>
         </div>
@@ -222,7 +222,7 @@ export default function PencairanPage() {
         return (
           <div className="space-y-1">
             <div className="text-xs font-bold text-slate-800">{formatRupiah(totalDana * 0.7)}</div>
-            <Badge variant="green" className="text-[10px] font-bold">
+            <Badge variant="green" className="text-2xs font-bold">
               Ready to Disburse (70%)
             </Badge>
           </div>
@@ -237,7 +237,7 @@ export default function PencairanPage() {
         return (
           <div className="space-y-1">
             <div className="text-xs font-bold text-slate-800">{formatRupiah(totalDana * 0.3)}</div>
-            <Badge variant="gray" className="text-[10px] font-bold">
+            <Badge variant="gray" className="text-2xs font-bold">
               Menunggu LPJ 70%
             </Badge>
           </div>
@@ -306,7 +306,7 @@ export default function PencairanPage() {
               onClick={() => setShowFilter(true)}
               className="font-bold"
             >
-              Filter &amp; Urutkan
+              Filter
             </Button>
             <Button
               variant="primary"
@@ -416,7 +416,7 @@ export default function PencairanPage() {
                 <h4 className="font-bold text-sm tracking-wide text-primary-800 uppercase font-sans">
                   LEMBAGA PENELITIAN DAN PENGABDIAN KEPADA MASYARAKAT (LPPM)
                 </h4>
-                <p className="text-[11px] font-sans text-slate-600">
+                <p className="text-2xs font-sans text-slate-600">
                   Jl. Kampus Terpadu No. 1, Gedung Rektorat Lantai 3 • Telp: (021) 789-0123 • Email: lppm@campus.ac.id
                 </p>
               </div>
@@ -505,13 +505,13 @@ export default function PencairanPage() {
                 <div className="space-y-12">
                   <div>
                     <div>PIHAK KEDUA (Ketua Pengusul)</div>
-                    <div className="text-[11px] text-slate-500">Dosen Pengampu / Peneliti Utama</div>
+                    <div className="text-2xs text-slate-500">Dosen Pengampu / Peneliti Utama</div>
                   </div>
                   <div className="space-y-1">
                     <div className="font-bold underline">
                       {selectedSpkKontrak.proposal?.ketua?.nama_lengkap || (selectedSpkKontrak.proposal as any)?.ketua_pegawai?.nama_lengkap || 'Dosen Pengusul'}
                     </div>
-                    <div className="text-[11px] text-slate-500">
+                    <div className="text-2xs text-slate-500">
                       NIP: {selectedSpkKontrak.proposal?.ketua?.nip || (selectedSpkKontrak.proposal as any)?.ketua_pegawai?.nip || '-'}
                     </div>
                   </div>
@@ -520,19 +520,19 @@ export default function PencairanPage() {
                 <div className="space-y-12">
                   <div>
                     <div>PIHAK PERTAMA (LPPM)</div>
-                    <div className="text-[11px] text-slate-500">Kepala LPPM SSO Campus</div>
+                    <div className="text-2xs text-slate-500">Kepala LPPM SSO Campus</div>
                   </div>
                   <div className="space-y-1">
                     <div className="font-bold underline flex items-center justify-center gap-1 text-primary-800">
                       <ShieldCheck size={16} className="text-primary-600" /> Dr. Ir. Superadmin, M.T.
                     </div>
-                    <div className="text-[11px] text-slate-500">NIP: 197805122003121002</div>
+                    <div className="text-2xs text-slate-500">NIP: 197805122003121002</div>
                   </div>
                 </div>
               </div>
 
               {/* Footer Digital Stamp */}
-              <div className="pt-4 border-t border-slate-100 flex items-center justify-between text-[10px] font-sans text-slate-400">
+              <div className="pt-4 border-t border-slate-100 flex items-center justify-between text-2xs font-sans text-slate-400">
                 <span>Dokumen Sah &amp; Diterbitkan Secara Elektronik oleh SIPPM Integrated System</span>
                 <span className="font-mono">VERIFIED SPK DIGITAL CODE: #{selectedSpkKontrak.id}-2026-OK</span>
               </div>

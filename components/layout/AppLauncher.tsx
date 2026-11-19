@@ -37,7 +37,7 @@ const MODULE_META: Record<string, { subpath: string; icon: LucideIcon }> = {
     icon: Users,
   },
   sippm: {
-    subpath: '/proposal',
+    subpath: '',
     icon: FlaskConical,
   },
   sikeu: {

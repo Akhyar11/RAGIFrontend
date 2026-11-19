@@ -86,7 +86,7 @@ export default function ProposalDetailPage({ params }: { params: Promise<{ id: s
           title="Rincian Proposal Usulan SIPPM"
           description="Detail lengkap usulan hibah penelitian dan pengabdian masyarakat"
           action={
-            <Button variant="outline" size="sm" onClick={() => router.back()}>
+            <Button variant="outline" size="sm" icon={<ArrowLeft size={16} />} onClick={() => router.back()}>
               Kembali
             </Button>
           }
@@ -109,7 +109,7 @@ export default function ProposalDetailPage({ params }: { params: Promise<{ id: s
           title="Rincian Proposal Usulan SIPPM"
           description="Memuat detail proposal usulan..."
           action={
-            <Button variant="outline" size="sm" onClick={() => router.back()}>
+            <Button variant="outline" size="sm" icon={<ArrowLeft size={16} />} onClick={() => router.back()}>
               Kembali
             </Button>
           }
@@ -128,14 +128,14 @@ export default function ProposalDetailPage({ params }: { params: Promise<{ id: s
           title="Rincian Proposal Usulan SIPPM"
           description="Data proposal tidak ditemukan"
           action={
-            <Button variant="outline" size="sm" onClick={() => router.back()}>
+            <Button variant="outline" size="sm" icon={<ArrowLeft size={16} />} onClick={() => router.back()}>
               Kembali
             </Button>
           }
         />
         <div className="card p-12 text-center space-y-4">
           <div className="text-slate-500 font-medium">Data proposal tidak ditemukan.</div>
-          <Button variant="outline" size="sm" onClick={() => router.back()}>
+          <Button variant="outline" size="sm" icon={<ArrowLeft size={16} />} onClick={() => router.back()}>
             Kembali ke Daftar
           </Button>
         </div>
@@ -150,7 +150,7 @@ export default function ProposalDetailPage({ params }: { params: Promise<{ id: s
         description={`ID Proposal: #${proposal.id} • Rumpun Ilmu: ${proposal.rumpun_ilmu}`}
         action={
           <div className="flex gap-2 items-center">
-            <Button variant="outline" size="sm" onClick={() => router.back()}>
+            <Button variant="outline" size="sm" icon={<ArrowLeft size={16} />} onClick={() => router.back()}>
               Kembali
             </Button>
             {proposal.status === 'draft' && canEdit && (

@@ -84,7 +84,7 @@ export default function EditProposalPage({ params }: { params: Promise<{ id: str
           title="Edit Proposal Usulan"
           description="Perbarui rincian usulan proposal riset atau pengabdian masyarakat"
           action={
-            <Button variant="outline" size="sm" onClick={() => router.back()}>
+            <Button variant="outline" size="sm" icon={<ArrowLeft size={16} />} onClick={() => router.back()}>
               Kembali
             </Button>
           }
@@ -107,7 +107,7 @@ export default function EditProposalPage({ params }: { params: Promise<{ id: str
           title="Edit Proposal Usulan"
           description="Memuat data proposal..."
           action={
-            <Button variant="outline" size="sm" onClick={() => router.back()}>
+            <Button variant="outline" size="sm" icon={<ArrowLeft size={16} />} onClick={() => router.back()}>
               Kembali
             </Button>
           }
@@ -125,7 +125,7 @@ export default function EditProposalPage({ params }: { params: Promise<{ id: str
         title="Edit Proposal Usulan"
         description="Perbarui rincian usulan proposal riset atau pengabdian masyarakat."
         action={
-          <Button variant="outline" size="sm" onClick={() => router.back()}>
+          <Button variant="outline" size="sm" icon={<ArrowLeft size={16} />} onClick={() => router.back()}>
             Kembali
           </Button>
         }

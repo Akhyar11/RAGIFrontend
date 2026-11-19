@@ -318,7 +318,7 @@ export default function KontrakPage() {
       key: 'judul_proposal',
       label: 'Judul Proposal Usulan',
       render: (row: CombinedKontrakRow) => (
-        <div className="font-bold text-slate-900 line-clamp-1">{row.judul_proposal}</div>
+        <div className="font-bold text-slate-900 text-xs line-clamp-1">{row.judul_proposal}</div>
       ),
     },
     {
@@ -354,11 +354,11 @@ export default function KontrakPage() {
       label: 'Status Kontrak',
       render: (row: CombinedKontrakRow) =>
         row.type === 'pending' ? (
-          <Badge variant="amber" className="font-bold text-[11px]">
+          <Badge variant="amber" className="font-bold text-2xs">
             Belum Terbit SPK
           </Badge>
         ) : (
-          <Badge variant="green" className="font-bold text-[11px] inline-flex items-center gap-1">
+          <Badge variant="green" className="font-bold text-2xs inline-flex items-center gap-1">
             <CheckCircle2 size={12} /> {row.status_kontrak}
           </Badge>
         ),
@@ -411,7 +411,7 @@ export default function KontrakPage() {
               onClick={() => setShowFilter(true)}
               className="font-bold"
             >
-              Filter &amp; Urutkan
+              Filter
             </Button>
             <Button
               variant="primary"

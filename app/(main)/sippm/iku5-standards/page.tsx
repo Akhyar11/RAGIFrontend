@@ -237,7 +237,7 @@ export default function Iku5StandardsPage() {
       render: (item: Iku5StandardProdi) => (
         <div className="space-y-0.5">
           <div className="font-extrabold text-slate-900 text-xs">{item.nama_prodi}</div>
-          <div className="text-[11px] text-slate-500 font-medium">{item.fakultas}</div>
+          <div className="text-2xs text-slate-500 font-medium">{item.fakultas}</div>
         </div>
       ),
     },
@@ -245,7 +245,7 @@ export default function Iku5StandardsPage() {
       key: 'target_scopus',
       label: 'Target Scopus',
       render: (item: Iku5StandardProdi) => (
-        <Badge variant="purple" className="font-mono text-[10px] inline-flex items-center gap-1">
+        <Badge variant="purple" className="font-mono text-2xs inline-flex items-center gap-1">
           <Globe size={11} /> {item.target_scopus} Artikel
         </Badge>
       ),
@@ -254,7 +254,7 @@ export default function Iku5StandardsPage() {
       key: 'target_sinta',
       label: 'Target Sinta',
       render: (item: Iku5StandardProdi) => (
-        <Badge variant="blue" className="font-mono text-[10px] inline-flex items-center gap-1">
+        <Badge variant="blue" className="font-mono text-2xs inline-flex items-center gap-1">
           <BookOpen size={11} /> {item.target_sinta} Artikel
         </Badge>
       ),
@@ -263,7 +263,7 @@ export default function Iku5StandardsPage() {
       key: 'target_dikti',
       label: 'Target Dikti',
       render: (item: Iku5StandardProdi) => (
-        <Badge variant="green" className="font-mono text-[10px] inline-flex items-center gap-1">
+        <Badge variant="green" className="font-mono text-2xs inline-flex items-center gap-1">
           <Award size={11} /> {item.target_dikti} Hibah
         </Badge>
       ),
@@ -272,7 +272,7 @@ export default function Iku5StandardsPage() {
       key: 'target_internal',
       label: 'Target Internal',
       render: (item: Iku5StandardProdi) => (
-        <Badge variant="amber" className="font-mono text-[10px] inline-flex items-center gap-1">
+        <Badge variant="amber" className="font-mono text-2xs inline-flex items-center gap-1">
           <Layers size={11} /> {item.target_internal} Hibah
         </Badge>
       ),
@@ -281,7 +281,7 @@ export default function Iku5StandardsPage() {
       key: 'target_hki',
       label: 'Target HKI',
       render: (item: Iku5StandardProdi) => (
-        <Badge variant="purple" className="font-mono text-[10px] inline-flex items-center gap-1">
+        <Badge variant="purple" className="font-mono text-2xs inline-flex items-center gap-1">
           <FileCheck size={11} /> {item.target_hki} HKI
         </Badge>
       ),
@@ -290,7 +290,7 @@ export default function Iku5StandardsPage() {
       key: 'min_capaian_iku',
       label: 'Min Capaian',
       render: (item: Iku5StandardProdi) => (
-        <Badge variant="gray" className="font-mono text-[10px] font-bold">
+        <Badge variant="gray" className="font-mono text-2xs font-bold">
           {item.min_capaian_iku}%
         </Badge>
       ),
@@ -333,7 +333,7 @@ export default function Iku5StandardsPage() {
             onClick={() => setShowFilter(true)}
             className="font-bold"
           >
-            Filter &amp; Urutkan
+            Filter
           </Button>
         }
       />
@@ -346,7 +346,7 @@ export default function Iku5StandardsPage() {
             <Building2 size={24} className="text-purple-600" />
             {prodiStandards.length} Program Studi
           </div>
-          <div className="text-[11px] text-slate-400 mt-1">Data master dari SIMPEG Backend</div>
+          <div className="text-2xs text-slate-400 mt-1">Data master dari SIMPEG Backend</div>
         </div>
 
         <div className="card p-5 border-l-4 border-l-primary-600 bg-white shadow-xs">
@@ -355,7 +355,7 @@ export default function Iku5StandardsPage() {
             <Globe size={24} className="text-primary-600" />
             {Math.round(prodiStandards.reduce((sum, p) => sum + p.target_scopus, 0) / (prodiStandards.length || 1))} Artikel / Prodi
           </div>
-          <div className="text-[11px] text-slate-400 mt-1">Standardisasi Jurnal Q1 - Q4</div>
+          <div className="text-2xs text-slate-400 mt-1">Standardisasi Jurnal Q1 - Q4</div>
         </div>
 
         <div className="card p-5 border-l-4 border-l-blue-600 bg-white shadow-xs">
@@ -364,7 +364,7 @@ export default function Iku5StandardsPage() {
             <Award size={24} className="text-blue-600" />
             {Math.round(prodiStandards.reduce((sum, p) => sum + p.target_dikti + p.target_internal, 0) / (prodiStandards.length || 1))} Proposal / Prodi
           </div>
-          <div className="text-[11px] text-slate-400 mt-1">Hibah DIKTI &amp; Riset Internal</div>
+          <div className="text-2xs text-slate-400 mt-1">Hibah DIKTI &amp; Riset Internal</div>
         </div>
 
         <div className="card p-5 border-l-4 border-l-amber-600 bg-white shadow-xs">
@@ -373,7 +373,7 @@ export default function Iku5StandardsPage() {
             <ShieldCheck size={24} className="text-amber-600" />
             TA 2025/2026
           </div>
-          <div className="text-[11px] text-slate-400 mt-1">Penjaminan Mutu UPM Kampus</div>
+          <div className="text-2xs text-slate-400 mt-1">Penjaminan Mutu UPM Kampus</div>
         </div>
       </div>
 

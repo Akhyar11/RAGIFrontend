@@ -15,6 +15,7 @@ import {
   BookOpen,
   Plus,
   ShieldAlert,
+  ArrowLeft,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { PageHeader } from '@/components/layout/PageHeader';
@@ -254,7 +255,7 @@ export default function CreateProposalPage() {
           title="Form Pengajuan Proposal Usulan SIPPM"
           description="Buat dan ajukan proposal usulan hibah riset & PkM"
           action={
-            <Button variant="outline" size="sm" onClick={() => router.back()}>
+            <Button variant="outline" size="sm" icon={<ArrowLeft size={16} />} onClick={() => router.back()}>
               Kembali
             </Button>
           }
@@ -277,7 +278,7 @@ export default function CreateProposalPage() {
         description="Lengkapi data usulan hibah, Jenis Tim (Tendik/Dosen Eksternal), serta Konversi Nilai Multi-Mata Kuliah SIAKAD."
         action={
           <div className="flex gap-2 items-center">
-            <Button variant="outline" size="sm" onClick={() => router.back()}>
+            <Button variant="outline" size="sm" icon={<ArrowLeft size={16} />} onClick={() => router.back()}>
               Kembali
             </Button>
             <Badge variant="blue">Integrasi SIAKAD & SIMPEG</Badge>

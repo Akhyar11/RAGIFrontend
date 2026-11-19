@@ -200,7 +200,7 @@ export default function MasterPeriodePage() {
     {
       key: 'nama_periode',
       label: 'Nama Periode',
-      render: (row) => <span className="font-bold">{row.nama_periode}</span>,
+      render: (row) => <span className="font-bold text-xs">{row.nama_periode}</span>,
     },
     {
       key: 'tgl_buka',
@@ -215,7 +215,7 @@ export default function MasterPeriodePage() {
     {
       key: 'total_anggaran',
       label: 'Total Anggaran',
-      render: (row) => <span className="font-bold">{formatRupiah(row.total_anggaran)}</span>,
+      render: (row) => <span className="font-bold text-xs">{formatRupiah(row.total_anggaran)}</span>,
     },
     {
       key: 'is_active',

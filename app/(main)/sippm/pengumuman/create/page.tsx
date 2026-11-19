@@ -119,7 +119,7 @@ export default function CreatePengumumanPage() {
           description="Formulir Penerbitan Dokumen Surat Resmi Pengumuman Proposal Hibah"
           action={
             <Button
-              variant="warning"
+              variant="outline"
               onClick={() => router.back()}
               icon={<ArrowLeft size={16} />}
             >
@@ -145,7 +145,7 @@ export default function CreatePengumumanPage() {
         description="Formulir Penerbitan Dokumen Surat Resmi Pengumuman Proposal Hibah"
         action={
           <Button
-            variant="warning"
+            variant="outline"
             onClick={() => router.back()}
             icon={<ArrowLeft size={16} />}
           >
@@ -286,7 +286,7 @@ export default function CreatePengumumanPage() {
 
           <div className="overflow-x-auto border rounded-xl">
             <table className="w-full text-left text-xs border-collapse">
-              <thead className="bg-slate-100 text-slate-700 font-semibold uppercase text-[11px]">
+              <thead className="bg-slate-100 text-slate-700 font-semibold uppercase text-2xs">
                 <tr>
                   <th className="p-3 w-12 text-center border-b">No</th>
                   <th className="p-3 w-72 border-b">Waktu Agenda</th>

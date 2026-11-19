@@ -187,9 +187,9 @@ export default function HkiRegistryPage() {
         const judulHki = item.judul_hki || (item as any).judul || 'HKI / Karya Terdaftar';
         return (
           <div className="space-y-0.5">
-            <div className="font-bold text-slate-900 line-clamp-1">{judulHki}</div>
+            <div className="font-bold text-slate-900 text-xs line-clamp-1">{judulHki}</div>
             {item.penerbit_lembaga && (
-              <div className="text-xs text-purple-700 font-medium">{item.penerbit_lembaga}</div>
+              <div className="text-2xs text-purple-700 font-medium">{item.penerbit_lembaga}</div>
             )}
           </div>
         );
@@ -201,7 +201,7 @@ export default function HkiRegistryPage() {
       render: (item: HkiDanBuku) => {
         const kategoriHki = (item.jenis_luaran || item.kategori_hki || 'hak_cipta').replace(/_/g, ' ');
         return (
-          <Badge variant="purple" className="font-mono uppercase text-[10px]">
+          <Badge variant="purple" className="font-mono uppercase text-2xs">
             {kategoriHki}
           </Badge>
         );
@@ -233,20 +233,20 @@ export default function HkiRegistryPage() {
 
         if (isVerified) {
           return (
-            <Badge variant="green" className="font-bold text-[11px] inline-flex items-center gap-1">
+            <Badge variant="green" className="font-bold text-2xs inline-flex items-center gap-1">
               <CheckCircle2 size={12} /> Terverifikasi LPPM
             </Badge>
           );
         }
         if (isRejected) {
           return (
-            <Badge variant="rose" className="font-bold text-[11px] inline-flex items-center gap-1">
+            <Badge variant="rose" className="font-bold text-2xs inline-flex items-center gap-1">
               <XCircle size={12} /> Ditolak
             </Badge>
           );
         }
         return (
-          <Badge variant="amber" className="font-bold text-[11px]">
+          <Badge variant="amber" className="font-bold text-2xs">
             Menunggu Verifikasi
           </Badge>
         );
@@ -303,7 +303,7 @@ export default function HkiRegistryPage() {
               onClick={() => setShowFilter(true)}
               className="font-bold"
             >
-              Filter &amp; Urutkan
+              Filter
             </Button>
             <Button
               variant="primary"

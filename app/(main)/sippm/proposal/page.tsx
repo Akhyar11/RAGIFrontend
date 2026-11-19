@@ -154,8 +154,8 @@ export default function ProposalListPage() {
       label: 'Judul Proposal & Skema',
       render: (row) => (
         <div>
-          <div className="font-bold text-slate-900 line-clamp-1">{row.judul}</div>
-          <div className="flex items-center gap-2 text-xs text-slate-500 mt-1">
+          <div className="font-bold text-slate-900 text-xs line-clamp-1">{row.judul}</div>
+          <div className="flex items-center gap-2 text-2xs text-slate-500 mt-1">
             <span className="font-medium text-primary-700">{row.skema?.nama_skema || row.skema?.nama || 'Skema Riset'}</span>
             <span>•</span>
             <span className="capitalize">{row.rumpun_ilmu}</span>
@@ -172,7 +172,7 @@ export default function ProposalListPage() {
             <User size={14} className="text-slate-400" />
             {row.ketua?.nama_lengkap || 'Dosen Pengusul'}
           </div>
-          <div className="text-[11px] text-slate-400 font-mono mt-0.5">{row.ketua?.nip || 'NIP Verified'}</div>
+          <div className="text-2xs text-slate-400 font-mono mt-0.5">{row.ketua?.nip || 'NIP Verified'}</div>
         </div>
       ),
     },
@@ -180,7 +180,7 @@ export default function ProposalListPage() {
       key: 'anggaran_diajukan',
       label: 'Dana Diusulkan',
       render: (row) => (
-        <span className="font-bold text-primary-700 text-sm">
+        <span className="font-bold text-primary-700 text-xs">
           {formatRupiah(row.anggaran_diajukan ?? row.dana_diusulkan ?? 0)}
         </span>
       ),

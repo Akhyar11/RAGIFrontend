@@ -324,7 +324,7 @@ export default function LaporanProdiDetailPage({ params }: { params: Promise<{ i
       render: (pub) => (
         <div className="space-y-0.5">
           <div className="font-extrabold text-slate-900 text-xs">{pub.dosen}</div>
-          <div className="text-[11px] text-slate-400 font-mono">NIDN: {pub.nidn}</div>
+          <div className="text-2xs text-slate-400 font-mono">NIDN: {pub.nidn}</div>
         </div>
       ),
     },
@@ -334,7 +334,7 @@ export default function LaporanProdiDetailPage({ params }: { params: Promise<{ i
       render: (pub) => (
         <div className="space-y-0.5">
           <div className="font-bold text-slate-900 text-xs line-clamp-1">{pub.judul}</div>
-          <div className="text-[11px] text-primary-700 font-medium">{pub.jurnal}</div>
+          <div className="text-2xs text-primary-700 font-medium">{pub.jurnal}</div>
         </div>
       ),
     },
@@ -344,7 +344,7 @@ export default function LaporanProdiDetailPage({ params }: { params: Promise<{ i
       render: (pub) => (
         <Badge
           variant={pub.kategori.includes('Scopus') ? 'purple' : 'blue'}
-          className="font-bold text-[10px] font-mono"
+          className="font-bold text-2xs font-mono"
         >
           {pub.kategori}
         </Badge>
@@ -384,7 +384,7 @@ export default function LaporanProdiDetailPage({ params }: { params: Promise<{ i
       render: (hib) => (
         <div className="space-y-0.5">
           <div className="font-extrabold text-slate-900 text-xs">{hib.ketua}</div>
-          <div className="text-[11px] text-slate-500 font-medium">Ketua Pelaksana</div>
+          <div className="text-2xs text-slate-500 font-medium">Ketua Pelaksana</div>
         </div>
       ),
     },
@@ -399,7 +399,7 @@ export default function LaporanProdiDetailPage({ params }: { params: Promise<{ i
       render: (hib) => (
         <div className="space-y-0.5">
           <div className="text-xs font-bold text-slate-800">{hib.skema}</div>
-          <div className="text-[11px] text-primary-700 font-medium">{hib.sumber}</div>
+          <div className="text-2xs text-primary-700 font-medium">{hib.sumber}</div>
         </div>
       ),
     },
@@ -412,7 +412,7 @@ export default function LaporanProdiDetailPage({ params }: { params: Promise<{ i
       key: 'status',
       label: 'Status Hibah',
       render: (hib) => (
-        <Badge variant="green" className="font-bold text-[10px]">
+        <Badge variant="green" className="font-bold text-2xs">
           {hib.status}
         </Badge>
       ),
@@ -434,7 +434,7 @@ export default function LaporanProdiDetailPage({ params }: { params: Promise<{ i
       key: 'jenis',
       label: 'Jenis HKI',
       render: (hki) => (
-        <Badge variant="purple" className="font-bold text-[10px]">
+        <Badge variant="purple" className="font-bold text-2xs">
           {hki.jenis}
         </Badge>
       ),
@@ -511,7 +511,7 @@ export default function LaporanProdiDetailPage({ params }: { params: Promise<{ i
             <User size={18} className="text-primary-600" />
           </div>
           <div className="text-3xl font-black font-mono text-slate-900">{prodi.dosen_pengusul} Dosen</div>
-          <div className="text-[11px] text-primary-700 font-bold">Partisipasi Aktif LPPM</div>
+          <div className="text-2xs text-primary-700 font-bold">Partisipasi Aktif LPPM</div>
         </div>
 
         <div className="card p-5 bg-white border border-purple-200/80 shadow-xs space-y-1">
@@ -522,7 +522,7 @@ export default function LaporanProdiDetailPage({ params }: { params: Promise<{ i
           <div className="text-3xl font-black font-mono text-slate-900">
             {prodi.scopus + prodi.sinta} <span className="text-sm font-normal text-slate-500">Artikel</span>
           </div>
-          <div className="flex items-center gap-2 text-[11px] font-bold">
+          <div className="flex items-center gap-2 text-2xs font-bold">
             <span className="text-purple-700 font-mono">{prodi.scopus} Scopus</span>
             <span className="text-slate-300">•</span>
             <span className="text-blue-700 font-mono">{prodi.sinta} SINTA</span>
@@ -537,7 +537,7 @@ export default function LaporanProdiDetailPage({ params }: { params: Promise<{ i
           <div className="text-3xl font-black font-mono text-slate-900">
             {prodi.dikti + prodi.internal} <span className="text-sm font-normal text-slate-500">Proposal</span>
           </div>
-          <div className="flex items-center gap-2 text-[11px] font-bold">
+          <div className="flex items-center gap-2 text-2xs font-bold">
             <span className="text-emerald-700 font-mono">{prodi.dikti} DIKTI</span>
             <span className="text-slate-300">•</span>
             <span className="text-amber-700 font-mono">{prodi.internal} Internal</span>
@@ -550,51 +550,71 @@ export default function LaporanProdiDetailPage({ params }: { params: Promise<{ i
             <TrendingUp size={18} className="text-amber-600" />
           </div>
           <div className="text-2xl font-black font-mono text-slate-900">{formatRupiah(prodi.total_dana)}</div>
-          <div className="text-[11px] text-emerald-600 font-bold flex items-center gap-1">
+          <div className="text-2xs text-emerald-600 font-bold flex items-center gap-1">
             <CheckCircle2 size={13} /> Capaian IKU 5: {prodi.capaian_iku}%
           </div>
         </div>
       </div>
 
-      {/* NAVIGATION TAB CONTROLS */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-4 rounded-xl border border-slate-200/80">
-        <div className="flex items-center gap-2">
-          <Button
-            variant={activeTab === 'publikasi' ? 'primary' : 'outline'}
-            icon={<Globe size={15} />}
+      {/* NAVIGATION TAB CONTROLS (ROUNDED-TOP UNDERLINE STANDARD) */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 dark:border-slate-800 pb-0">
+        <div className="flex gap-1 overflow-x-auto">
+          <button
             onClick={() => setActiveTab('publikasi')}
-            className="font-bold text-xs"
+            className={`flex items-center gap-2 px-4 py-2.5 text-xs font-semibold rounded-t-lg transition-all border-b-2 cursor-pointer whitespace-nowrap ${
+              activeTab === 'publikasi'
+                ? 'border-[var(--module-primary)] text-[var(--module-primary)] bg-[var(--module-primary-subtle)]'
+                : 'border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800'
+            }`}
           >
-            Publikasi Jurnal ({publikasiList.length})
-          </Button>
+            <Globe size={15} />
+            <span>Publikasi Jurnal</span>
+            <Badge variant={activeTab === 'publikasi' ? 'blue' : 'gray'} className="text-2xs">
+              {publikasiList.length}
+            </Badge>
+          </button>
 
-          <Button
-            variant={activeTab === 'hibah' ? 'primary' : 'outline'}
-            icon={<Award size={15} />}
+          <button
             onClick={() => setActiveTab('hibah')}
-            className="font-bold text-xs"
+            className={`flex items-center gap-2 px-4 py-2.5 text-xs font-semibold rounded-t-lg transition-all border-b-2 cursor-pointer whitespace-nowrap ${
+              activeTab === 'hibah'
+                ? 'border-[var(--module-primary)] text-[var(--module-primary)] bg-[var(--module-primary-subtle)]'
+                : 'border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800'
+            }`}
           >
-            Hibah Riset ({hibahList.length})
-          </Button>
+            <Award size={15} />
+            <span>Hibah Riset</span>
+            <Badge variant={activeTab === 'hibah' ? 'blue' : 'gray'} className="text-2xs">
+              {hibahList.length}
+            </Badge>
+          </button>
 
-          <Button
-            variant={activeTab === 'hki' ? 'primary' : 'outline'}
-            icon={<FileCheck size={15} />}
+          <button
             onClick={() => setActiveTab('hki')}
-            className="font-bold text-xs"
+            className={`flex items-center gap-2 px-4 py-2.5 text-xs font-semibold rounded-t-lg transition-all border-b-2 cursor-pointer whitespace-nowrap ${
+              activeTab === 'hki'
+                ? 'border-[var(--module-primary)] text-[var(--module-primary)] bg-[var(--module-primary-subtle)]'
+                : 'border-transparent text-slate-500 hover:text-slate-700 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800'
+            }`}
           >
-            HKI &amp; Paten ({hkiList.length})
-          </Button>
+            <FileCheck size={15} />
+            <span>HKI &amp; Paten</span>
+            <Badge variant={activeTab === 'hki' ? 'blue' : 'gray'} className="text-2xs">
+              {hkiList.length}
+            </Badge>
+          </button>
         </div>
 
-        <Button
-          variant="outline"
-          icon={<Filter size={16} />}
-          onClick={() => setShowFilter(true)}
-          className="font-bold"
-        >
-          Filter &amp; Urutkan
-        </Button>
+        <div className="pb-2 sm:pb-1">
+          <Button
+            variant="outline"
+            icon={<Filter size={16} />}
+            onClick={() => setShowFilter(true)}
+            className="font-bold"
+          >
+            Filter
+          </Button>
+        </div>
       </div>
 
       {/* DATA TABLE DISPLAY */}
@@ -663,7 +683,7 @@ export default function LaporanProdiDetailPage({ params }: { params: Promise<{ i
         }
         actions={
           <div className="text-left md:text-right shrink-0 bg-primary-950/80 p-3.5 rounded-xl border border-primary-700/60">
-            <div className="text-[10px] text-primary-300 uppercase font-black tracking-wider">STATUS AKREDITASI PRODI</div>
+            <div className="text-2xs text-primary-300 uppercase font-black tracking-wider">STATUS AKREDITASI PRODI</div>
             <div className="text-xl font-black text-emerald-300 font-mono">UNGGUL (A)</div>
           </div>
         }

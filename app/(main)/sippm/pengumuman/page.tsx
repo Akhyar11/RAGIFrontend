@@ -174,16 +174,16 @@ export default function PengumumanHibahPage() {
       label: 'Nomor & Perihal Surat',
       render: (row) => (
         <div>
-          <div className="font-bold">{row.nomor_surat}</div>
-          <div className="text-xs opacity-80 mt-0.5">{row.hal_surat}</div>
-          <div className="text-[11px] opacity-60 mt-1">Surakarta, {formatDateString(row.tgl_surat)}</div>
+          <div className="font-bold text-xs">{row.nomor_surat}</div>
+          <div className="text-2xs opacity-80 mt-0.5">{row.hal_surat}</div>
+          <div className="text-2xs opacity-60 mt-1">Surakarta, {formatDateString(row.tgl_surat)}</div>
         </div>
       ),
     },
     {
       key: 'tahun_anggaran',
       label: 'Tahun Anggaran',
-      render: (row) => <span className="font-semibold">T.A. {row.tahun_anggaran}</span>,
+      render: (row) => <span className="font-semibold text-xs">T.A. {row.tahun_anggaran}</span>,
     },
     {
       key: 'periode',

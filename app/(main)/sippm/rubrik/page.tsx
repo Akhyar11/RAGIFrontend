@@ -211,9 +211,9 @@ export default function MasterRubrikPage() {
       label: 'Nama Indikator Penilaian',
       render: (row) => (
         <div>
-          <div className="font-bold">{row.nama_indikator}</div>
+          <div className="font-bold text-xs">{row.nama_indikator}</div>
           {row.deskripsi && (
-            <div className="text-xs opacity-70 mt-0.5 line-clamp-2">{row.deskripsi}</div>
+            <div className="text-2xs opacity-70 mt-0.5 line-clamp-2">{row.deskripsi}</div>
           )}
         </div>
       ),
@@ -223,7 +223,7 @@ export default function MasterRubrikPage() {
       label: 'Bobot (%)',
       align: 'center',
       render: (row) => (
-        <span className="font-extrabold px-2.5 py-1 rounded-lg border bg-slate-50 border-slate-200">
+        <span className="font-extrabold text-xs px-2.5 py-1 rounded-lg border bg-slate-50 border-slate-200">
           {Number(row.bobot)}%
         </span>
       ),

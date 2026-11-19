@@ -56,6 +56,7 @@ export function MainLayoutClient({
     const token = typeof document !== 'undefined' ? getCookie(tokenKey) : null;
 
     if (token) {
+      fetchAllModuleColors();
       authService
         .getMe()
         .then(async (res: any) => {
@@ -116,11 +117,7 @@ export function MainLayoutClient({
         setCheckingAccess(false);
       }
     }
-  }, [setUser, pathname, router]);
-
-  useEffect(() => {
-    fetchAllModuleColors();
-  }, [fetchAllModuleColors]);
+  }, [setUser, pathname, router, fetchAllModuleColors]);
 
   const activeModuleCode = pathname.split('/').filter(Boolean)[0]?.toLowerCase() || '';
   const activeModuleColor = module_colors?.[activeModuleCode] || null;

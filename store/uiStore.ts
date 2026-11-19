@@ -4,6 +4,20 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import api from '@/lib/axios';
 import { clampSidebarWidth, sidebarWidthDefaultPx } from '@/lib/sidebar';
+import { TOKEN_KEY } from '@/lib/constants';
+import { getCookie, getAuthTokenKey } from '@/lib/domain';
+
+const hasAuthToken = (): boolean => {
+  if (typeof window === 'undefined') return false;
+  try {
+    const tokenKey = getAuthTokenKey();
+    const cookieToken = getCookie(tokenKey);
+    const localToken = localStorage.getItem(TOKEN_KEY);
+    return Boolean(cookieToken || localToken);
+  } catch {
+    return false;
+  }
+};
 
 // ============================================================
 // UI STORE — Global UI state (sidebar, modal, theme, module colors)
@@ -80,6 +94,10 @@ export const useUiStore = create<UiStore>()(
           return;
         }
 
+        if (!hasAuthToken()) {
+          return;
+        }
+
         try {
           const res = await api.get('/admin/modules');
           const list = res.data?.data || res.data || [];
@@ -98,12 +116,18 @@ export const useUiStore = create<UiStore>()(
             module_colors: mapping,
             module_color: activeColor,
           });
-        } catch (error) {
-          console.error('Failed to fetch module color:', error);
+        } catch (error: any) {
+          if (error?.response?.status !== 401) {
+            console.error('Failed to fetch module color:', error);
+          }
         }
       },
 
       fetchAllModuleColors: async () => {
+        if (!hasAuthToken()) {
+          return get().module_colors;
+        }
+
         try {
           const res = await api.get('/admin/modules');
           const list = res.data?.data || res.data || [];
@@ -119,8 +143,10 @@ export const useUiStore = create<UiStore>()(
 
           set({ module_colors: mapping });
           return mapping;
-        } catch (error) {
-          console.error('Failed to fetch all module colors:', error);
+        } catch (error: any) {
+          if (error?.response?.status !== 401) {
+            console.error('Failed to fetch all module colors:', error);
+          }
           return get().module_colors;
         }
       },

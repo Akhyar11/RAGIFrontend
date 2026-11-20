@@ -1915,6 +1915,12 @@ body.sidebar-resizing {
   to { transform: rotate(360deg); }
 }
 
+@keyframes sync-progress {
+  0% { transform: translateX(-110%); }
+  50% { transform: translateX(100%); }
+  100% { transform: translateX(310%); }
+}
+
 @keyframes pulse {
   0%, 100% { opacity: 1; }
   50%       { opacity: 0.5; }

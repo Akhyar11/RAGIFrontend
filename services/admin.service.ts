@@ -194,9 +194,15 @@ export const adminService = {
   },
 
   syncApiIntegration: async (
-    id: number | string
-  ): Promise<ApiResponse<import('@/types/api-integration.types').ApiIntegrationSyncResult>> => {
-    const { data } = await apiClient.post<ApiResponse<import('@/types/api-integration.types').ApiIntegrationSyncResult>>(`/admin/api-integrations/${id}/sync`);
+    id: number | string,
+    payload?: { preview?: boolean }
+  ): Promise<ApiResponse<import('@/types/api-integration.types').ApiIntegrationSyncResult | { progress_id: string }>> => {
+    const { data } = await apiClient.post<ApiResponse<import('@/types/api-integration.types').ApiIntegrationSyncResult | { progress_id: string }>>(`/admin/api-integrations/${id}/sync`, payload ?? {});
+    return data;
+  },
+
+  getStudentSyncProgress: async (progressId: string): Promise<ApiResponse<import('@/types/api-integration.types').ApiIntegrationProgress>> => {
+    const { data } = await apiClient.get<ApiResponse<import('@/types/api-integration.types').ApiIntegrationProgress>>(`/admin/api-integrations/student-sync-progress/${progressId}`);
     return data;
   },
 };

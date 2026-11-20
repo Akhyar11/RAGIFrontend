@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { DataTable } from '@/components/ui/DataTable';
 import { Drawer } from '@/components/ui/Drawer';
@@ -42,6 +42,7 @@ import {
   RefreshCw,
   Check,
 } from 'lucide-react';
+import type { ApiIntegrationProgress } from '@/types/api-integration.types';
 
 const updateSchema = z.object({
   source_type: z.enum(['pddikti', 'custom_api']),
@@ -105,6 +106,16 @@ const SORT_DIR_OPTIONS = [
   { value: 'desc', label: 'Z - A (Turun)' },
 ];
 
+const formatEta = (seconds: number, phase: 'biodata' | 'saving'): string => {
+  const label = phase === 'biodata' ? 'Perkiraan fase biodata selesai dalam' : 'Perkiraan sinkronisasi selesai dalam';
+  if (seconds < 60) return `${label} ${seconds} detik`;
+  const minutes = Math.floor(seconds / 60);
+  const remainingSeconds = seconds % 60;
+  if (minutes < 60) return `${label} ${minutes} menit ${remainingSeconds} detik`;
+  const hours = Math.floor(minutes / 60);
+  return `${label} ${hours} jam ${minutes % 60} menit`;
+};
+
 export default function ApiSettingsPage() {
   const { hasPermission } = useAuth();
   const canManage = hasPermission('iam.api_integration.manage');
@@ -138,6 +149,11 @@ export default function ApiSettingsPage() {
   const [syncItem, setSyncItem] = useState<IamApiIntegration | null>(null);
   const [syncResult, setSyncResult] = useState<ApiIntegrationSyncResult | null>(null);
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
+  const [isPreviewing, setIsPreviewing] = useState<boolean>(false);
+  const [syncProgress, setSyncProgress] = useState<ApiIntegrationProgress | null>(null);
+  const [syncEtaSeconds, setSyncEtaSeconds] = useState<number | null>(null);
+  const syncProgressSamples = useRef<Array<{ at: number; processed: number; phase: ApiIntegrationProgress['phase'] }>>([]);
+  const syncPollingRef = useRef(false);
 
   const {
     control,
@@ -370,17 +386,66 @@ Ketentuan:
     }
   };
 
-  const handleRunSync = async () => {
+  const handleRunSync = async (preview = false) => {
     if (!syncItem) return;
 
     try {
-      setIsSyncing(true);
+      if (preview) setIsPreviewing(true);
+      else setIsSyncing(true);
       setSyncResult(null);
-      const response = await adminService.syncApiIntegration(syncItem.id);
+      setSyncProgress(null);
+      setSyncEtaSeconds(null);
+      syncProgressSamples.current = [];
+      const response = await adminService.syncApiIntegration(syncItem.id, preview ? { preview: true } : undefined);
       if (response.status === 'success' && response.data) {
-        setSyncResult(response.data);
-        toast.success(response.message || 'Sinkronisasi selesai');
-        fetchData();
+        if ('progress_id' in response.data) {
+          const progressId = response.data.progress_id;
+          syncPollingRef.current = true;
+          syncProgressSamples.current = [];
+          let currentProgress: ApiIntegrationProgress | null = null;
+          while (syncPollingRef.current && currentProgress?.status !== 'completed' && currentProgress?.status !== 'failed') {
+            const progressResponse = await adminService.getStudentSyncProgress(progressId);
+            const nextProgress = progressResponse.data;
+            if (!nextProgress) {
+              throw new Error('Respons progres sinkronisasi kosong.');
+            }
+            currentProgress = nextProgress;
+            setSyncProgress(currentProgress);
+            const now = Date.now();
+            const phaseTotal = currentProgress.phase_total;
+            const phaseProcessed = currentProgress.phase_processed ?? currentProgress.processed;
+            const previousSample = syncProgressSamples.current.at(-1);
+            const samples = previousSample?.phase === currentProgress.phase
+              ? [...syncProgressSamples.current, { at: now, processed: phaseProcessed, phase: currentProgress.phase }]
+                .filter((sample) => now - sample.at <= 60_000)
+              : [{ at: now, processed: phaseProcessed, phase: currentProgress.phase }];
+            syncProgressSamples.current = samples;
+            const first = samples[0];
+            const last = samples.at(-1);
+            if ((currentProgress.phase === 'biodata' || currentProgress.phase === 'saving')
+              && phaseTotal && phaseProcessed < phaseTotal && first && last && samples.length > 1 && phaseProcessed > first.processed) {
+              const elapsedSeconds = (last.at - first.at) / 1000;
+              const rate = elapsedSeconds > 0 ? (last.processed - first.processed) / elapsedSeconds : 0;
+              setSyncEtaSeconds(rate > 0 ? Math.ceil((phaseTotal - phaseProcessed) / rate) : null);
+            } else {
+              setSyncEtaSeconds(null);
+            }
+            if (currentProgress.status === 'completed') {
+              setSyncResult(currentProgress.result ?? null);
+              toast.success('Sinkronisasi selesai');
+              fetchData();
+              break;
+            }
+            if (currentProgress.status === 'failed') {
+              throw new Error(currentProgress.message || 'Sinkronisasi gagal dijalankan');
+            }
+            await new Promise((resolve) => window.setTimeout(resolve, 1500));
+          }
+        } else {
+          setSyncResult(response.data);
+          toast.success(response.message || (response.data.read_only || response.data.preview || preview ? 'Pratinjau selesai' : 'Sinkronisasi selesai'));
+          if (!preview) fetchData();
+        }
       }
     } catch (error: unknown) {
       const message = isAxiosError<{ message?: string }>(error)
@@ -388,9 +453,20 @@ Ketentuan:
         : error instanceof Error
           ? error.message
           : undefined;
-      toast.error(message || 'Sinkronisasi gagal dijalankan');
+      toast.error(message || (preview ? 'Pratinjau gagal dijalankan' : 'Sinkronisasi gagal dijalankan'));
+      if (!preview && syncProgress) {
+        setSyncProgress({
+          ...syncProgress,
+          status: 'failed',
+          phase: 'failed',
+          message: message || 'Sinkronisasi terputus sebelum selesai.',
+          finished_at: new Date().toISOString(),
+        });
+      }
     } finally {
-      setIsSyncing(false);
+      if (preview) setIsPreviewing(false);
+      else setIsSyncing(false);
+      setSyncEtaSeconds(null);
     }
   };
 
@@ -537,6 +613,8 @@ Ketentuan:
             onClick: () => {
               setSyncItem(row);
               setSyncResult(null);
+              setIsPreviewing(false);
+              setIsSyncing(false);
             },
           });
         }
@@ -943,10 +1021,13 @@ Ketentuan:
       <Modal
         open={!!syncItem}
         onClose={() => {
-          if (!isSyncing) setSyncItem(null);
+          if (!isSyncing && !isPreviewing) {
+            syncPollingRef.current = false;
+            setSyncItem(null);
+          }
         }}
         title={`Sinkronisasi: ${syncItem?.name}`}
-        closeOnOverlay={!isSyncing}
+        closeOnOverlay={!isSyncing && !isPreviewing}
       >
         {syncItem && (
           <div className="space-y-4">
@@ -956,14 +1037,91 @@ Ketentuan:
                 : 'Data akan diambil dari endpoint sumber dan diterapkan pada master tujuan. Status aktif/nonaktif mengikuti sumber; data nonaktif tidak tampil pada daftar aktif. Data yang tidak lolos validasi akan dilewati dan dirinci setelah proses.'}
             </div>
 
-            {syncResult && (
+              {(isPreviewing || isSyncing || syncProgress) && (
+                <div role="status" aria-live="polite" className="space-y-2 rounded-lg border border-sky-200 bg-sky-50 p-3 text-xs text-sky-950">
+                  {syncProgress ? (
+                    <>
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <span className="font-semibold">{syncProgress.message}</span>
+                        {syncProgress.status === 'completed' ? (
+                          <span className="shrink-0 font-semibold text-emerald-700">Selesai</span>
+                        ) : syncProgress.status === 'failed' ? (
+                          <span className="shrink-0 font-semibold text-red-700">Gagal</span>
+                        ) : syncProgress.status === 'queued' ? (
+                          <span className="shrink-0 text-2xs">Menunggu queue worker</span>
+                        ) : syncEtaSeconds !== null ? (
+                          <span className="shrink-0 text-2xs">{formatEta(syncEtaSeconds, syncProgress.phase as 'biodata' | 'saving')}</span>
+                        ) : syncProgress.phase === 'reading' ? (
+                          <span className="shrink-0 text-2xs">Menghitung jumlah data sumber</span>
+                        ) : syncProgress.phase === 'preparing' || syncProgress.phase === 'starting' ? (
+                          <span className="shrink-0 text-2xs">Menyiapkan tahap berikutnya</span>
+                        ) : (
+                          <span className="shrink-0 text-2xs">Mengukur laju fase ini untuk estimasi</span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <div
+                          className="h-2 min-w-0 flex-1 overflow-hidden rounded-full bg-sky-100"
+                          role={syncProgress.total === null ? 'status' : 'progressbar'}
+                          aria-label="Progress sinkronisasi mahasiswa"
+                          aria-valuemin={syncProgress.total === null ? undefined : 0}
+                          aria-valuemax={syncProgress.total === null ? undefined : 100}
+                          aria-valuenow={syncProgress.total === null ? undefined : syncProgress.progress}
+                        >
+                          <div
+                            className={`h-full rounded-full bg-sky-600 transition-[width] duration-500 ${syncProgress.total === null ? 'w-1/3 animate-[sync-progress_1.4s_ease-in-out_infinite]' : ''}`}
+                            style={syncProgress.total === null ? undefined : { width: `${Math.min(100, Math.max(0, syncProgress.progress))}%` }}
+                          />
+                        </div>
+                        {syncProgress.total !== null && <span className="w-10 shrink-0 text-right font-semibold">{syncProgress.progress}%</span>}
+                      </div>
+                      {syncProgress.phase === 'reading' ? (
+                        <div className="flex justify-between gap-3 text-2xs text-sky-900">
+                          <span>{syncProgress.processed.toLocaleString()} record terbaca; total sedang dihitung</span>
+                        </div>
+                      ) : syncProgress.total !== null && syncProgress.total > 0 ? (
+                        <div className="flex justify-between gap-3 text-2xs text-sky-900">
+                          <span>
+                            {syncProgress.phase === 'biodata'
+                              ? `Batch biodata ${syncProgress.processed.toLocaleString()} / ${syncProgress.total.toLocaleString()}`
+                              : `${syncProgress.processed.toLocaleString()} / ${syncProgress.total.toLocaleString()} record`}
+                          </span>
+                          {syncProgress.work_total ? (
+                            <span>{(syncProgress.work_processed ?? 0).toLocaleString()} / {syncProgress.work_total.toLocaleString()} unit kerja</span>
+                          ) : null}
+                          {syncProgress.result && <span>{syncProgress.result.synced ?? 0} berhasil ditulis</span>}
+                        </div>
+                      ) : null}
+                    </>
+                  ) : (
+                    <>
+                      <div className="flex items-center justify-between gap-3">
+                        <span>{isPreviewing ? 'Membaca dan memeriksa data PDDIKTI. Belum ada data yang ditulis.' : 'Menjadwalkan sinkronisasi mahasiswa ke antrean.'}</span>
+                        <span className="shrink-0 text-2xs font-semibold">Menunggu worker</span>
+                      </div>
+                      <div className="h-2 w-full overflow-hidden rounded-full bg-sky-100">
+                        <div className="h-full w-1/3 animate-[sync-progress_1.4s_ease-in-out_infinite] rounded-full bg-sky-600" />
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+
+              {syncResult && (
               <div className="space-y-3">
+                {(syncResult.read_only || syncResult.preview) && (
+                  <div className="rounded-lg border border-sky-200 bg-sky-50 p-3 text-xs text-sky-950">
+                    Pratinjau read-only. Belum ada data mahasiswa yang disimpan. Angka dibuat/diperbarui adalah kandidat; terapkan sinkronisasi untuk menulis data.
+                  </div>
+                )}
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                   {[
-                    { label: 'Data Sumber', value: syncResult.source_total },
-                    { label: 'Dibuat', value: syncResult.created },
+                    { label: 'Dibaca', value: syncResult.read_count ?? syncResult.source_total },
+                    { label: syncResult.read_only || syncResult.preview ? 'Kandidat Dibuat' : 'Dibuat', value: syncResult.created },
                     { label: 'Diperbarui', value: syncResult.updated },
+                    { label: syncResult.read_only || syncResult.preview ? 'Kandidat Lolos' : 'Berhasil Disinkronkan', value: syncResult.synced ?? (syncResult.created + syncResult.updated) },
                     { label: 'Dilewati', value: syncResult.skipped },
+                    { label: 'Gagal', value: syncResult.failed ?? 0 },
                   ].map((item) => (
                     <div key={item.label} className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-center">
                       <div className="text-lg font-bold text-slate-900">{item.value}</div>
@@ -994,15 +1152,35 @@ Ketentuan:
             )}
 
             <div className="flex justify-end gap-2 pt-2">
-              <Button variant="outline" onClick={() => setSyncItem(null)} disabled={isSyncing}>
+              <Button variant="outline" onClick={() => setSyncItem(null)} disabled={isSyncing || isPreviewing}>
                 {syncResult ? 'Tutup' : 'Batal'}
               </Button>
-              {!syncResult && (
+              {syncItem.key === 'siakad_mahasiswa' && syncItem.source_type === 'pddikti' && !syncResult && (
+                <Button
+                  variant="outline"
+                  onClick={() => handleRunSync(true)}
+                  isLoading={isPreviewing}
+                  disabled={!syncItem.is_active || isSyncing}
+                >
+                  Pratinjau Read-only
+                </Button>
+              )}
+              {syncItem.key === 'siakad_mahasiswa' && syncItem.source_type === 'pddikti' && syncResult?.preview && (
                 <Button
                   icon={isSyncing ? undefined : <Check size={16} />}
-                  onClick={handleRunSync}
+                  onClick={() => handleRunSync(false)}
                   isLoading={isSyncing}
-                  disabled={!syncItem.is_active || (!sourceUsesManagedConnection(syncItem, syncItem.source_type || 'custom_api') && !syncItem.url_api)}
+                  disabled={!syncItem.is_active || isPreviewing}
+                >
+                  Terapkan Sinkronisasi
+                </Button>
+              )}
+              {(!syncResult || (syncResult.preview && !(syncItem.key === 'siakad_mahasiswa' && syncItem.source_type === 'pddikti'))) && (
+                <Button
+                  icon={isSyncing ? undefined : <Check size={16} />}
+                  onClick={() => handleRunSync(false)}
+                  isLoading={isSyncing}
+                  disabled={isPreviewing || !syncItem.is_active || (!sourceUsesManagedConnection(syncItem, syncItem.source_type || 'custom_api') && !syncItem.url_api)}
                 >
                   Mulai Sinkronisasi
                 </Button>

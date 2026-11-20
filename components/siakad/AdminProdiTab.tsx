@@ -5,6 +5,7 @@ import { Plus, Trash2, Edit2, Shield, CheckCircle2, XCircle, Filter, Sparkles } 
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import { Select } from '@/components/ui/Select';
+import { AsyncSelect } from '@/components/ui/AsyncSelect';
 import { Input } from '@/components/ui/Input';
 import { Drawer } from '@/components/ui/Drawer';
 import { DataTable, type ColumnDef } from '@/components/ui/DataTable';
@@ -12,6 +13,7 @@ import { Badge } from '@/components/ui/Badge';
 import { DropdownMenu } from '@/components/ui/DropdownMenu';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { siakadService } from '@/services/siakad.service';
+import type { AdminProdiEligiblePersonnel, AdminProdiProgramOption } from '@/types/siakad.types';
 import { adminService } from '@/services/admin.service';
 import { useAuthStore } from '@/store/authStore';
 import { useImpersonateStore } from '@/store/impersonateStore';
@@ -37,7 +39,8 @@ export function AdminProdiTab({
   const [adminMeta, setAdminMeta] = useState<any>(undefined);
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(10);
-  const [users, setUsers] = useState<any[]>([]);
+  const [users, setUsers] = useState<AdminProdiEligiblePersonnel[]>([]);
+  const [allActiveProdis, setAllActiveProdis] = useState<AdminProdiProgramOption[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Filter Drawer State
@@ -134,31 +137,42 @@ export function AdminProdiTab({
 
   const fetchUsers = async () => {
     try {
-      // Mengambil daftar Dosen / Pegawai SIAKAD yang memiliki akun login (user_id)
-      const res = await siakadService.getDosens({ per_page: 500, is_active: true });
-      if (res && res.data) {
-        const raw = res.data;
-        const dosenList = Array.isArray(raw) ? raw : (raw.items || []);
-        // Map ke objek user
-        const mappedUsers = dosenList
-          .filter((d: any) => d.user_id || d.user?.id)
-          .map((d: any) => ({
-            id: d.user_id || d.user?.id,
-            name: d.nama_lengkap || d.user?.name,
-            username: d.nidn || d.nip || d.user?.username,
-            email: d.email || d.user?.email,
-            prodi_nama: d.program_studi?.nama || '-',
-          }));
-        setUsers(mappedUsers);
-      }
+      const firstPage = await siakadService.getAdminProdiEligiblePersonnel({ per_page: 100, page: 1 });
+      const firstRows = Array.isArray(firstPage.data) ? firstPage.data : [];
+      const totalPages = Math.max(1, Number(firstPage.meta?.last_page || 1));
+      const remainingPages = await Promise.all(
+        Array.from({ length: Math.max(0, totalPages - 1) }, (_, index) =>
+          siakadService.getAdminProdiEligiblePersonnel({ per_page: 100, page: index + 2 })
+        )
+      );
+      setUsers([...firstRows, ...remainingPages.flatMap((response) => Array.isArray(response.data) ? response.data : [])]);
     } catch {
-      // ignore
+      setUsers([]);
+      toast.error('Gagal memuat opsi personel Admin OBE');
+    }
+  };
+
+  const fetchAllActiveProdis = async () => {
+    try {
+      const firstPage = await siakadService.getProdi({ per_page: 100, page: 1, include_inactive: false, sort_by: 'nama', sort_order: 'asc' });
+      const firstRows = Array.isArray(firstPage.data) ? firstPage.data : [];
+      const totalPages = Math.max(1, Number(firstPage.meta?.last_page || 1));
+      const remainingPages = await Promise.all(
+        Array.from({ length: Math.max(0, totalPages - 1) }, (_, index) =>
+          siakadService.getProdi({ per_page: 100, page: index + 2, include_inactive: false, sort_by: 'nama', sort_order: 'asc' })
+        )
+      );
+      setAllActiveProdis([...firstRows, ...remainingPages.flatMap((response) => Array.isArray(response.data) ? response.data : [])]);
+    } catch {
+      setAllActiveProdis([]);
+      toast.error('Gagal memuat seluruh Program Studi aktif');
     }
   };
 
   useEffect(() => {
     fetchAdminList();
     fetchUsers();
+    fetchAllActiveProdis();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [appliedFilters, page, limit]);
 
@@ -172,7 +186,7 @@ export function AdminProdiTab({
       setFormIsActive(item.is_active ?? true);
     } else {
       setEditingItem(null);
-      setFormProdiId(prodis[0] ? String(prodis[0].id) : '');
+      setFormProdiId(allActiveProdis[0] ? String(allActiveProdis[0].id) : '');
       setFormUserId(users[0] ? String(users[0].id) : '');
       setFormJabatan('Admin OBE / Tim Kurikulum');
       setFormCanApproveRps(true);
@@ -328,7 +342,7 @@ export function AdminProdiTab({
 
   const userSelectOptions = users.map((u) => ({
     value: String(u.id),
-    label: `${u.name} — ${u.username ? `NIDN/NIP: ${u.username}` : u.email} (${u.prodi_nama})`,
+    label: `${u.name} — ${[u.personnel_type, u.personnel_identifier, u.homebase].filter(Boolean).join(' · ') || u.username || u.email}`,
   }));
 
   const columns: ColumnDef<any>[] = [
@@ -552,18 +566,28 @@ export function AdminProdiTab({
           <div className="grid grid-cols-1 gap-4">
             <Select
               label="Program Studi Homebase *"
-              options={prodis.map((p) => ({ value: String(p.id), label: `${p.kode_prodi} — ${p.nama}` }))}
+              options={allActiveProdis.map((p) => ({ value: String(p.id), label: `${p.kode_prodi} — ${p.nama}` }))}
               value={formProdiId}
               onChange={(val) => setFormProdiId(val)}
               disabled={!!editingItem}
             />
 
-            <Select
+            <AsyncSelect
               label="Pilih Pengguna / Personel *"
-              options={userSelectOptions}
+              placeholder="Cari nama, username, NIDN/NIP, atau email..."
+              loadOptions={async (keyword) => {
+                const response = await siakadService.getAdminProdiEligiblePersonnel({ search: keyword, per_page: 100, page: 1 });
+                const eligibleUsers = Array.isArray(response.data) ? response.data : [];
+                return eligibleUsers.map((person) => ({
+                  value: person.id,
+                  label: `${person.name} — ${[person.personnel_type, person.personnel_identifier, person.homebase].filter(Boolean).join(' · ') || person.username || person.email}`,
+                }));
+              }}
+              defaultOptions={userSelectOptions}
               value={formUserId}
-              onChange={(val) => setFormUserId(val)}
-              disabled={!!editingItem}
+              onChange={(option: { value: string | number; label: string } | null) => setFormUserId(option?.value ? String(option.value) : '')}
+              isClearable
+              isDisabled={!!editingItem}
             />
 
             <Input

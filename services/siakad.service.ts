@@ -8,6 +8,7 @@ import type {
   BankSoalImportResult,
   BankSoalPayload,
 } from '@/types/bank-soal.types';
+import type { AdminProdiEligiblePersonnel } from '@/types/siakad.types';
 
 /**
  * Payload terketik untuk fitur Bimbingan PA.
@@ -500,6 +501,11 @@ export const siakadService = {
   // Admin OBE / Tim Kurikulum Prodi
   getAdminProdi: async (params?: any): Promise<ApiResponse<any>> => {
     const response = await apiClient.get('/v1/siakad/akademik/admin-prodi', { params });
+    return response.data;
+  },
+
+  getAdminProdiEligiblePersonnel: async (params?: { search?: string; page?: number; per_page?: number; sort_order?: 'asc' | 'desc' }): Promise<ApiResponse<AdminProdiEligiblePersonnel[]>> => {
+    const response = await apiClient.get<ApiResponse<AdminProdiEligiblePersonnel[]>>('/v1/siakad/akademik/admin-prodi/eligible-personnel', { params });
     return response.data;
   },
 

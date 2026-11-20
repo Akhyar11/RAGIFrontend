@@ -1,5 +1,21 @@
 import type { SelectOption } from '@/components/ui/Select';
 
+export interface AdminProdiEligiblePersonnel {
+  id: number;
+  name: string;
+  username: string | null;
+  email: string | null;
+  personnel_type: string;
+  personnel_identifier: string;
+  homebase: string | null;
+}
+
+export interface AdminProdiProgramOption {
+  id: number;
+  kode_prodi: string;
+  nama: string;
+}
+
 export interface Mahasiswa {
     id: number;
     nim: string;

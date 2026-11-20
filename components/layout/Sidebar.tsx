@@ -598,7 +598,7 @@ export function Sidebar({ tenantModule }: { tenantModule: string }) {
           aria-label={appName}
         >
           <SystemLogo
-            className="sidebar-logo overflow-hidden"
+            className="sidebar-logo overflow-hidden !bg-transparent"
             imageClassName="h-full w-full object-contain"
             fallback={<GraduationCap size={22} color="white" />}
           />

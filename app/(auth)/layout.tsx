@@ -18,9 +18,9 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
         {/* Top Logo */}
         <div className="flex items-center gap-4 mb-auto">
           <SystemLogo
-            className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-blue-600 text-white shadow-sm"
+            className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-transparent"
             imageClassName="h-full w-full object-contain"
-            fallback={<Layers size={30} strokeWidth={2.25} />}
+            fallback={<Layers size={30} strokeWidth={2.25} className="text-[var(--primary-600)]" />}
           />
           <span className="font-bold text-2xl tracking-tight text-slate-900">SSO Campus</span>
         </div>

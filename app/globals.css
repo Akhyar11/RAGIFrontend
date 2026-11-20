@@ -1167,7 +1167,7 @@ body.sidebar-resizing {
   width: 36px;
   height: 36px;
   border-radius: var(--radius-md);
-  background: linear-gradient(135deg, var(--primary-500), var(--accent-500));
+  background: transparent;
   display: flex;
   align-items: center;
   justify-content: center;

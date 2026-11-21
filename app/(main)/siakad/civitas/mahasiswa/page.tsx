@@ -32,6 +32,7 @@ import { Checkbox } from '@/components/ui/Checkbox';
 import { siakadService } from '@/services/siakad.service';
 import { useAuth } from '@/hooks/useAuth';
 import type { PaginationMeta } from '@/types/api.types';
+import { isMahasiswaAktif, MAHASISWA_STATUS_OPTIONS, mahasiswaStatusLabel } from '@/types/siakad.types';
 import toast from 'react-hot-toast';
 
 const NIM_STATUS_OPTIONS: SelectOption[] = [
@@ -42,10 +43,7 @@ const NIM_STATUS_OPTIONS: SelectOption[] = [
 
 const STATUS_AKADEMIK_OPTIONS: SelectOption[] = [
   { value: '', label: 'Semua Status' },
-  { value: 'aktif', label: 'Aktif' },
-  { value: 'cuti', label: 'Cuti' },
-  { value: 'mangkir', label: 'Mangkir' },
-  { value: 'lulus', label: 'Lulus' },
+  ...MAHASISWA_STATUS_OPTIONS,
 ];
 
 const CURRENT_YEAR = new Date().getFullYear();
@@ -203,14 +201,14 @@ export default function MahasiswaPage() {
   const [bukuStatus, setBukuStatus] = useState('');
   const [downloadingBuku, setDownloadingBuku] = useState(false);
 
-  // Ubah Status Akademik States (keluar = dropout, lulus via yudisium)
+  // Ubah kode status akademik PDDIKTI.
   const [statusTarget, setStatusTarget] = useState<any | null>(null);
-  const [statusForm, setStatusForm] = useState({ status: 'aktif', alasan: '' });
+  const [statusForm, setStatusForm] = useState({ status: 'A', alasan: '' });
   const [savingStatus, setSavingStatus] = useState(false);
 
-  // Ubah Status Massal (checklist) — hanya aktif/cuti/lulus; dropout/mangkir wajib satuan
+  // Ubah status PDDIKTI massal.
   const [isBulkStatusOpen, setIsBulkStatusOpen] = useState(false);
-  const [bulkStatusForm, setBulkStatusForm] = useState({ status: 'lulus', alasan: '' });
+  const [bulkStatusForm, setBulkStatusForm] = useState({ status: 'N', alasan: '' });
   const [savingBulkStatus, setSavingBulkStatus] = useState(false);
 
   // Modal State
@@ -225,7 +223,7 @@ export default function MahasiswaPage() {
     angkatan: 2025,
     kelas: '',
     jenis_kelamin: 'L',
-    status: 'aktif',
+    status: 'A',
     dosen_wali_id: '',
     telepon: '',
     alamat: '',
@@ -497,7 +495,7 @@ export default function MahasiswaPage() {
         angkatan: item.angkatan || 2025,
         kelas: item.kelas ? String(item.kelas).toUpperCase() : '',
         jenis_kelamin: item.jenis_kelamin || 'L',
-        status: item.status || 'aktif',
+        status: item.status || 'A',
         dosen_wali_id: item.dosen_wali_id ? String(item.dosen_wali_id) : '',
         telepon: item.telepon || '',
         alamat: item.alamat || '',
@@ -512,7 +510,7 @@ export default function MahasiswaPage() {
         angkatan: 2025,
         kelas: '',
         jenis_kelamin: 'L',
-        status: 'aktif',
+        status: 'A',
         dosen_wali_id: '',
         telepon: '',
         alamat: '',
@@ -685,10 +683,10 @@ export default function MahasiswaPage() {
       align: 'center',
       render: (row) => (
         <Badge
-          variant={row.status === 'aktif' ? 'green' : row.status === 'cuti' ? 'amber' : 'gray'}
+          variant={isMahasiswaAktif(row.status) ? 'green' : row.status === 'C' ? 'amber' : 'gray'}
           className="capitalize text-2xs"
         >
-          {row.status}
+          {mahasiswaStatusLabel(row.status)}
         </Badge>
       ),
     },
@@ -715,7 +713,7 @@ export default function MahasiswaPage() {
                 icon: <RefreshCw size={14} />,
                 onClick: () => {
                   setStatusTarget(row);
-                  setStatusForm({ status: row.status || 'aktif', alasan: '' });
+                  setStatusForm({ status: row.status || 'A', alasan: '' });
                 },
               },
               {
@@ -885,7 +883,7 @@ export default function MahasiswaPage() {
               variant="primary"
               className="text-xs font-bold py-1.5 px-4 h-auto shadow-xs"
               onClick={() => {
-                setBulkStatusForm({ status: 'lulus', alasan: '' });
+                setBulkStatusForm({ status: 'N', alasan: '' });
                 setIsBulkStatusOpen(true);
               }}
             >
@@ -1261,17 +1259,12 @@ export default function MahasiswaPage() {
 
           {editingMhs && (
             <div className="md:col-span-2">
-              <label className="label">Status Akademik</label>
-              <select
+              <Select
+                label="Status Akademik"
                 value={form.status}
-                onChange={(e) => setForm({ ...form, status: e.target.value })}
-                className="select w-full"
-              >
-                <option value="aktif">Aktif</option>
-                <option value="cuti">Cuti</option>
-                <option value="mangkir">Mangkir</option>
-                <option value="lulus">Lulus</option>
-              </select>
+                onChange={(value) => setForm({ ...form, status: String(value || 'A') })}
+                options={MAHASISWA_STATUS_OPTIONS}
+              />
             </div>
           )}
         </form>
@@ -1567,14 +1560,11 @@ export default function MahasiswaPage() {
           />
           <div className="md:col-span-2">
             <label className="label">Status Akademik</label>
-            <select value={bukuStatus} onChange={(e) => setBukuStatus(e.target.value)} className="select w-full">
-              <option value="">Semua Status</option>
-              <option value="aktif">Aktif</option>
-              <option value="cuti">Cuti</option>
-              <option value="mangkir">Mangkir</option>
-              <option value="dropout">Dropout / Keluar</option>
-              <option value="lulus">Lulus</option>
-            </select>
+            <Select
+              value={bukuStatus}
+              onChange={(value) => setBukuStatus(String(value || ''))}
+              options={STATUS_AKADEMIK_OPTIONS}
+            />
           </div>
           <p className="md:col-span-2 text-2xs text-slate-500">
             Rekapan berisi NIM, biodata, prodi, angkatan, jalur masuk, dosen wali, status, dan IPK — cocok dibuka di Excel.
@@ -1600,30 +1590,22 @@ export default function MahasiswaPage() {
       >
         <form onSubmit={handleSaveStatus} className="space-y-4">
           <p className="text-xs text-slate-600">
-            Status saat ini: <strong className="capitalize">{statusTarget?.status}</strong>
-            <span className="block text-2xs text-slate-400 mt-0.5">Mahasiswa keluar (DO/mengundurkan diri) dicatat sebagai Dropout. Kelulusan tetap via menu Yudisium.</span>
+            Status saat ini: <strong>{mahasiswaStatusLabel(statusTarget?.status)}</strong>
           </p>
           <div>
-            <label className="label">Status Baru *</label>
-            <select
+            <Select
+              label="Status Baru *"
               value={statusForm.status}
-              onChange={(e) => setStatusForm({ ...statusForm, status: e.target.value })}
-              className="select w-full"
-              required
-            >
-              <option value="aktif">Aktif</option>
-              <option value="cuti">Cuti</option>
-              <option value="mangkir">Mangkir</option>
-              <option value="dropout">Dropout / Keluar</option>
-              <option value="lulus">Lulus</option>
-            </select>
+              onChange={(value) => setStatusForm({ ...statusForm, status: String(value || 'A') })}
+              options={MAHASISWA_STATUS_OPTIONS}
+            />
           </div>
           <Input
             label="Alasan / Keterangan"
-            placeholder="cth. Mengundurkan diri atas permintaan sendiri (No. surat...)"
+            placeholder="Keterangan perubahan status"
             value={statusForm.alasan}
             onChange={(e) => setStatusForm({ ...statusForm, alasan: e.target.value })}
-            hint="Wajib diisi bila status non-aktif. Tercatat di riwayat status akademik."
+            hint="Wajib diisi untuk perubahan status non-aktif. Tercatat di riwayat status akademik."
           />
         </form>
       </Modal>
@@ -1645,27 +1627,19 @@ export default function MahasiswaPage() {
       >
         <form onSubmit={handleSaveBulkStatus} className="space-y-4">
           <div>
-            <label className="label">Status Baru (massal) *</label>
-            <select
+            <Select
+              label="Status Baru (massal) *"
               value={bulkStatusForm.status}
-              onChange={(e) => setBulkStatusForm({ ...bulkStatusForm, status: e.target.value })}
-              className="select w-full"
-              required
-            >
-              <option value="lulus">Lulus (wisuda/yudisium serentak)</option>
-              <option value="aktif">Aktif (aktifkan kembali)</option>
-              <option value="cuti">Cuti (kolektif)</option>
-            </select>
-            <p className="text-2xs text-slate-400 mt-1">
-              Dropout/keluar & mangkir tidak tersedia massal — wajib per mahasiswa dengan alasan individual.
-            </p>
+              onChange={(value) => setBulkStatusForm({ ...bulkStatusForm, status: String(value || 'N') })}
+              options={MAHASISWA_STATUS_OPTIONS}
+            />
           </div>
           <Input
             label="Alasan Bersama"
-            placeholder="cth. Yudisium Periode Gasal 2025/2026 (SK No. ...)"
+            placeholder="Keterangan perubahan status bersama"
             value={bulkStatusForm.alasan}
             onChange={(e) => setBulkStatusForm({ ...bulkStatusForm, alasan: e.target.value })}
-            hint="Wajib bila status lulus/cuti. Dicatat di riwayat tiap mahasiswa."
+            hint="Wajib untuk status selain Aktif. Dicatat di riwayat tiap mahasiswa."
           />
         </form>
       </Modal>

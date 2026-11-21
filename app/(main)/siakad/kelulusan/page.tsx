@@ -148,9 +148,8 @@ export default function KelulusanPage() {
       />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard label="Mangkir" value={sensing?.mangkir ?? '-'} />
+        <StatCard label="Non-Aktif" value={sensing?.non_aktif ?? '-'} />
         <StatCard label="Cuti" value={sensing?.cuti ?? '-'} />
-        <StatCard label="Dropout" value={sensing?.dropout ?? '-'} />
         <StatCard label="Aktif Tanpa KRS" value={sensing?.aktif_tanpa_krs_TA_aktif ?? '-'} />
       </div>
 

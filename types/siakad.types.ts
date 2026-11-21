@@ -16,13 +16,37 @@ export interface AdminProdiProgramOption {
   nama: string;
 }
 
+export type MahasiswaStatusCode = 'A' | 'C' | 'G' | 'M' | 'N' | 'U';
+
+export const MAHASISWA_STATUS_LABELS: Record<MahasiswaStatusCode, string> = {
+  A: 'Aktif',
+  C: 'Cuti',
+  G: 'Sedang Double Degree',
+  M: 'Kampus Merdeka',
+  N: 'Non-Aktif',
+  U: 'Menunggu Ujian',
+};
+
+export const MAHASISWA_STATUS_OPTIONS: SelectOption[] = Object.entries(MAHASISWA_STATUS_LABELS).map(
+  ([value, label]) => ({ value, label }),
+);
+
+export function mahasiswaStatusLabel(status?: string | null): string {
+  const code = status?.trim().toUpperCase() as MahasiswaStatusCode | undefined;
+  return code ? MAHASISWA_STATUS_LABELS[code] ?? status ?? '-' : '-';
+}
+
+export function isMahasiswaAktif(status?: string | null): boolean {
+  return status?.trim().toUpperCase() === 'A';
+}
+
 export interface Mahasiswa {
     id: number;
     nim: string;
     nama_lengkap: string;
     program_studi_id: number;
     angkatan: number;
-    status: 'aktif' | 'cuti' | 'mangkir' | 'dropout' | 'lulus';
+    status: MahasiswaStatusCode;
     // ... add more properties based on backend models
 }
 

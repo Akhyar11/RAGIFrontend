@@ -4,8 +4,9 @@ import React, { useState, useEffect } from 'react';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
-import { Badge, StatusBadge } from '@/components/ui/Badge';
+import { Badge } from '@/components/ui/Badge';
 import { siakadService } from '@/services/siakad.service';
+import { isMahasiswaAktif, mahasiswaStatusLabel } from '@/types/siakad.types';
 import { useAuthStore } from '@/store/authStore';
 import toast from 'react-hot-toast';
 import {
@@ -196,7 +197,9 @@ export default function MahasiswaProfilPage() {
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div className="space-y-2 max-w-2xl">
             <div className="flex items-center gap-2 flex-wrap">
-              <StatusBadge active={mahasiswa?.status === 'aktif'} />
+              <Badge variant={isMahasiswaAktif(mahasiswa?.status) ? 'green' : mahasiswa?.status === 'C' ? 'amber' : 'gray'}>
+                {mahasiswaStatusLabel(mahasiswa?.status)}
+              </Badge>
               <Badge variant="blue">
                 Program Studi: {mahasiswa?.program_studi?.nama || '-'} ({mahasiswa?.program_studi?.jenjang || 'S1'})
               </Badge>

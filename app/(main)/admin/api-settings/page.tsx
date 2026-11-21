@@ -404,7 +404,7 @@ Ketentuan:
           syncProgressSamples.current = [];
           let currentProgress: ApiIntegrationProgress | null = null;
           while (syncPollingRef.current && currentProgress?.status !== 'completed' && currentProgress?.status !== 'failed') {
-            const progressResponse = await adminService.getStudentSyncProgress(progressId);
+            const progressResponse = await adminService.getIntegrationSyncProgress(progressId);
             const nextProgress = progressResponse.data;
             if (!nextProgress) {
               throw new Error('Respons progres sinkronisasi kosong.');
@@ -1096,7 +1096,7 @@ Ketentuan:
                   ) : (
                     <>
                       <div className="flex items-center justify-between gap-3">
-                        <span>{isPreviewing ? 'Membaca dan memeriksa data PDDIKTI. Belum ada data yang ditulis.' : 'Menjadwalkan sinkronisasi mahasiswa ke antrean.'}</span>
+                        <span>{isPreviewing ? 'Membaca dan memeriksa data PDDIKTI. Belum ada data yang ditulis.' : `Menjadwalkan sinkronisasi ${syncItem.key === 'siakad_dosen' ? 'dosen' : 'mahasiswa'} ke antrean.`}</span>
                         <span className="shrink-0 text-2xs font-semibold">Menunggu worker</span>
                       </div>
                       <div className="h-2 w-full overflow-hidden rounded-full bg-sky-100">
@@ -1116,11 +1116,11 @@ Ketentuan:
                 )}
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                   {[
-                    { label: 'Dibaca', value: syncResult.read_count ?? syncResult.source_total },
-                    { label: syncResult.read_only || syncResult.preview ? 'Kandidat Dibuat' : 'Dibuat', value: syncResult.created },
-                    { label: 'Diperbarui', value: syncResult.updated },
-                    { label: syncResult.read_only || syncResult.preview ? 'Kandidat Lolos' : 'Berhasil Disinkronkan', value: syncResult.synced ?? (syncResult.created + syncResult.updated) },
-                    { label: 'Dilewati', value: syncResult.skipped },
+                    { label: 'Dibaca', value: syncResult.read_count ?? syncResult.source_total ?? 0 },
+                    { label: syncResult.read_only || syncResult.preview ? 'Kandidat Dibuat' : 'Dibuat', value: syncResult.created ?? 0 },
+                    { label: 'Diperbarui', value: syncResult.updated ?? 0 },
+                    { label: syncResult.read_only || syncResult.preview ? 'Kandidat Lolos' : 'Berhasil Disinkronkan', value: syncResult.synced ?? ((syncResult.created ?? 0) + (syncResult.updated ?? 0)) },
+                    { label: 'Dilewati', value: syncResult.skipped ?? 0 },
                     { label: 'Gagal', value: syncResult.failed ?? 0 },
                   ].map((item) => (
                     <div key={item.label} className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-center">
@@ -1130,10 +1130,10 @@ Ketentuan:
                   ))}
                 </div>
 
-                {syncResult.skipped_items.length > 0 && (
+                {(syncResult.skipped_items?.length ?? 0) > 0 && (
                   <div className="max-h-60 space-y-2 overflow-y-auto rounded-lg border border-slate-200 p-3">
                     <h3 className="text-xs font-bold text-slate-800">Data yang dilewati</h3>
-                    {syncResult.skipped_items.map((item, index) => (
+                    {(syncResult.skipped_items ?? []).map((item, index) => (
                       <div key={`${item.source_id ?? item.row}-${index}`} className="border-b border-slate-100 pb-2 text-2xs last:border-0">
                         <div className="font-semibold text-slate-800">
                           {item.item_ref || item.kode_prodi || (item.source_id ? `ID: ${item.source_id}` : 'Rincian')} · Baris {item.row}
@@ -1141,9 +1141,9 @@ Ketentuan:
                         <div className="text-slate-600">{item.reason}</div>
                       </div>
                     ))}
-                    {syncResult.skipped > syncResult.skipped_items.length && (
+                    {(syncResult.skipped ?? 0) > (syncResult.skipped_items?.length ?? 0) && (
                       <p className="text-2xs text-slate-500">
-                        {syncResult.skipped - syncResult.skipped_items.length} data dilewati lainnya tidak ditampilkan.
+                        {(syncResult.skipped ?? 0) - (syncResult.skipped_items?.length ?? 0)} data dilewati lainnya tidak ditampilkan.
                       </p>
                     )}
                   </div>

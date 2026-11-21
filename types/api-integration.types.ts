@@ -47,14 +47,14 @@ export interface ApiIntegrationSyncResult {
   preview?: boolean;
   read_only?: boolean;
   read_count?: number;
-  source_total: number;
-  created: number;
-  updated: number;
+  source_total?: number;
+  created?: number;
+  updated?: number;
   synced?: number;
-  skipped: number;
+  skipped?: number;
   failed?: number;
   pages?: number;
-  skipped_items: Array<{
+  skipped_items?: Array<{
     source_id: string | number | null;
     kode_prodi?: string | null;
     item_ref?: string | null;

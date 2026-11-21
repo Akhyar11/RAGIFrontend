@@ -285,19 +285,19 @@ const GUIDES: GuideSection[] = [
   },
   {
     id: 'buku-induk-status',
-    title: 'Cara Mengunduh Buku Induk & Mengelola Status Keluar',
+    title: 'Cara Mengunduh Buku Induk & Mengelola Status Mahasiswa',
     category: 'krs',
     categoryLabel: 'KRS & Studi',
     summary:
-      'Rekapan CSV per angkatan/prodi dan pencatatan mahasiswa keluar (dropout) berjejak.',
+      'Rekapan CSV per angkatan/prodi dan pencatatan status sesuai kamus PDDIKTI.',
     targetUrl: '/siakad/civitas/mahasiswa',
     targetLabel: 'Buka Data Mahasiswa',
     rolesAllowed: ['superadmin', 'admin'],
     steps: [
       'Di toolbar Data Mahasiswa, grup "Buku Induk" → "Unduh Rekap (CSV)". Pilih Prodi, Angkatan, dan Status (kosongkan = semua).',
       'File berisi NIM, biodata, prodi, angkatan, jalur masuk, dosen wali, status, dan IPK — siap dibuka di Excel.',
-      'Untuk mahasiswa keluar: menu titik tiga → "Ubah Status Akademik" → pilih Dropout / Keluar + isi alasan (mis. no. surat pengunduran diri).',
-      'Kelulusan tetap lewat menu Yudisium agar tercatat di data kelulusan; cuti lewat pengajuan cuti.',
+      'Menu titik tiga → "Ubah Status Akademik" untuk memilih status mahasiswa sesuai kode PDDIKTI pada opsi yang tersedia.',
+      'Kelulusan dan alasan perubahan tetap dicatat pada alur akademik terkait; kode status mahasiswa mengikuti kamus PDDIKTI.',
       'Riwayat perubahan status tersimpan di log status akademik.',
     ],
     warnings: [

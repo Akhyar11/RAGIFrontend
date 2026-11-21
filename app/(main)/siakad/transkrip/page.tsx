@@ -18,6 +18,7 @@ import { PageHeader } from '@/components/layout/PageHeader';
 import { Card, CardHeader, CardBody } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
+import { mahasiswaStatusLabel } from '@/types/siakad.types';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import { Drawer } from '@/components/ui/Drawer';
@@ -257,7 +258,7 @@ export default function TranskripNilaiPage() {
                 Angkatan {mhs.angkatan || '-'}
               </Badge>
               <Badge variant="green" className="text-2xs font-semibold">
-                Status: {mhs.status || 'Aktif'}
+                Status: {mahasiswaStatusLabel(mhs.status)}
               </Badge>
             </div>
           </div>

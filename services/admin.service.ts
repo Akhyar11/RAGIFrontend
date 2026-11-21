@@ -205,4 +205,9 @@ export const adminService = {
     const { data } = await apiClient.get<ApiResponse<import('@/types/api-integration.types').ApiIntegrationProgress>>(`/admin/api-integrations/student-sync-progress/${progressId}`);
     return data;
   },
+
+  getIntegrationSyncProgress: async (progressId: string): Promise<ApiResponse<import('@/types/api-integration.types').ApiIntegrationProgress>> => {
+    const { data } = await apiClient.get<ApiResponse<import('@/types/api-integration.types').ApiIntegrationProgress>>(`/admin/api-integrations/student-sync-progress/${progressId}`);
+    return data;
+  },
 };

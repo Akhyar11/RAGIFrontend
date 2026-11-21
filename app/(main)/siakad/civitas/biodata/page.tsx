@@ -7,9 +7,10 @@ import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import { Drawer } from '@/components/ui/Drawer';
 import { DataTable, type ColumnDef } from '@/components/ui/DataTable';
-import { Badge, StatusBadge } from '@/components/ui/Badge';
+import { Badge } from '@/components/ui/Badge';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { siakadService } from '@/services/siakad.service';
+import { isMahasiswaAktif, mahasiswaStatusLabel } from '@/types/siakad.types';
 import { MkProdiSelect } from '@/components/siakad/MkProdiSelect';
 import toast from 'react-hot-toast';
 import {
@@ -80,7 +81,7 @@ export default function AdminMahasiswaBiodataPage() {
     nama_ayah: '',
     nik_ayah: '',
     nama_wali: '',
-    status: 'aktif',
+    status: 'A',
   });
 
   // Form State for Konversi Transfer
@@ -180,7 +181,7 @@ export default function AdminMahasiswaBiodataPage() {
             nama_ayah: detail.nama_ayah || '',
             nik_ayah: detail.nik_ayah || '',
             nama_wali: detail.nama_wali || '',
-            status: detail.status || 'aktif',
+            status: detail.status || 'A',
           });
 
           // Map to Konversi
@@ -356,7 +357,7 @@ export default function AdminMahasiswaBiodataPage() {
     }
   };
 
-  const isTransfer = Boolean(mahasiswa?.konversi_id || mahasiswa?.konversi_transfer || formData.status === 'aktif' && mahasiswa?.jalur_masuk === 'Transfer');
+  const isTransfer = Boolean(mahasiswa?.konversi_id || mahasiswa?.konversi_transfer || isMahasiswaAktif(formData.status) && mahasiswa?.jalur_masuk === 'Transfer');
   const konversiStatus = mahasiswa?.konversi_transfer?.status || (mahasiswa?.konversi_id ? 'disetujui' : '');
   // Konversi yang sudah DISETUJUI terkunci: tidak bisa diedit/dihapus dari UI manapun
   const konversiLocked = konversiStatus === 'disetujui';
@@ -450,7 +451,11 @@ export default function AdminMahasiswaBiodataPage() {
                 key: 'status',
                 label: 'STATUS',
                 align: 'center',
-                render: (m: any) => <StatusBadge active={m.status === 'aktif'} />,
+                render: (m: any) => (
+                  <Badge variant={isMahasiswaAktif(m.status) ? 'green' : m.status === 'C' ? 'amber' : 'gray'}>
+                    {mahasiswaStatusLabel(m.status)}
+                  </Badge>
+                ),
               },
               {
                 key: 'aksi',
@@ -518,7 +523,9 @@ export default function AdminMahasiswaBiodataPage() {
             <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
               <div className="space-y-2">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <StatusBadge active={mahasiswa.status === 'aktif'} />
+                  <Badge variant={isMahasiswaAktif(mahasiswa.status) ? 'green' : mahasiswa.status === 'C' ? 'amber' : 'gray'}>
+                    {mahasiswaStatusLabel(mahasiswa.status)}
+                  </Badge>
                   <Badge variant="blue">
                     Prodi: {mahasiswa.program_studi?.nama || '-'} ({mahasiswa.program_studi?.jenjang || 'S1'})
                   </Badge>

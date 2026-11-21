@@ -105,7 +105,8 @@ export default function EksekutifPage() {
         <StatCard label="Sudah KRS" value={krsMon?.summary ? `${krsMon.summary.persentase_krs}%` : '-'} footer={krsMon?.summary ? `${krsMon.summary.total_sudah_krs} dari ${krsMon.summary.total_mahasiswa_aktif}` : undefined} />
         <StatCard label="KRS Disetujui" value={krsMon?.summary ? `${krsMon.summary.persentase_disetujui}%` : '-'} />
         <StatCard label="Terkunci Keuangan" value={krsMon?.summary?.total_terkunci_keuangan ?? '-'} />
-        <StatCard label="Mangkir / Cuti / DO" value={`${sensing?.mangkir ?? '-'} / ${sensing?.cuti ?? '-'} / ${sensing?.dropout ?? '-'}`} />
+        <StatCard label="Non-Aktif" value={sensing?.non_aktif ?? '-'} />
+        <StatCard label="Cuti" value={sensing?.cuti ?? '-'} />
         <StatCard label="Aktif Tanpa KRS" value={sensing?.aktif_tanpa_krs_TA_aktif ?? krsMon?.summary?.total_belum_krs ?? '-'} />
         <StatCard label="Kartu UTS Terbit" value={kartuUts} />
         <StatCard label="Kartu UAS Terbit" value={kartuUas} />

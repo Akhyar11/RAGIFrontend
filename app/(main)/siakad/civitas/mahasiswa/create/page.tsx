@@ -22,7 +22,7 @@ export default function CreateMahasiswaPage() {
     program_studi_id: 1,
     angkatan: new Date().getFullYear(),
     jenis_kelamin: 'L',
-    status: 'aktif',
+    status: 'A',
     telepon: '',
     alamat: '',
   });

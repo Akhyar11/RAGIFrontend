@@ -58,7 +58,7 @@ const officeFormSchema = z.object({
   address: z.string().optional().nullable(),
   latitude: z.number().min(-90, 'Latitude minimal -90').max(90, 'Latitude maksimal 90'),
   longitude: z.number().min(-180, 'Longitude minimal -180').max(180, 'Longitude maksimal 180'),
-  radius_meters: z.number().int().min(10, 'Radius minimal 10 meter').max(5000, 'Radius maksimal 5000 meter'),
+  radius_meters: z.number().int().optional(),
   is_active: z.boolean(),
 });
 type OfficeFormValues = z.infer<typeof officeFormSchema>;
@@ -77,14 +77,6 @@ const bulkShiftSchema = z.object({
   jenis_pegawai: z.string().optional().nullable(),
 });
 type BulkShiftFormValues = z.infer<typeof bulkShiftSchema>;
-
-const bulkOfficeSchema = z.object({
-  office_location_ids: z.array(z.number()).min(1, 'Pilih minimal 1 lokasi absen'),
-  unit_kerja_id: z.number().optional().nullable(),
-  jenis_pegawai: z.string().optional().nullable(),
-  mode: z.enum(['attach', 'sync']),
-});
-type BulkOfficeFormValues = z.infer<typeof bulkOfficeSchema>;
 
 const systemSettingsSchema = z.object({
   face_score_threshold: z.number().min(0.1, 'Minimal 0.1').max(1.0, 'Maksimal 1.0'),
@@ -130,7 +122,6 @@ export default function MasterPresensiPage() {
 
   // Modal Penugasan Shift Massal
   const [showBulkShiftModal, setShowBulkShiftModal] = useState(false);
-  const [showBulkOfficeModal, setShowBulkOfficeModal] = useState(false);
   const [unitKerjaOptions, setUnitKerjaOptions] = useState<{ value: number; label: string }[]>([]);
 
   // ── TAB 3: LOKASI KANTOR (GEOFENCING) STATE ───────────────
@@ -181,7 +172,7 @@ export default function MasterPresensiPage() {
       address: '',
       latitude: -7.5675,
       longitude: 110.8036,
-      radius_meters: 150,
+      radius_meters: 50,
       is_active: true,
     },
   });
@@ -211,16 +202,6 @@ export default function MasterPresensiPage() {
       face_score_threshold: 0.68,
       gps_accuracy_threshold_meters: 50.0,
       max_late_per_month: 5,
-    },
-  });
-
-  const formBulkOffice = useForm<BulkOfficeFormValues>({
-    resolver: zodResolver(bulkOfficeSchema),
-    defaultValues: {
-      office_location_ids: [],
-      unit_kerja_id: 0,
-      jenis_pegawai: '',
-      mode: 'attach',
     },
   });
 
@@ -467,44 +448,6 @@ export default function MasterPresensiPage() {
 
   // ── ACTION HANDLERS: TAB 3 (OFFICES) ───────────────────────
 
-  const handleOpenBulkOfficeModal = async () => {
-    if (offices.length === 0) await fetchOffices();
-    formBulkOffice.reset({
-      office_location_ids: [],
-      unit_kerja_id: 0,
-      jenis_pegawai: '',
-      mode: 'attach',
-    });
-    setShowBulkOfficeModal(true);
-
-    if (unitKerjaOptions.length === 0) {
-      try {
-        const res = await simpegService.getUnitKerjaList();
-        const responseData = (res as any).data ?? res;
-        const items = Array.isArray(responseData) ? responseData : (responseData?.items || responseData?.data || []);
-        setUnitKerjaOptions(items.map((u: any) => ({ value: u.id, label: `${u.nama} (${u.tipe || 'Unit'})` })));
-      } catch {
-        // ignore
-      }
-    }
-  };
-
-  const onSubmitBulkOffices = async (values: BulkOfficeFormValues) => {
-    try {
-      const res = await simpegService.assignOfficesBulk({
-        office_location_ids: values.office_location_ids.map(Number),
-        unit_kerja_id: values.unit_kerja_id ? Number(values.unit_kerja_id) : undefined,
-        jenis_pegawai: values.jenis_pegawai || undefined,
-        mode: values.mode,
-      });
-      toast.success(res.message || 'Penugasan lokasi massal berhasil');
-      setShowBulkOfficeModal(false);
-      fetchOffices();
-    } catch (err: any) {
-      toast.error(getApiErrorMessage(err, 'Gagal menugaskan lokasi massal'));
-    }
-  };
-
   const handleOpenCreateOffice = () => {
     setEditingOffice(null);
     formOffice.reset({
@@ -512,7 +455,7 @@ export default function MasterPresensiPage() {
       address: '',
       latitude: -7.5675,
       longitude: 110.8036,
-      radius_meters: 150,
+      radius_meters: 50,
       is_active: true,
     });
     setShowOfficeModal(true);
@@ -525,7 +468,7 @@ export default function MasterPresensiPage() {
       address: office.address || '',
       latitude: office.latitude,
       longitude: office.longitude,
-      radius_meters: office.radius_meters,
+      radius_meters: office.radius_meters ?? 50,
       is_active: office.is_active,
     });
     setShowOfficeModal(true);
@@ -533,11 +476,15 @@ export default function MasterPresensiPage() {
 
   const onSubmitOffice = async (values: OfficeFormValues) => {
     try {
+      const payload = {
+        ...values,
+        radius_meters: values.radius_meters ?? 50,
+      };
       if (editingOffice) {
-        await simpegService.updateOfficeLocation(editingOffice.id, values);
+        await simpegService.updateOfficeLocation(editingOffice.id, payload);
         toast.success('Lokasi kantor berhasil diperbarui');
       } else {
-        await simpegService.createOfficeLocation(values);
+        await simpegService.createOfficeLocation(payload as any);
         toast.success('Lokasi kantor baru berhasil ditambahkan');
       }
       setShowOfficeModal(false);
@@ -803,22 +750,6 @@ export default function MasterPresensiPage() {
       ),
     },
     {
-      key: 'radius_meters',
-      label: 'Radius Geofence',
-      render: (row) => (
-        <span className="font-semibold text-xs text-slate-800 bg-[var(--module-primary-subtle)] text-[var(--module-primary)] px-2 py-0.5 rounded border border-[var(--module-primary)]/20">
-          {row.radius_meters} meter
-        </span>
-      ),
-    },
-    {
-      key: 'employees_count',
-      label: 'Pegawai Terdaftar',
-      render: (row) => (
-        <span className="text-sm font-medium text-slate-700">{row.employees_count || 0} Pegawai</span>
-      ),
-    },
-    {
       key: 'is_active',
       label: 'Status',
       render: (row) => (
@@ -951,15 +882,7 @@ export default function MasterPresensiPage() {
                 Terapkan Shift Massal
               </Button>
             )}
-            {canManage && activeTab === 'office' && (
-              <Button
-                variant="outline"
-                icon={<Users size={16} />}
-                onClick={handleOpenBulkOfficeModal}
-              >
-                Akses Lokasi Massal
-              </Button>
-            )}
+
             {canManage && activeTab === 'holiday' && (
               <Button
                 variant="outline"
@@ -1077,10 +1000,8 @@ export default function MasterPresensiPage() {
           <div className="card p-4 border border-indigo-200 bg-indigo-50/60 flex items-start gap-3">
             <Building2 size={20} className="text-indigo-600 mt-0.5 shrink-0" />
             <p className="text-xs text-slate-700">
-              <span className="font-bold">Multi-lokasi absen:</span> setiap pegawai memiliki 1 lokasi utama + lokasi tambahan.
-              Absen dinyatakan sah bila berada dalam radius <span className="font-bold">lokasi mana pun</span> yang ditugaskan —
-              cocok untuk dosen yang mengajar di gedung/kampus lain agar tidak bolak-balik. Gunakan tombol
-              <span className="font-bold"> Akses Lokasi Massal </span> untuk menugaskan beberapa titik sekaligus (misal ke seluruh dosen).
+              <span className="font-bold">Presensi Lintas Kampus:</span> Pegawai tidak dibatasi atau di-plot ke kampus tertentu.
+              Seluruh pegawai dapat melakukan presensi di lokasi kantor/kampus aktif mana pun, selama berada dalam batas toleransi radius GPS yang diatur pada tab Parameter Global.
             </p>
           </div>
 
@@ -1570,113 +1491,6 @@ export default function MasterPresensiPage() {
         </form>
       </Modal>
 
-      {/* ── MODAL: AKSES LOKASI MASSAL (MULTI-LOKASI) ── */}
-      <Modal
-        open={showBulkOfficeModal}
-        onClose={() => setShowBulkOfficeModal(false)}
-        title="Penugasan Akses Lokasi Absen Massal"
-        size="md"
-        footer={
-          <>
-            <Button variant="outline" onClick={() => setShowBulkOfficeModal(false)}>
-              Batal
-            </Button>
-            <Button type="submit" loading={formBulkOffice.formState.isSubmitting} disabled={formBulkOffice.formState.isSubmitting} form="bulk-office-form">
-              Tugaskan Sekarang
-            </Button>
-          </>
-        }
-      >
-        <form id="bulk-office-form" onSubmit={formBulkOffice.handleSubmit(onSubmitBulkOffices)} noValidate className="space-y-4">
-          <div className="p-3 bg-[var(--module-primary-subtle)] border border-[var(--module-primary)]/20 rounded-xl text-xs text-slate-800 flex items-start gap-2">
-            <Users className="text-[var(--module-primary)] mt-0.5 shrink-0" size={16} />
-            <p className="text-xs">
-              Beri akses absen di beberapa titik sekaligus ke sekelompok pegawai (misal seluruh dosen dapat absen di gedung tempat mengajar).
-            </p>
-          </div>
-
-          <Controller
-            control={formBulkOffice.control}
-            name="office_location_ids"
-            render={({ field }) => (
-              <div className="space-y-2">
-                <span className="text-xs font-semibold text-slate-700">Titik Lokasi Absen *</span>
-                {offices.length === 0 && (
-                  <p className="text-xs text-slate-400">Belum ada lokasi kantor. Tambahkan dulu lewat tombol Tambah Lokasi Kantor.</p>
-                )}
-                <div className="space-y-2 max-h-52 overflow-y-auto border border-slate-100 rounded-xl p-3 bg-slate-50/50">
-                  {offices.map((o: any) => (
-                    <ToggleSwitch
-                      key={o.id}
-                      checked={(field.value || []).includes(o.id)}
-                      onChange={(checked) => {
-                        const current: number[] = field.value || [];
-                        field.onChange(checked ? [...current, o.id] : current.filter((id) => id !== o.id));
-                      }}
-                      label={o.name}
-                      description={`${o.radius_meters ?? 0} m • ${o.address || 'tanpa alamat'}`}
-                    />
-                  ))}
-                </div>
-                {formBulkOffice.formState.errors.office_location_ids?.message && (
-                  <p className="text-xs text-rose-600">{formBulkOffice.formState.errors.office_location_ids.message}</p>
-                )}
-              </div>
-            )}
-          />
-
-          <Controller
-            control={formBulkOffice.control}
-            name="unit_kerja_id"
-            render={({ field }) => (
-              <Select
-                label="Filter Unit Kerja (Opsional)"
-                value={field.value ? String(field.value) : ''}
-                onChange={(val) => field.onChange(val ? Number(val) : 0)}
-                options={[
-                  { value: '', label: '-- Seluruh Unit Kerja Kampus --' },
-                  ...unitKerjaOptions.map((u) => ({ value: String(u.value), label: u.label })),
-                ]}
-              />
-            )}
-          />
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Controller
-              control={formBulkOffice.control}
-              name="jenis_pegawai"
-              render={({ field }) => (
-                <Select
-                  label="Filter Kategori (Opsional)"
-                  value={field.value || ''}
-                  onChange={(val) => field.onChange(val)}
-                  options={[
-                    { value: '', label: '-- Semua Pegawai --' },
-                    { value: 'dosen', label: 'Khusus Dosen' },
-                    { value: 'tendik', label: 'Khusus Tendik' },
-                  ]}
-                />
-              )}
-            />
-            <Controller
-              control={formBulkOffice.control}
-              name="mode"
-              render={({ field }) => (
-                <Select
-                  label="Mode Penugasan"
-                  value={field.value || 'attach'}
-                  onChange={(val) => field.onChange(val)}
-                  options={[
-                    { value: 'attach', label: 'Tambah (pertahankan akses lama)' },
-                    { value: 'sync', label: 'Ganti (timpa akses lama)' },
-                  ]}
-                />
-              )}
-            />
-          </div>
-        </form>
-      </Modal>
-
       {/* ── MODAL: TAMBAH / UBAH LOKASI KANTOR ── */}
       <Modal
         open={showOfficeModal}
@@ -1728,17 +1542,6 @@ export default function MasterPresensiPage() {
               {...formOffice.register('longitude', { valueAsNumber: true })}
             />
           </div>
-
-          <Input
-            label="Radius Geofence Maksimal (Meter) *"
-            type="number"
-            min="10"
-            max="5000"
-            required
-            hint="Pegawai hanya dapat absen jika posisi berada dalam batas radius ini."
-            error={formOffice.formState.errors.radius_meters?.message}
-            {...formOffice.register('radius_meters', { valueAsNumber: true })}
-          />
 
           <Controller
             control={formOffice.control}

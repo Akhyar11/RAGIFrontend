@@ -171,7 +171,7 @@ export default function RegisterPage() {
       {/* Header */}
       <div className="mb-10">
         <h1 className="text-[32px] sm:text-[36px] font-[800] text-slate-900 tracking-tight leading-[1.15] mb-3">
-          Daftar Calon Mahasiswa
+          Pendaftaran Mahasiswa Baru
         </h1>
         <p className="text-[15px] text-slate-500 font-medium leading-relaxed">
           Buat akun untuk memulai proses pendaftaran SPMB Anda.

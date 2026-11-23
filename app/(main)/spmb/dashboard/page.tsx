@@ -3,11 +3,9 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import {
-  UserCheck,
   FileText,
   CheckCircle2,
   Clock,
-  AlertCircle,
   Calendar,
   ArrowRight,
   GraduationCap,
@@ -17,16 +15,12 @@ import {
   ExternalLink,
   ShieldCheck,
   Sparkles,
-  HelpCircle,
   ChevronRight,
-  AlertTriangle,
   RefreshCw,
-  BookOpen,
   LayoutGrid,
   Info,
   CreditCard,
   Users,
-  Activity,
   CheckCircle,
   Download
 } from 'lucide-react';
@@ -34,11 +28,9 @@ import toast from 'react-hot-toast';
 import { useUiStore } from '@/store/uiStore';
 import { useAuth } from '@/hooks/useAuth';
 import { PageHeader } from '@/components/layout/PageHeader';
-import { StatusBadge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { formatDate } from '@/lib/utils';
 import { spmbService, PendaftaranCalonMhs, GelombangPenerimaan } from '@/services/spmb.service';
-import { moduleService } from '@/services/module.service';
 import { DataTable, type ColumnDef } from '@/components/ui/DataTable';
 
 const formatPeriodeTanggal = (value?: string | null) => {
@@ -562,54 +554,6 @@ export default function SPMBDashboardPage() {
                   <ChevronRight size={16} />
                 </Link>
               </div>
-            </div>
-          </div>
-
-          <div className="card shadow-sm border border-slate-200">
-            <div className="border-b border-slate-100 p-4 sm:p-5 flex items-center justify-between bg-slate-50/50 rounded-t-xl">
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-lg bg-indigo-100 text-indigo-600 flex items-center justify-center">
-                  <Activity size={18} />
-                </div>
-                <div>
-                  <h3 className="font-bold text-slate-800 text-sm sm:text-base leading-none">
-                    Alur & Progres Pendaftaran
-                  </h3>
-                  <p className="text-xs text-slate-500 mt-1">Lacak tahapan SPMB Anda</p>
-                </div>
-              </div>
-            </div>
-            
-            <div className="p-4 sm:p-6 overflow-x-auto">
-              {pendaftaran?.progress_alur && pendaftaran.progress_alur.length > 0 ? (
-                <div className="spmb-stepper-card p-0 shadow-none border-0 bg-transparent">
-                  <div className="spmb-stepper-track bg-slate-200 top-4"></div>
-                  <div className="flex justify-between relative z-10 w-full min-w-[420px]">
-                    {pendaftaran.progress_alur.map((alur: any, idx: number) => {
-                      const isComplete = alur.status === 'completed';
-                      const isCurrent = alur.status === 'in_progress';
-                      const isPending = alur.status === 'pending';
-                      const isFailed = alur.status === 'failed';
-                      return (
-                        <div key={alur.id} className={`spmb-stepper-item flex-1 text-center flex flex-col items-center min-w-[72px] ${isComplete ? 'is-done' : isCurrent ? 'is-current' : isPending ? 'is-pending' : ''}`}>
-                          <div className={`spmb-stepper-circle z-10 w-8 h-8 rounded-full flex items-center justify-center border-2 mb-2 bg-white ${isComplete ? 'border-emerald-500 text-emerald-500' : isCurrent ? 'border-indigo-500 text-indigo-500 ring-4 ring-indigo-50' : isFailed ? 'border-red-500 text-red-500' : 'border-slate-200 text-slate-300'}`}>
-                            {isComplete ? <CheckCircle size={14} /> : isFailed ? <AlertCircle size={14} /> : <span className="text-xs font-bold">{idx + 1}</span>}
-                          </div>
-                          <span className={`text-xs font-semibold px-2 ${isComplete ? 'text-emerald-700' : isCurrent ? 'text-indigo-700' : isFailed ? 'text-red-600' : 'text-slate-400'}`}>
-                            {alur.master_alur?.nama_tahap ?? `Tahap ${idx + 1}`}
-                          </span>
-                          {isCurrent && <span className="text-[10px] text-indigo-500 mt-1">Sedang Berjalan</span>}
-                          {isFailed && <span className="text-[10px] text-red-500 mt-1">Gagal</span>}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              ) : (
-                <div className="text-center py-6 text-slate-400 text-sm italic">
-                  Belum ada alur progres tahapan. Silakan selesaikan pembayaran awal terlebih dahulu.
-                </div>
-              )}
             </div>
           </div>
 

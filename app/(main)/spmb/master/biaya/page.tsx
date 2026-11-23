@@ -14,7 +14,7 @@ import { DropdownMenu } from '@/components/ui/DropdownMenu';
 import { Badge } from '@/components/ui/Badge';
 import { spmbService } from '@/services/spmb.service';
 import { formatRupiah } from '@/lib/utils';
-import type { MasterBiayaSpmb, MasterTipeJalur } from '@/types/spmb.types';
+import type { JalurMasuk, MasterBiayaSpmb } from '@/types/spmb.types';
 import type { PaginationMeta } from '@/types/api.types';
 import toast from 'react-hot-toast';
 
@@ -34,7 +34,7 @@ export default function MasterBiayaPage() {
   const [loading, setLoading] = useState(false);
 
   // References
-  const [tipeJalurList, setTipeJalurList] = useState<MasterTipeJalur[]>([]);
+  const [jalurList, setJalurList] = useState<JalurMasuk[]>([]);
 
   // Search and Filter Params from URL
   const page = Number(searchParams.get('page')) || 1;
@@ -43,7 +43,7 @@ export default function MasterBiayaPage() {
   const nomorSkQ = searchParams.get('nomor_sk') || '';
   const orderByQ = searchParams.get('sort_by') || 'created_at';
   const orderDirQ = searchParams.get('sort_dir') || 'desc';
-  const tipeJalurQ = searchParams.get('master_tipe_jalur_id') || '';
+  const jalurQ = searchParams.get('jalur_masuk_id') || '';
   const statusQ = searchParams.get('is_active') || '';
   const jumlahQ = searchParams.get('jumlah_komponen') || '';
   const bebanPendaftaranQ = searchParams.get('beban_pendaftaran') || '';
@@ -54,7 +54,7 @@ export default function MasterBiayaPage() {
   const [showFilter, setShowFilter] = useState(false);
   const [filterSearch, setFilterSearch] = useState(searchQ);
   const [filterNomorSk, setFilterNomorSk] = useState(nomorSkQ);
-  const [filterTipeJalurId, setFilterTipeJalurId] = useState(tipeJalurQ);
+  const [filterJalurId, setFilterJalurId] = useState(jalurQ);
   const [filterStatus, setFilterStatus] = useState(statusQ);
   const [filterJumlahKomponen, setFilterJumlahKomponen] = useState(jumlahQ);
   const [filterBebanPendaftaran, setFilterBebanPendaftaran] = useState(bebanPendaftaranQ);
@@ -78,9 +78,8 @@ export default function MasterBiayaPage() {
   useEffect(() => {
     const fetchDropdowns = async () => {
       try {
-        const tipeRes = await spmbService.getMasterTipeJalur({ limit: 100 });
-        const tipesRaw = tipeRes?.data;
-        setTipeJalurList(Array.isArray(tipesRaw) ? tipesRaw : tipesRaw?.items || []);
+        const jalurRes = await spmbService.getJalurMasuk({ status: 'aktif', limit: 100 });
+        setJalurList(Array.isArray(jalurRes?.data) ? jalurRes.data : []);
       } catch (error) {
         console.error('Failed to load filter options:', error);
       }
@@ -97,7 +96,7 @@ export default function MasterBiayaPage() {
         limit,
         search: searchQ,
         nomor_sk: nomorSkQ || undefined,
-        master_tipe_jalur_id: tipeJalurQ || undefined,
+        jalur_masuk_id: jalurQ || undefined,
         is_active: statusQ || undefined,
         jumlah_komponen: jumlahQ || undefined,
         beban_pendaftaran: bebanPendaftaranQ || undefined,
@@ -113,7 +112,7 @@ export default function MasterBiayaPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, limit, searchQ, nomorSkQ, tipeJalurQ, statusQ, jumlahQ, bebanPendaftaranQ, bebanDaftarUlangQ, totalBiayaQ, orderByQ, orderDirQ]);
+  }, [page, limit, searchQ, nomorSkQ, jalurQ, statusQ, jumlahQ, bebanPendaftaranQ, bebanDaftarUlangQ, totalBiayaQ, orderByQ, orderDirQ]);
 
   useEffect(() => {
     fetchData();
@@ -138,7 +137,7 @@ export default function MasterBiayaPage() {
       page: 1,
       search: filterSearch,
       nomor_sk: filterNomorSk,
-      master_tipe_jalur_id: filterTipeJalurId,
+      jalur_masuk_id: filterJalurId,
       is_active: filterStatus,
       jumlah_komponen: filterJumlahKomponen,
       beban_pendaftaran: filterBebanPendaftaran,
@@ -153,7 +152,7 @@ export default function MasterBiayaPage() {
   const handleResetFilter = () => {
     setFilterSearch('');
     setFilterNomorSk('');
-    setFilterTipeJalurId('');
+    setFilterJalurId('');
     setFilterStatus('');
     setFilterJumlahKomponen('');
     setFilterBebanPendaftaran('');
@@ -165,7 +164,7 @@ export default function MasterBiayaPage() {
       page: 1,
       search: '',
       nomor_sk: '',
-      master_tipe_jalur_id: '',
+      jalur_masuk_id: '',
       is_active: '',
       jumlah_komponen: '',
       beban_pendaftaran: '',
@@ -198,10 +197,9 @@ export default function MasterBiayaPage() {
 
   return (
     <div className="animate-fade-in space-y-6">
-      {/* Page Header standardized to match tipe-jalur */}
       <PageHeader
         title="Master Tarif Biaya"
-        description="Kelola konfigurasi biaya pendaftaran dan perkuliahan per Program Studi dan Tipe Jalur Masuk"
+        description="Kelola konfigurasi biaya pendaftaran dan perkuliahan per Program Studi dan Jalur Pendaftaran"
         action={
           <div className="flex flex-wrap items-center gap-2">
             <Button
@@ -256,16 +254,16 @@ export default function MasterBiayaPage() {
             ),
           },
           {
-            key: 'master_tipe_jalur',
-            label: 'Tipe Jalur Masuk',
+            key: 'jalur_masuk',
+            label: 'Jalur Pendaftaran',
             render: (row) => (
               <div>
                 <div className="font-semibold text-xs text-gray-900">
-                  {row.master_tipe_jalur?.nama || '-'}
+                  {row.jalur_masuk?.nama || '-'}
                 </div>
-                {row.master_tipe_jalur?.kode && (
+                {row.jalur_masuk?.kode && (
                   <span className="text-2xs text-slate-500">
-                    {row.master_tipe_jalur?.kode}
+                    {row.jalur_masuk?.kode}
                   </span>
                 )}
               </div>
@@ -427,14 +425,14 @@ export default function MasterBiayaPage() {
           />
 
           <Select
-            label="Tipe Jalur Masuk"
-            value={filterTipeJalurId}
-            onChange={(val) => setFilterTipeJalurId(val)}
+            label="Jalur Pendaftaran"
+            value={filterJalurId}
+            onChange={(val) => setFilterJalurId(val)}
             options={[
-              { value: '', label: 'Semua Tipe Jalur' },
-              ...tipeJalurList.map((t) => ({
-                value: String(t.id),
-                label: `${t.nama}${t.kode ? ` (${t.kode})` : ''}`,
+              { value: '', label: 'Semua Jalur' },
+              ...jalurList.map((jalur) => ({
+                value: String(jalur.id),
+                label: `${jalur.nama}${jalur.kode ? ` (${jalur.kode})` : ''}`,
               })),
             ]}
           />
@@ -489,7 +487,7 @@ export default function MasterBiayaPage() {
                 { value: 'created_at', label: 'Tanggal Dibuat' },
                 { value: 'nomor_sk', label: 'Nomor SK' },
                 { value: 'program_studi', label: 'Program Studi' },
-                { value: 'master_tipe_jalur', label: 'Tipe Jalur Masuk' },
+                { value: 'jalur_masuk', label: 'Jalur Pendaftaran' },
                 { value: 'items', label: 'Rincian Komponen' },
                 { value: 'beban_pendaftaran', label: 'Beban Registrasi' },
                 { value: 'beban_daftar_ulang', label: 'Beban Daftar Ulang' },
@@ -526,7 +524,7 @@ export default function MasterBiayaPage() {
               {deleteModal.item?.program_studi?.nama || 'Program Studi ini'}
             </strong>{' '}
             pada Tipe Jalur{' '}
-            <strong>{deleteModal.item?.master_tipe_jalur?.nama || '-'}</strong>? Tindakan ini tidak dapat dibatalkan.
+            <strong>{deleteModal.item?.jalur_masuk?.nama || '-'}</strong>? Tindakan ini tidak dapat dibatalkan.
           </span>
         }
         confirmText="Hapus"

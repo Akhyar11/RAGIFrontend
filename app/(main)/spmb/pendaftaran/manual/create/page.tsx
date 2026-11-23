@@ -22,7 +22,7 @@ import { validateApplicantIdentity } from '@/lib/spmb/applicant-identity';
 const manualRegistrationSchema = z.object({
   email: z.string().trim().email('Email calon wajib diisi dengan format yang benar.').max(255),
   gelombang_id: z.string().min(1, 'Gelombang wajib dipilih.'),
-  master_tipe_jalur_id: z.string().min(1, 'Jenis jalur wajib dipilih.'),
+  jalur_masuk_id: z.string().min(1, 'Jalur Pendaftaran wajib dipilih.'),
   program_studi_id: z.string().min(1, 'Program studi wajib dipilih.'),
   program_studi_pilihan2_id: z.string().optional(),
   nama_lengkap: z.string().trim().min(1, 'Nama lengkap wajib diisi.').max(255),
@@ -127,7 +127,7 @@ export default function CreateManualPendaftaranPage() {
   const { hasPermission } = useAuth();
   const canManage = hasPermission('spmb.manage');
   const [waveOptions, setWaveOptions] = useState<SelectOption[]>([]);
-  const [typeOptions, setTypeOptions] = useState<SelectOption[]>([]);
+  const [jalurOptions, setJalurOptions] = useState<SelectOption[]>([]);
   const [nationalityOptions, setNationalityOptions] = useState<NationalityOption[]>([]);
   const [programOptions, setProgramOptions] = useState<SelectOption[]>([]);
   const [loadingOptions, setLoadingOptions] = useState(true);
@@ -148,7 +148,7 @@ export default function CreateManualPendaftaranPage() {
     defaultValues: {
       email: '',
       gelombang_id: '',
-      master_tipe_jalur_id: '',
+      jalur_masuk_id: '',
       program_studi_id: '',
       program_studi_pilihan2_id: '',
       nama_lengkap: '',
@@ -234,20 +234,20 @@ export default function CreateManualPendaftaranPage() {
     if (!canManage) return;
     const loadOptions = async () => {
       try {
-        const [waves, types, programs, nationalities] = await Promise.all([
+        const [waves, jalurResponse, programs, nationalities] = await Promise.all([
           spmbService.getGelombang({ status: 'aktif', per_page: 100 }),
-          spmbService.getMasterTipeJalur({ limit: 100 }),
+          spmbService.getJalurMasuk({ status: 'aktif', limit: 100 }),
           spmbService.getProgramStudi(),
           spmbService.getReferensi('kewarganegaraan'),
         ]);
         const waveData = (waves?.data || []) as Array<{ id: number; nama: string; jalur_masuk?: { nama?: string } }>;
-        const typeData = (types?.data || []) as Array<{ id: number; nama: string }>;
+        const jalurData = (jalurResponse?.data || []) as Array<{ id: number; nama: string }>;
         const programData = (programs?.data || []) as Array<{ id: number; nama: string; jenjang?: string }>;
         setWaveOptions(waveData.map((item) => ({
           value: String(item.id),
           label: `${item.nama}${item.jalur_masuk?.nama ? ` • ${item.jalur_masuk.nama}` : ''}`,
         })));
-        setTypeOptions(typeData.map((item) => ({ value: String(item.id), label: item.nama })));
+        setJalurOptions(jalurData.map((item) => ({ value: String(item.id), label: item.nama })));
         setProgramOptions(programData.map((item) => ({
           value: String(item.id),
           label: `${item.nama}${item.jenjang ? ` (${item.jenjang})` : ''}`,
@@ -420,8 +420,8 @@ export default function CreateManualPendaftaranPage() {
             <Controller name="gelombang_id" control={control} render={({ field }) => (
               <Select label="Gelombang Penerimaan" required options={waveOptions} value={field.value} onChange={field.onChange} error={errors.gelombang_id?.message || (waveOptions.length === 0 && !loadingOptions ? 'Tidak ada gelombang aktif.' : undefined)} isDisabled={loadingOptions} />
             )} />
-            <Controller name="master_tipe_jalur_id" control={control} render={({ field }) => (
-              <Select label="Jenis Jalur Pendaftaran" required options={typeOptions} value={field.value} onChange={field.onChange} error={errors.master_tipe_jalur_id?.message} isDisabled={loadingOptions} />
+            <Controller name="jalur_masuk_id" control={control} render={({ field }) => (
+              <Select label="Jalur Pendaftaran" required options={jalurOptions} value={field.value} onChange={field.onChange} error={errors.jalur_masuk_id?.message} isDisabled={loadingOptions} />
             )} />
             <Controller name="program_studi_id" control={control} render={({ field }) => (
               <Select label="Program Studi Pilihan 1" required options={programOptions} value={field.value} onChange={field.onChange} error={errors.program_studi_id?.message} isDisabled={loadingOptions} />

@@ -18,12 +18,12 @@ import { spmbService } from '@/services/spmb.service';
 import { arsipService } from '@/services/arsip.service';
 import { formatRupiah } from '@/lib/utils';
 import { EVIDENCE_TYPE_OPTIONS } from '@/lib/spmb/master-biaya-options';
-import type { MasterKomponenBiaya, MasterTipeJalur, MasterBiayaSpmb } from '@/types/spmb.types';
+import type { JalurMasuk, MasterKomponenBiaya, MasterBiayaSpmb } from '@/types/spmb.types';
 import type { CheckSkResult } from '@/types/arsip.types';
 import toast from 'react-hot-toast';
 
 const masterBiayaEditFormSchema = z.object({
-  master_tipe_jalur_id: z.string().min(1, 'Tipe jalur masuk wajib dipilih'),
+  jalur_masuk_id: z.string().min(1, 'Jalur masuk wajib dipilih'),
   program_studi_id: z.string().min(1, 'Program studi wajib dipilih'),
   evidence_type: z.enum(['arsip', 'upload']),
   nomor_sk: z.string().max(150, 'Nomor SK maksimal 150 karakter').optional().or(z.literal('')),
@@ -59,7 +59,7 @@ export default function EditMasterBiayaPage() {
   const params = useParams();
   const id = Number(params?.id);
 
-  const [tipeJalurList, setTipeJalurList] = useState<MasterTipeJalur[]>([]);
+  const [jalurList, setJalurList] = useState<JalurMasuk[]>([]);
   const [komponenMaster, setKomponenMaster] = useState<MasterKomponenBiaya[]>([]);
   const [prodiList, setProdiList] = useState<any[]>([]);
 
@@ -86,7 +86,7 @@ export default function EditMasterBiayaPage() {
   } = useForm<MasterBiayaEditFormValues>({
     resolver: zodResolver(masterBiayaEditFormSchema),
     defaultValues: {
-      master_tipe_jalur_id: '',
+      jalur_masuk_id: '',
       program_studi_id: '',
       evidence_type: 'arsip',
       nomor_sk: '',
@@ -166,15 +166,14 @@ export default function EditMasterBiayaPage() {
     const loadData = async () => {
       try {
         setLoading(true);
-        const [tipeRes, prodiRes, kompRes, detailRes] = await Promise.all([
-          spmbService.getMasterTipeJalur({ limit: 100 }),
+        const [jalurRes, prodiRes, kompRes, detailRes] = await Promise.all([
+          spmbService.getJalurMasuk({ status: 'aktif', limit: 100 }),
           spmbService.getProgramStudi({ limit: 100 }),
           spmbService.getKomponenBiayaList({ is_active: true, limit: 100 }),
           spmbService.getMasterBiayaById(id),
         ]);
 
-        const tipesRaw = tipeRes?.data;
-        setTipeJalurList(Array.isArray(tipesRaw) ? tipesRaw : tipesRaw?.items || []);
+        setJalurList(Array.isArray(jalurRes?.data) ? jalurRes.data : []);
         setProdiList(Array.isArray(prodiRes?.data) ? prodiRes.data : []);
 
         const komps = Array.isArray(kompRes?.data) ? kompRes.data : [];
@@ -182,7 +181,7 @@ export default function EditMasterBiayaPage() {
         const data: MasterBiayaSpmb = detailRes?.data;
 
         if (data) {
-          setValue('master_tipe_jalur_id', data.master_tipe_jalur_id ? String(data.master_tipe_jalur_id) : '');
+          setValue('jalur_masuk_id', data.jalur_masuk_id ? String(data.jalur_masuk_id) : '');
           setValue('program_studi_id', String(data.program_studi_id));
           setValue('evidence_type', data.dokumen_pendukung_url ? 'upload' : 'arsip');
           setValue('nomor_sk', data.nomor_sk || '');
@@ -289,7 +288,7 @@ export default function EditMasterBiayaPage() {
     try {
       setSubmitting(true);
       await spmbService.updateMasterBiayaWithEvidence(id, {
-        master_tipe_jalur_id: Number(values.master_tipe_jalur_id),
+        jalur_masuk_id: Number(values.jalur_masuk_id),
         program_studi_id: Number(values.program_studi_id),
         evidence_type: values.evidence_type,
         nomor_sk: trimmedSk || undefined,
@@ -344,7 +343,7 @@ export default function EditMasterBiayaPage() {
     <div className="space-y-6 animate-fade-in">
       <PageHeader
         title="Edit Master Biaya"
-        description="Perbarui rincian paket biaya awal untuk program studi pada tipe jalur masuk ini"
+        description="Perbarui rincian paket biaya awal untuk program studi pada jalur masuk ini"
         action={
           <Button
             variant="outline"
@@ -360,28 +359,28 @@ export default function EditMasterBiayaPage() {
       <div className="card">
         <div className="card-body">
           <form onSubmit={handleSubmit(onSubmit)}>
-            {/* 1. INFORMASI TIPE JALUR & PRODI */}
+            {/* 1. INFORMASI JALUR & PRODI */}
             <div className="border-b border-slate-100 pb-4 mb-4">
               <h3 className="text-sm font-semibold text-slate-800 uppercase tracking-wider mb-4">
-                Informasi Tipe Jalur &amp; Program Studi
+                Informasi Jalur Pendaftaran &amp; Program Studi
               </h3>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <Controller
                   control={control}
-                  name="master_tipe_jalur_id"
+                  name="jalur_masuk_id"
                   render={({ field }) => (
                     <Select
-                      label="Tipe Jalur Masuk"
+                      label="Jalur Pendaftaran"
                       required
                       value={field.value}
                       onChange={field.onChange}
-                      options={tipeJalurList.map((t) => ({
-                        value: String(t.id),
-                        label: `${t.nama}${t.kode ? ` (${t.kode})` : ''}`,
+                      options={jalurList.map((jalur) => ({
+                        value: String(jalur.id),
+                        label: `${jalur.nama}${jalur.kode ? ` (${jalur.kode})` : ''}`,
                       }))}
-                      error={errors.master_tipe_jalur_id?.message}
-                      hint="Biaya berlaku untuk semua gelombang pada tipe jalur ini."
+                      error={errors.jalur_masuk_id?.message}
+                      hint="Biaya berlaku untuk semua gelombang pada jalur ini."
                     />
                   )}
                 />

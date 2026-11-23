@@ -18,12 +18,12 @@ import { spmbService } from '@/services/spmb.service';
 import { arsipService } from '@/services/arsip.service';
 import { formatRupiah } from '@/lib/utils';
 import { EVIDENCE_TYPE_OPTIONS } from '@/lib/spmb/master-biaya-options';
-import type { MasterKomponenBiaya, MasterTipeJalur } from '@/types/spmb.types';
+import type { JalurMasuk, MasterKomponenBiaya } from '@/types/spmb.types';
 import type { CheckSkResult } from '@/types/arsip.types';
 import toast from 'react-hot-toast';
 
 const masterBiayaFormSchema = z.object({
-  master_tipe_jalur_id: z.string().min(1, 'Tipe jalur masuk wajib dipilih'),
+  jalur_masuk_id: z.string().min(1, 'Jalur masuk wajib dipilih'),
   program_studi_id: z.string().min(1, 'Program studi wajib dipilih'),
   evidence_type: z.enum(['arsip', 'upload']),
   nomor_sk: z.string().max(150, 'Nomor SK maksimal 150 karakter').optional().or(z.literal('')),
@@ -57,7 +57,7 @@ export default function CreateMasterBiayaPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const [tipeJalurList, setTipeJalurList] = useState<MasterTipeJalur[]>([]);
+  const [jalurList, setJalurList] = useState<JalurMasuk[]>([]);
   const [komponenMaster, setKomponenMaster] = useState<MasterKomponenBiaya[]>([]);
   const [prodiList, setProdiList] = useState<any[]>([]);
 
@@ -74,7 +74,7 @@ export default function CreateMasterBiayaPage() {
     data: null,
   });
 
-  const defaultTipeJalurId = searchParams.get('master_tipe_jalur_id') || '';
+  const defaultJalurId = searchParams.get('jalur_masuk_id') || '';
   const defaultProdiId = searchParams.get('program_studi_id') || '';
 
   const {
@@ -86,7 +86,7 @@ export default function CreateMasterBiayaPage() {
   } = useForm<MasterBiayaFormValues>({
     resolver: zodResolver(masterBiayaFormSchema),
     defaultValues: {
-      master_tipe_jalur_id: defaultTipeJalurId,
+      jalur_masuk_id: defaultJalurId,
       program_studi_id: defaultProdiId,
       evidence_type: 'arsip',
       nomor_sk: '',
@@ -162,17 +162,16 @@ export default function CreateMasterBiayaPage() {
     const loadPrerequisites = async () => {
       try {
         setLoadingInitial(true);
-        const [tipeRes, prodiRes, kompRes] = await Promise.all([
-          spmbService.getMasterTipeJalur({ limit: 100 }),
+        const [jalurRes, prodiRes, kompRes] = await Promise.all([
+          spmbService.getJalurMasuk({ status: 'aktif', limit: 100 }),
           spmbService.getProgramStudi({ limit: 100 }),
           spmbService.getKomponenBiayaList({ is_active: true, limit: 100 }),
         ]);
 
-        const tipesRaw = tipeRes?.data;
-        const tipes: MasterTipeJalur[] = Array.isArray(tipesRaw) ? tipesRaw : tipesRaw?.items || [];
-        setTipeJalurList(tipes);
-        if (tipes.length > 0 && !defaultTipeJalurId) {
-          setValue('master_tipe_jalur_id', String(tipes[0].id));
+        const jalur: JalurMasuk[] = Array.isArray(jalurRes?.data) ? jalurRes.data : [];
+        setJalurList(jalur);
+        if (jalur.length > 0 && !defaultJalurId) {
+          setValue('jalur_masuk_id', String(jalur[0].id));
         }
 
         const prodis = Array.isArray(prodiRes?.data) ? prodiRes.data : [];
@@ -208,7 +207,7 @@ export default function CreateMasterBiayaPage() {
     };
 
     loadPrerequisites();
-  }, [defaultTipeJalurId, defaultProdiId, replace, setValue]);
+  }, [defaultJalurId, defaultProdiId, replace, setValue]);
 
   const handleNominalChange = (index: number, rawValue: string) => {
     const cleanNumber = Math.max(0, Number(rawValue.replace(/\D/g, '')) || 0);
@@ -266,7 +265,7 @@ export default function CreateMasterBiayaPage() {
     try {
       setSubmitting(true);
       await spmbService.createMasterBiayaWithEvidence({
-        master_tipe_jalur_id: Number(values.master_tipe_jalur_id),
+        jalur_masuk_id: Number(values.jalur_masuk_id),
         program_studi_id: Number(values.program_studi_id),
         evidence_type: values.evidence_type,
         nomor_sk: trimmedSk || undefined,
@@ -294,7 +293,7 @@ export default function CreateMasterBiayaPage() {
     <div className="space-y-6 animate-fade-in">
       <PageHeader
         title="Tambah Master Biaya"
-        description="Tetapkan paket biaya awal (DPI, UKT, Seragam, dll) untuk program studi pada tipe jalur masuk pilihan"
+        description="Tetapkan paket biaya awal untuk program studi pada jalur masuk pilihan"
         action={
           <Button
             variant="outline"
@@ -310,28 +309,28 @@ export default function CreateMasterBiayaPage() {
       <div className="card">
         <div className="card-body">
           <form onSubmit={handleSubmit(onSubmit)}>
-            {/* 1. INFORMASI TIPE JALUR & PRODI */}
+            {/* 1. INFORMASI JALUR & PRODI */}
             <div className="border-b border-slate-100 pb-4 mb-4">
               <h3 className="text-sm font-semibold text-slate-800 uppercase tracking-wider mb-4">
-                Informasi Tipe Jalur &amp; Program Studi
+                Informasi Jalur Pendaftaran &amp; Program Studi
               </h3>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <Controller
                   control={control}
-                  name="master_tipe_jalur_id"
+                  name="jalur_masuk_id"
                   render={({ field }) => (
                     <Select
-                      label="Tipe Jalur Masuk"
+                      label="Jalur Pendaftaran"
                       required
                       value={field.value}
                       onChange={field.onChange}
-                      options={tipeJalurList.map((t) => ({
-                        value: String(t.id),
-                        label: `${t.nama}${t.kode ? ` (${t.kode})` : ''}`,
+                      options={jalurList.map((jalur) => ({
+                        value: String(jalur.id),
+                        label: `${jalur.nama}${jalur.kode ? ` (${jalur.kode})` : ''}`,
                       }))}
-                      error={errors.master_tipe_jalur_id?.message}
-                      hint="Biaya berlaku untuk semua gelombang pada tipe jalur ini."
+                      error={errors.jalur_masuk_id?.message}
+                      hint="Biaya berlaku untuk semua gelombang pada jalur ini."
                     />
                   )}
                 />

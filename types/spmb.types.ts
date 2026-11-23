@@ -1,18 +1,3 @@
-export interface MasterTipeJalurAlur {
-  id?: number;
-  nama_tahap: string;
-  urutan?: number;
-}
-
-export interface MasterTipeJalur {
-  id: number;
-  kode: string;
-  nama: string;
-  alur?: MasterTipeJalurAlur[];
-  created_at?: string;
-  updated_at?: string;
-}
-
 export interface JalurMasuk {
   id: number;
   kode: string;
@@ -110,25 +95,12 @@ export interface PendaftaranBerkasItem {
   created_at?: string;
 }
 
-export interface PendaftaranAlur {
-  id: number;
-  pendaftaran_id: number;
-  master_tipe_jalur_alur_id: number;
-  status: 'pending' | 'in_progress' | 'completed' | 'failed';
-  catatan?: string | null;
-  master_alur?: MasterTipeJalurAlur;
-  created_at?: string;
-  updated_at?: string;
-}
-
 export interface Pendaftaran {
   id: number;
   gelombang_id: number;
   user_id: number;
   program_studi_id: number;
   program_studi_pilihan2_id?: number | null;
-  master_tipe_jalur_id?: number | string | null;
-  jalur_id?: number | string | null;
   no_pendaftaran: string;
   nama_lengkap: string;
   nik: string | null;
@@ -190,7 +162,6 @@ export interface Pendaftaran {
   program_studi?: ProgramStudi;
   dokumen_pendaftaran?: PendaftaranBerkasItem[];
   konversi?: KonversiRecord | null;
-  progress_alur?: PendaftaranAlur[];
 }
 
 export interface StatusHistoryItem {
@@ -336,7 +307,7 @@ export interface BiayaPendaftaranInfo {
 
 export interface MasterBiayaSpmb {
   id: number;
-  master_tipe_jalur_id: number | null;
+  jalur_masuk_id: number | null;
   program_studi_id: number;
   nomor_sk?: string | null;
   dokumen_pendukung_url?: string | null;
@@ -352,7 +323,7 @@ export interface MasterBiayaSpmb {
     nama: string;
     jenjang?: string;
   };
-  master_tipe_jalur?: {
+  jalur_masuk?: {
     id: number;
     kode: string;
     nama: string;
@@ -625,9 +596,7 @@ export interface SpmbKodeDiskon {
   berlaku_sampai: string | null;
   is_active: boolean;
   jalur_masuk?: JalurMasuk[];
-  jenis_pendaftaran?: MasterTipeJalur[];
   jalur_masuk_ids?: number[];
-  master_tipe_jalur_ids?: number[];
   created_at?: string;
   updated_at?: string;
 }
@@ -643,7 +612,6 @@ export interface SpmbKodeDiskonPayload {
   berlaku_sampai: string | null;
   is_active: boolean;
   jalur_masuk_ids: number[];
-  master_tipe_jalur_ids: number[];
 }
 
 export interface SpmbKodeDiskonPreview {

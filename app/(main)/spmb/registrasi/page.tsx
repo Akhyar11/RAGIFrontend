@@ -64,7 +64,6 @@ const spmbRegistrasiSchema = z.object({
   gelombang_id: z.string().min(1, 'Gelombang Penerimaan wajib dipilih'),
   program_studi_id: z.string().min(1, 'Program Studi Utama wajib dipilih'),
   program_studi_pilihan2_id: z.string().optional(),
-  master_tipe_jalur_id: z.string().min(1, 'Jenis pendaftaran wajib dipilih'),
   kode_diskon: z.string().max(50, 'Kode diskon maksimal 50 karakter').optional(),
   info_daftar: z.string().min(1, 'Info pendaftaran wajib dipilih'),
   ket_info_daftar: z.string().min(1, 'Keterangan info pendaftaran wajib diisi'),
@@ -432,7 +431,6 @@ export default function RegistrasiSpmbPage() {
       jalur_id: '',
       gelombang_id: '',
       program_studi_id: '',
-      master_tipe_jalur_id: '',
       kode_diskon: '',
       info_daftar: '',
       ket_info_daftar: '',
@@ -515,7 +513,6 @@ export default function RegistrasiSpmbPage() {
   const [loadingSimulasi, setLoadingSimulasi] = useState(false);
   const [loadingReset, setLoadingReset] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
-  const [tipeJalurOptions, setTipeJalurOptions] = useState<{ value: string; label: string }[]>([]);
   const [nationalityOptions, setNationalityOptions] = useState<NationalityOption[]>([]);
   const [berkasRequirements, setBerkasRequirements] = useState<DokumenItemConfig[]>(DEFAULT_FALLBACK_DOCUMENTS);
   const [loadingBerkas, setLoadingBerkas] = useState(false);
@@ -574,17 +571,16 @@ export default function RegistrasiSpmbPage() {
   const isWna = nationalityCode.toUpperCase() === 'WNA';
   const hasIndonesianResidence = isIndonesiaCountry(residenceCountry);
   const selectedGelombang = watch('gelombang_id');
-  const selectedTipeJalur = watch('master_tipe_jalur_id');
   const selectedProdi = watch('program_studi_id');
   const discountCodeValue = watch('kode_diskon');
 
   useEffect(() => {
     setDiscountCheck({ status: 'idle' });
-  }, [discountCodeValue, selectedGelombang, selectedTipeJalur, selectedProdi]);
+  }, [discountCodeValue, selectedGelombang, selectedJalur, selectedProdi]);
 
   const checkDiscountCode = async () => {
     const kode = String(getValues('kode_diskon') || '').trim().toUpperCase();
-    const masterTipeJalurId = Number(getValues('master_tipe_jalur_id'));
+    const jalurMasukId = Number(getValues('jalur_id'));
     const programStudiId = Number(getValues('program_studi_id'));
     const gelombangId = Number(getValues('gelombang_id'));
 
@@ -592,8 +588,8 @@ export default function RegistrasiSpmbPage() {
       setDiscountCheck({ status: 'invalid', message: 'Masukkan kode diskon terlebih dahulu.' });
       return;
     }
-    if (!masterTipeJalurId || !programStudiId || !gelombangId) {
-      setDiscountCheck({ status: 'invalid', message: 'Pilih jalur, gelombang, program studi, dan jenis pendaftaran terlebih dahulu.' });
+    if (!jalurMasukId || !programStudiId || !gelombangId) {
+      setDiscountCheck({ status: 'invalid', message: 'Pilih jalur, gelombang, dan program studi terlebih dahulu.' });
       return;
     }
 
@@ -601,7 +597,7 @@ export default function RegistrasiSpmbPage() {
     try {
       const response = await spmbService.validateKodeDiskon({
         kode,
-        master_tipe_jalur_id: masterTipeJalurId,
+        jalur_masuk_id: jalurMasukId,
         program_studi_id: programStudiId,
         gelombang_id: gelombangId,
       });
@@ -656,7 +652,6 @@ export default function RegistrasiSpmbPage() {
     setIsMounted(true);
     fetchJalur();
     fetchProdi();
-    loadTipeJalur('');
     fetchNationalityOptions()
       .then((options: NationalityOption[]) => {
         const wni = options.find((option) => option.code === 'WNI');
@@ -677,16 +672,6 @@ export default function RegistrasiSpmbPage() {
       fetchBerkasRequirements(selectedJalur);
     }
   }, [selectedJalur, isWna]);
-
-  const loadTipeJalur = async (inputValue: string) => {
-    try {
-      const res = await spmbService.getMasterTipeJalur();
-      const mapped = (res.data || []).map((t: any) => ({ value: String(t.id), label: t.nama }));
-      setTipeJalurOptions(mapped);
-      if (inputValue) return mapped.filter((m: any) => m.label.toLowerCase().includes(inputValue.toLowerCase()));
-      return mapped;
-    } catch (e) { return []; }
-  };
 
   const fetchProdi = async () => {
     try {
@@ -729,7 +714,6 @@ export default function RegistrasiSpmbPage() {
           gelombang_id: p.gelombang_id ? String(p.gelombang_id) : '',
           program_studi_id: p.program_studi_id ? String(p.program_studi_id) : '',
           program_studi_pilihan2_id: p.program_studi_pilihan2_id ? String(p.program_studi_pilihan2_id) : '',
-          master_tipe_jalur_id: p.master_tipe_jalur_id ? String(p.master_tipe_jalur_id) : '',
           kode_diskon: discountUsage?.kode_diskon || p.kode_diskon || '',
           nama_lengkap: p.nama_lengkap || '',
           nik: p.nik || '',
@@ -847,14 +831,15 @@ export default function RegistrasiSpmbPage() {
 
   useEffect(() => {
     const pendaftaran = suksesData?.pendaftaran;
-    if (!pendaftaran || isEditingBiodata || !pendaftaran.master_tipe_jalur_id || !pendaftaran.program_studi_id) {
+    const jalurMasukId = pendaftaran?.gelombang_penerimaan?.jalur_masuk_id;
+    if (!pendaftaran || isEditingBiodata || !jalurMasukId || !pendaftaran.program_studi_id) {
       setBiayaPendaftaranSukses(null);
       return;
     }
 
     let active = true;
     spmbService.getBiayaPendaftaran({
-      master_tipe_jalur_id: Number(pendaftaran.master_tipe_jalur_id),
+      jalur_masuk_id: Number(jalurMasukId),
       program_studi_id: Number(pendaftaran.program_studi_id),
     }).then((response) => {
       if (!active) return;
@@ -870,7 +855,7 @@ export default function RegistrasiSpmbPage() {
     return () => {
       active = false;
     };
-  }, [suksesData?.pendaftaran?.id, suksesData?.pendaftaran?.master_tipe_jalur_id, suksesData?.pendaftaran?.program_studi_id, isEditingBiodata]);
+  }, [suksesData?.pendaftaran?.id, suksesData?.pendaftaran?.gelombang_penerimaan?.jalur_masuk_id, suksesData?.pendaftaran?.program_studi_id, isEditingBiodata]);
 
   const handleFileUpload = async (jenisBerkas: string, file: File, requirementId?: number) => {
     if (!file) return;
@@ -1077,7 +1062,7 @@ export default function RegistrasiSpmbPage() {
   // Rincian beban awal pendaftaran berdasarkan Master Biaya tipe jalur + prodi
   useEffect(() => {
     const loadBeban = async () => {
-      if (!selectedTipeJalur || !selectedProdi) {
+      if (!selectedJalur || !selectedProdi) {
         setBebanPendaftaran([]);
         setTotalBebanDaftarUlang(0);
         setTarif(0);
@@ -1087,7 +1072,7 @@ export default function RegistrasiSpmbPage() {
       setLoadingTarif(true);
       try {
         const res = await spmbService.getBiayaPendaftaran({
-          master_tipe_jalur_id: Number(selectedTipeJalur),
+          jalur_masuk_id: Number(selectedJalur),
           program_studi_id: Number(selectedProdi),
         });
         const info = res?.data;
@@ -1105,7 +1090,7 @@ export default function RegistrasiSpmbPage() {
       }
     };
     loadBeban();
-  }, [selectedTipeJalur, selectedProdi]);
+  }, [selectedJalur, selectedProdi]);
 
   const fetchJalur = async () => {
     try {
@@ -1145,7 +1130,7 @@ export default function RegistrasiSpmbPage() {
 
   const handleNextStep = async () => {
     let fieldsToValidate: string[] = [];
-    if (currentStep === 1) fieldsToValidate = ['jalur_id', 'gelombang_id', 'program_studi_id', 'master_tipe_jalur_id'];
+    if (currentStep === 1) fieldsToValidate = ['jalur_id', 'gelombang_id', 'program_studi_id'];
     else if (currentStep === 2) fieldsToValidate = [
       'nama_lengkap', 'kewarganegaraan_id', 'kewarganegaraan',
       ...(isWna
@@ -1211,6 +1196,7 @@ export default function RegistrasiSpmbPage() {
       data.program_studi_id = data.program_studi_id ? Number(data.program_studi_id) : 1;
       await spmbService.submitBiodata({
         ...data,
+        jalur_masuk_id: Number(data.jalur_id),
         kode_diskon: String(data.kode_diskon || '').trim().toUpperCase() || null,
       });
       const invoice = await spmbService.issueRegistrationInvoice({
@@ -1758,25 +1744,6 @@ export default function RegistrasiSpmbPage() {
                       placeholder="-- Pilih Program Studi Pilihan --"
                       error={errors.program_studi_id?.message}
                       hint="Pilih program studi jenjang S1/D3 yang ingin Anda tuju."
-                    />
-                  )}
-                />
-              </div>
-
-              <div>
-                <Controller
-                  name="master_tipe_jalur_id"
-                  control={control}
-                  render={({ field }) => (
-                    <AsyncSelect
-                      label="Jenis Pendaftaran *"
-                      placeholder="-- Pilih Jenis Pendaftaran --"
-                      error={errors.master_tipe_jalur_id?.message}
-                      defaultOptions={tipeJalurOptions.length > 0 ? tipeJalurOptions : true}
-                      loadOptions={loadTipeJalur}
-                      value={tipeJalurOptions.find((o) => o.value === String(field.value)) || (field.value ? { value: String(field.value), label: String(field.value) } : null)}
-                      onChange={(sel: any) => field.onChange(sel ? sel.value : '')}
-                      hint="Kategori seleksi pendaftaran yang Anda ikuti."
                     />
                   )}
                 />

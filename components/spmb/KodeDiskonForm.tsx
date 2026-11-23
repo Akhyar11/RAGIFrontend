@@ -39,7 +39,6 @@ const schema = z.object({
   berlaku_sampai: z.string(),
   is_active: z.boolean(),
   jalur_masuk_ids: z.array(z.string()),
-  master_tipe_jalur_ids: z.array(z.string()),
 }).superRefine((values, ctx) => {
   if (values.tipe_diskon === 'persen' && Number(values.nilai) > 100) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['nilai'], message: 'Diskon persentase maksimal 100%.' });
@@ -64,7 +63,7 @@ export function KodeDiskonForm({ mode, initial }: KodeDiskonFormProps) {
     defaultValues: {
       kode: '', nama: '', tipe_diskon: 'nominal', nilai: '', maksimum_potongan: '',
       batas_penggunaan: '', berlaku_mulai: '', berlaku_sampai: '', is_active: true,
-      jalur_masuk_ids: [], master_tipe_jalur_ids: [],
+      jalur_masuk_ids: [],
     },
   });
 
@@ -83,7 +82,6 @@ export function KodeDiskonForm({ mode, initial }: KodeDiskonFormProps) {
       berlaku_sampai: initial.berlaku_sampai?.slice(0, 10) || '',
       is_active: Boolean(initial.is_active),
       jalur_masuk_ids: (initial.jalur_masuk || []).map((item) => String(item.id)),
-      master_tipe_jalur_ids: (initial.jenis_pendaftaran || []).map((item) => String(item.id)),
     });
   }, [initial, reset]);
 
@@ -101,7 +99,6 @@ export function KodeDiskonForm({ mode, initial }: KodeDiskonFormProps) {
       berlaku_sampai: values.berlaku_sampai || null,
       is_active: values.is_active,
       jalur_masuk_ids: values.jalur_masuk_ids.map(Number),
-      master_tipe_jalur_ids: values.master_tipe_jalur_ids.map(Number),
     };
 
     try {
@@ -125,14 +122,6 @@ export function KodeDiskonForm({ mode, initial }: KodeDiskonFormProps) {
 
   const loadJalurOptions = async (search: string) => {
     const response = await spmbService.getJalurMasuk({ name: search || undefined, limit: 100 });
-    return (response?.data || []).map((item: { id: number; kode: string; nama: string }) => ({
-      value: String(item.id),
-      label: `${item.kode} - ${item.nama}`,
-    }));
-  };
-
-  const loadRegistrationTypeOptions = async (search: string) => {
-    const response = await spmbService.getMasterTipeJalur({ search: search || undefined, limit: 100 });
     return (response?.data || []).map((item: { id: number; kode: string; nama: string }) => ({
       value: String(item.id),
       label: `${item.kode} - ${item.nama}`,
@@ -190,23 +179,6 @@ export function KodeDiskonForm({ mode, initial }: KodeDiskonFormProps) {
                     isClearable
                     defaultOptions={(initial?.jalur_masuk || []).map((item) => ({ value: String(item.id), label: `${item.kode} - ${item.nama}` }))}
                     loadOptions={loadJalurOptions}
-                    value={field.value}
-                    onChange={(options: Array<{ value: string }> | null) => field.onChange((options || []).map((option) => option.value))}
-                  />
-                )}
-              />
-              <Controller
-                name="master_tipe_jalur_ids"
-                control={control}
-                render={({ field }) => (
-                  <AsyncSelect
-                    id="spmb-kode-diskon-jenis"
-                    label="Jenis Pendaftaran (Opsional)"
-                    hint="Kosong berarti kode berlaku untuk semua jenis pendaftaran."
-                    isMulti
-                    isClearable
-                    defaultOptions={(initial?.jenis_pendaftaran || []).map((item) => ({ value: String(item.id), label: `${item.kode} - ${item.nama}` }))}
-                    loadOptions={loadRegistrationTypeOptions}
                     value={field.value}
                     onChange={(options: Array<{ value: string }> | null) => field.onChange((options || []).map((option) => option.value))}
                   />

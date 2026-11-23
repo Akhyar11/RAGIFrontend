@@ -18,7 +18,6 @@ export interface JalurMasuk {
   kode: string;
   nama: string;
   deskripsi: string;
-  tipe: 'reguler' | 'transfer' | 'beasiswa' | 'internasional' | 'rpla';
   ada_wawancara: boolean;
   is_active: boolean;
   created_at: string;
@@ -59,8 +58,6 @@ export interface PendaftaranCalonMhs {
   user_id: number;
   program_studi_id: number;
   program_studi_pilihan2_id?: number;
-  master_tipe_jalur_id?: number | string;
-  master_jalur_kelas_id?: number | string;
   info_daftar?: string;
   ket_info_daftar?: string;
   used_referral_code?: string | null;
@@ -164,7 +161,6 @@ export interface PendaftaranCalonMhs {
     phone?: string;
   };
   dokumen_pendaftaran?: PendaftaranBerkas[];
-  progress_alur?: any[];
   daftar_ulang?: DaftarUlangSummary | null;
   hasil_seleksi?: any;
   hasilSeleksi?: any;
@@ -266,7 +262,7 @@ export const spmbService = {
   },
   validateKodeDiskon: async (payload: {
     kode: string;
-    master_tipe_jalur_id: number;
+    jalur_masuk_id: number;
     program_studi_id: number;
     gelombang_id: number;
   }) => {
@@ -539,22 +535,6 @@ export const spmbService = {
   },
 
 
-  getMasterTipeJalur: async (params?: { page?: number; limit?: number; search?: string; sort_by?: string; sort_dir?: string }) => {
-    const response = await api.get('/spmb/master-tipe-jalur', { params });
-    return response.data;
-  },
-  createMasterTipeJalur: async (data: { kode: string; nama: string; alur?: { nama_tahap: string; urutan?: number }[] }) => {
-    const response = await api.post('/spmb/master-tipe-jalur', data);
-    return response.data;
-  },
-  updateMasterTipeJalur: async (id: number, data: { kode: string; nama: string; alur?: { nama_tahap: string; urutan?: number }[] }) => {
-    const response = await api.put(`/spmb/master-tipe-jalur/${id}`, data);
-    return response.data;
-  },
-  deleteMasterTipeJalur: async (id: number) => {
-    const response = await api.delete(`/spmb/master-tipe-jalur/${id}`);
-    return response.data;
-  },
   getReferensi: async (tipe: string) => {
     try {
       const response = await api.get(`/spmb/referensi/${tipe}`);
@@ -681,7 +661,7 @@ export const spmbService = {
   // MASTER BIAYA SPMB (HEADER & DETAIL MATRIX)
   // ====================================================
   getMasterBiayaList: async (params?: {
-    master_tipe_jalur_id?: number | string;
+    jalur_masuk_id?: number | string;
     program_studi_id?: number | string;
     nomor_sk?: string;
     search?: string;
@@ -710,7 +690,7 @@ export const spmbService = {
   },
 
   createMasterBiaya: async (data: {
-    master_tipe_jalur_id: number;
+    jalur_masuk_id: number;
     program_studi_id: number;
     nomor_sk?: string;
     is_active?: boolean;
@@ -722,7 +702,7 @@ export const spmbService = {
   },
 
   createMasterBiayaWithEvidence: async (data: {
-    master_tipe_jalur_id: number;
+    jalur_masuk_id: number;
     program_studi_id: number;
     evidence_type: 'arsip' | 'upload';
     nomor_sk?: string;
@@ -732,7 +712,7 @@ export const spmbService = {
     items: { komponen_biaya_id: number; nominal: number; dibebankan_saat_pendaftaran?: boolean; berlaku_diskon?: boolean; keterangan?: string }[];
   }) => {
     const formData = new FormData();
-    formData.append('master_tipe_jalur_id', String(data.master_tipe_jalur_id));
+    formData.append('jalur_masuk_id', String(data.jalur_masuk_id));
     formData.append('program_studi_id', String(data.program_studi_id));
     formData.append('evidence_type', data.evidence_type);
     if (data.nomor_sk) formData.append('nomor_sk', data.nomor_sk);
@@ -756,7 +736,7 @@ export const spmbService = {
   updateMasterBiaya: async (
     id: number,
     data: {
-      master_tipe_jalur_id?: number;
+      jalur_masuk_id?: number;
       program_studi_id?: number;
       nomor_sk?: string;
       is_active?: boolean;
@@ -771,7 +751,7 @@ export const spmbService = {
   updateMasterBiayaWithEvidence: async (
     id: number,
     data: {
-      master_tipe_jalur_id: number;
+      jalur_masuk_id: number;
       program_studi_id: number;
       evidence_type: 'arsip' | 'upload';
       nomor_sk?: string;
@@ -783,7 +763,7 @@ export const spmbService = {
   ) => {
     const formData = new FormData();
     formData.append('_method', 'PUT');
-    formData.append('master_tipe_jalur_id', String(data.master_tipe_jalur_id));
+    formData.append('jalur_masuk_id', String(data.jalur_masuk_id));
     formData.append('program_studi_id', String(data.program_studi_id));
     formData.append('evidence_type', data.evidence_type);
     if (data.nomor_sk) formData.append('nomor_sk', data.nomor_sk);
@@ -809,7 +789,7 @@ export const spmbService = {
     return response.data;
   },
 
-  getBiayaPendaftaran: async (params: { master_tipe_jalur_id: number; program_studi_id: number }) => {
+  getBiayaPendaftaran: async (params: { jalur_masuk_id: number; program_studi_id: number }) => {
     const response = await api.get('/spmb/biaya-pendaftaran', { params });
     return response.data;
   },

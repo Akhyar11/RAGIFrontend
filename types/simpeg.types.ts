@@ -249,6 +249,32 @@ export interface PresensiPegawai {
   updated_at?: string;
 }
 
+export interface PresensiSettings {
+  face_score_threshold: number;
+  gps_accuracy_threshold_meters: number;
+  late_tolerance_minutes: number;
+  max_early_clock_in_minutes: number;
+  max_late_clock_in_minutes: number;
+  max_early_clock_out_minutes: number;
+  max_late_clock_out_minutes: number;
+  early_leave_tolerance_minutes: number;
+  applies_national_holidays: boolean;
+  max_late_per_month: number;
+}
+
+export interface PresensiSettingsPayload {
+  face_score_threshold: number;
+  gps_accuracy_threshold_meters: number;
+  max_late_per_month: number;
+  late_tolerance_minutes?: number | null;
+  max_early_clock_in_minutes?: number | null;
+  max_late_clock_in_minutes?: number | null;
+  max_early_clock_out_minutes?: number | null;
+  max_late_clock_out_minutes?: number | null;
+  early_leave_tolerance_minutes?: number | null;
+  applies_national_holidays?: boolean;
+}
+
 export type StatusPresensiPengajaran = 'terisi' | 'belum_diisi' | 'belum_terlaksana' | 'tanpa_peserta';
 
 export interface PresensiPengajaranPertemuan {

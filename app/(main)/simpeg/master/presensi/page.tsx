@@ -208,7 +208,7 @@ export default function MasterPresensiPage() {
   const formSettings = useForm<SystemSettingsValues>({
     resolver: zodResolver(systemSettingsSchema),
     defaultValues: {
-      face_score_threshold: 0.80,
+      face_score_threshold: 0.68,
       gps_accuracy_threshold_meters: 50.0,
       max_late_per_month: 5,
     },
@@ -274,7 +274,7 @@ export default function MasterPresensiPage() {
       const res = await simpegService.getPresensiSettings();
       if (res.status === 'success' && res.data) {
         formSettings.reset({
-          face_score_threshold: res.data.face_score_threshold ?? 0.80,
+          face_score_threshold: res.data.face_score_threshold ?? 0.68,
           gps_accuracy_threshold_meters: res.data.gps_accuracy_threshold_meters ?? 50.0,
           max_late_per_month: res.data.max_late_per_month ?? 5,
         });
@@ -1207,7 +1207,7 @@ export default function MasterPresensiPage() {
               <SlidersHorizontal size={24} className="text-[var(--module-primary)]" />
               <div>
                 <p className="font-semibold text-slate-800 text-sm">Konfigurasi Validasi Biometrik & GPS</p>
-                <p className="text-xs text-slate-500">Nilai parameter ini menjadi acuan server saat memproses presensi mobile (face recognition & GPS). Toleransi waktu & kebijakan libur diatur per shift template.</p>
+                <p className="text-xs text-slate-500">Nilai parameter ini menjadi acuan server saat memproses presensi mobile (face recognition & GPS). Ambang wajah yang disimpan di sini langsung dipakai mesin verifikasi dan dibaca mobile tanpa pengaturan ulang. Toleransi waktu & kebijakan libur diatur per shift template.</p>
               </div>
             </div>
           </div>
@@ -1226,7 +1226,7 @@ export default function MasterPresensiPage() {
                   step="0.01"
                   min="0.1"
                   max="1.0"
-                  hint="Rekomendasi model InsightFace: 0.80 (rentang 0.00 s/d 1.00)."
+                  hint="Default engine saat ini: 0.68. Nilai yang disimpan langsung dipakai server verifikasi dan aplikasi mobile (rentang 0.10 s/d 1.00)."
                   error={formSettings.formState.errors.face_score_threshold?.message}
                   {...formSettings.register('face_score_threshold', { valueAsNumber: true })}
                 />

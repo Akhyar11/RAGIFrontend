@@ -13,6 +13,8 @@ import type {
   MasterJenisCuti,
   PengajuanCuti,
   PresensiPegawai,
+  PresensiSettings,
+  PresensiSettingsPayload,
   AttendanceRecapData,
   GajiPegawai,
   MasterKomponenGaji,
@@ -551,13 +553,13 @@ export const simpegService = {
     return data;
   },
 
-  getPresensiSettings: async (): Promise<ApiResponse<any>> => {
-    const { data } = await apiClient.get<ApiResponse<any>>('/simpeg/presensi/settings');
+  getPresensiSettings: async (): Promise<ApiResponse<PresensiSettings>> => {
+    const { data } = await apiClient.get<ApiResponse<PresensiSettings>>('/simpeg/presensi/settings');
     return data;
   },
 
-  updatePresensiSettings: async (payload: any): Promise<ApiResponse<any>> => {
-    const { data } = await apiClient.put<ApiResponse<any>>('/simpeg/presensi/settings', payload);
+  updatePresensiSettings: async (payload: PresensiSettingsPayload): Promise<ApiResponse<PresensiSettingsPayload>> => {
+    const { data } = await apiClient.put<ApiResponse<PresensiSettingsPayload>>('/simpeg/presensi/settings', payload);
     return data;
   },
 

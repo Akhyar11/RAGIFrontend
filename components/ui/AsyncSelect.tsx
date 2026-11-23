@@ -1,5 +1,6 @@
 import React, { forwardRef, useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import ReactAsyncSelect from 'react-select/async';
+import ReactAsyncCreatableSelect from 'react-select/async-creatable';
 import { cn } from '@/lib/utils';
 
 interface AsyncSelectProps {
@@ -17,6 +18,7 @@ interface AsyncSelectProps {
   isClearable?: boolean;
   isDisabled?: boolean;
   isMulti?: boolean;
+  isCreatable?: boolean;
   formatOptionLabel?: (option: any, meta: any) => React.ReactNode;
 }
 
@@ -37,6 +39,7 @@ export const AsyncSelect = forwardRef<any, AsyncSelectProps>(
       isClearable = false,
       isDisabled = false,
       isMulti = false,
+      isCreatable = false,
       formatOptionLabel,
       ...props
     },
@@ -165,6 +168,7 @@ export const AsyncSelect = forwardRef<any, AsyncSelectProps>(
       }
       return resolveSingleValue(value);
     }, [value, isMulti, tick, resolveSingleValue]);
+    const AsyncSelectComponent = isCreatable ? ReactAsyncCreatableSelect : ReactAsyncSelect;
 
     const generatedId = React.useId();
     const cleanLabel = label ? label.replace(/\s*\*+$/, '') : undefined;
@@ -226,7 +230,7 @@ export const AsyncSelect = forwardRef<any, AsyncSelectProps>(
           </label>
         )}
         <div className="input-wrapper" style={{ display: 'block' }}>
-          <ReactAsyncSelect
+          <AsyncSelectComponent
             ref={ref}
             instanceId={selectId}
             inputId={selectId}

@@ -116,6 +116,12 @@ export interface PendaftaranCalonMhs {
   nilai_rata_rapor?: number;
   tahun_lulus?: string;
   npsn_sekolah?: string;
+  telepon_ayah?: string;
+  penghasilan_ayah?: string;
+  telepon_ibu?: string;
+  penghasilan_ibu?: string;
+  pekerjaan_wali?: string;
+  penghasilan_wali?: string;
   nama_ayah?: string;
   pekerjaan_ayah?: string;
   nama_ibu?: string;

@@ -57,6 +57,9 @@ import { useUiStore } from '@/store/uiStore';
 import api from '@/lib/axios';
 import type { BiayaBebanItem, SpmbKodeDiskonPreview } from '@/types/spmb.types';
 import { isIndonesiaCountry, validateApplicantIdentity } from '@/lib/spmb/applicant-identity';
+import { ASAL_LULUSAN_OPTIONS, AGAMA_OPTIONS, PEKERJAAN_OPTIONS, PENGHASILAN_OPTIONS, STATUS_SIPIL_OPTIONS } from '@/lib/spmb/registration-options';
+import { spmbReferenceService } from '@/services/spmb-reference.service';
+import { SpmbResidenceFields } from '@/components/spmb/SpmbResidenceFields';
 
 
 const spmbRegistrasiSchema = z.object({
@@ -78,7 +81,7 @@ const spmbRegistrasiSchema = z.object({
   tempat_lahir: z.string().min(2, 'Tempat lahir wajib diisi'),
   tanggal_lahir: z.string().min(1, 'Tanggal lahir wajib diisi'),
   jenis_kelamin: z.string().min(1, 'Jenis kelamin wajib dipilih'),
-  status_sipil: z.string().min(1, 'Status sipil wajib dipilih'),
+  status_sipil: z.string().min(1, 'Status sipil wajib dipilih').refine((value): boolean => value === 'menikah' || value === 'belum_menikah', 'Status sipil tidak valid.'),
   agama: z.string().optional(),
   kewarganegaraan: z.string().min(1, 'Kewarganegaraan wajib dipilih.'),
   
@@ -87,16 +90,14 @@ const spmbRegistrasiSchema = z.object({
   kota_kabupaten: z.string().optional(),
   kecamatan: z.string().optional(),
   kode_pos: z.string().optional(),
-  negara_domisili: z.string().min(2, 'Negara domisili wajib diisi.'),
+  negara_domisili: z.string().optional(),
   alamat: z.string().min(5, 'Alamat rumah lengkap minimal 5 karakter'),
   
   asal_lulusan: z.string().min(1, 'Asal lulusan wajib dipilih'),
   asal_sekolah: z.string().optional(),
   alamat_sekolah: z.string().optional(),
-  npsn_sekolah: z.string().optional(),
   jurusan_sekolah: z.string().optional(),
   tahun_lulus: z.string().optional(),
-  nilai_rata_rapor: z.string().optional(),
 
   asal_pt: z.string().optional(),
   jenis_pt: z.string().optional(),
@@ -107,16 +108,19 @@ const spmbRegistrasiSchema = z.object({
   nim_pt: z.string().optional(),
   tahun_lulus_pt: z.string().optional(),
   
-  nama_ortu: z.string().min(2, 'Nama orang tua wajib diisi'),
   alamat_ortu: z.string().min(5, 'Alamat orang tua wajib diisi'),
-  telp_ortu: z.string().min(10, 'Nomor HP orang tua minimal 10 digit').regex(/^[0-9\-\+\s]+$/, 'Format nomor HP orang tua tidak valid'),
   nama_ayah: z.string().min(2, 'Nama ayah kandung wajib diisi'),
   pekerjaan_ayah: z.string().optional(),
+  telepon_ayah: z.string().optional(),
+  penghasilan_ayah: z.string().optional(),
   nama_ibu: z.string().min(2, 'Nama ibu kandung wajib diisi'),
   pekerjaan_ibu: z.string().optional(),
-  penghasilan_ortu: z.string().optional(),
+  telepon_ibu: z.string().optional(),
+  penghasilan_ibu: z.string().optional(),
   nama_wali: z.string().optional(),
   telepon_wali: z.string().optional(),
+  pekerjaan_wali: z.string().optional(),
+  penghasilan_wali: z.string().optional(),
   used_referral_code: z
     .string()
     .optional()
@@ -131,7 +135,7 @@ const spmbRegistrasiSchema = z.object({
       passportIssuingCountry: values.negara_penerbit_paspor || '',
       citizenshipCountry: values.negara_kewarganegaraan || '',
       citizenshipCountryCode: values.kode_negara_kewarganegaraan || '',
-      residenceCountry: values.negara_domisili,
+      residenceCountry: values.kewarganegaraan === 'WNA' ? 'WNA' : (values.negara_domisili || ''),
       address: values.alamat,
       province: values.provinsi || '',
       city: values.kota_kabupaten || '',
@@ -155,26 +159,6 @@ const STEPS = [
 ];
 
 // Pilihan tetap (bukan entitas DB) — nilai harus selaras dengan enum/kolom backend.
-const ASAL_LULUSAN_OPTIONS: SelectOption[] = [
-  { value: 'sekolah', label: 'Sekolah (SMA / SMK / MA / Sederajat)' },
-  { value: 'pt', label: 'Perguruan Tinggi (Transfer / Alih Jenjang)' },
-];
-
-const STATUS_SIPIL_OPTIONS: SelectOption[] = [
-  { value: 'belum_menikah', label: 'Belum Menikah' },
-  { value: 'menikah', label: 'Menikah' },
-  { value: 'janda_duda', label: 'Janda / Duda' },
-];
-
-const AGAMA_OPTIONS: SelectOption[] = [
-  { value: 'islam', label: 'Islam' },
-  { value: 'kristen', label: 'Kristen' },
-  { value: 'katolik', label: 'Katolik' },
-  { value: 'hindu', label: 'Hindu' },
-  { value: 'buddha', label: 'Buddha' },
-  { value: 'konghucu', label: 'Konghucu' },
-];
-
 const JENIS_PT_OPTIONS: SelectOption[] = [
   { value: 'negeri', label: 'Negeri' },
   { value: 'swasta', label: 'Swasta' },
@@ -187,14 +171,6 @@ const JENJANG_PT_OPTIONS: SelectOption[] = [
   { value: 's1', label: 'Sarjana (S1)' },
   { value: 's2', label: 'Magister (S2)' },
   { value: 's3', label: 'Doktor (S3)' },
-];
-
-const PENGHASILAN_ORTU_OPTIONS: SelectOption[] = [
-  { value: '<1jt', label: 'Kurang dari Rp 1.000.000' },
-  { value: '1-2jt', label: 'Rp 1.000.000 - Rp 2.000.000' },
-  { value: '2-5jt', label: 'Rp 2.000.000 - Rp 5.000.000' },
-  { value: '5-10jt', label: 'Rp 5.000.000 - Rp 10.000.000' },
-  { value: '>10jt', label: 'Lebih dari Rp 10.000.000' },
 ];
 
 const INFO_DAFTAR_OPTIONS: SelectOption[] = [
@@ -457,10 +433,8 @@ export default function RegistrasiSpmbPage() {
       asal_lulusan: 'sekolah',
       asal_sekolah: '',
       alamat_sekolah: '',
-      npsn_sekolah: '',
       jurusan_sekolah: '',
       tahun_lulus: '',
-      nilai_rata_rapor: '',
       asal_pt: '',
       jenis_pt: '',
       alamat_pt: '',
@@ -469,14 +443,19 @@ export default function RegistrasiSpmbPage() {
       ipk_pt: '',
       nim_pt: '',
       tahun_lulus_pt: '',
-      nama_ortu: '',
       alamat_ortu: '',
-      telp_ortu: '',
       nama_ayah: '',
       pekerjaan_ayah: '',
+      telepon_ayah: '',
+      penghasilan_ayah: '',
       nama_ibu: '',
       pekerjaan_ibu: '',
-      penghasilan_ortu: '',
+      telepon_ibu: '',
+      penghasilan_ibu: '',
+      nama_wali: '',
+      telepon_wali: '',
+      pekerjaan_wali: '',
+      penghasilan_wali: '',
       used_referral_code: '',
     },
   });
@@ -569,10 +548,20 @@ export default function RegistrasiSpmbPage() {
   const nationalityCode = watch('kewarganegaraan');
   const residenceCountry = watch('negara_domisili');
   const isWna = nationalityCode.toUpperCase() === 'WNA';
-  const hasIndonesianResidence = isIndonesiaCountry(residenceCountry);
+  const hasIndonesianResidence = isIndonesiaCountry(residenceCountry || '');
   const selectedGelombang = watch('gelombang_id');
   const selectedProdi = watch('program_studi_id');
   const discountCodeValue = watch('kode_diskon');
+
+  useEffect(() => {
+    if (isWna) {
+      setValue('provinsi', '');
+      setValue('kota_kabupaten', '');
+      setValue('kecamatan', '');
+      setValue('kode_pos', '');
+      setValue('negara_domisili', '');
+    }
+  }, [isWna, setValue]);
 
   useEffect(() => {
     setDiscountCheck({ status: 'idle' });
@@ -725,7 +714,7 @@ export default function RegistrasiSpmbPage() {
           tanggal_lahir: p.tanggal_lahir ? p.tanggal_lahir.split('T')[0] : '',
           tempat_lahir: p.tempat_lahir || '',
           jenis_kelamin: p.jenis_kelamin || '',
-          status_sipil: p.status_sipil || '',
+          status_sipil: (p.status_sipil || '').toLowerCase().replaceAll(' ', '_'),
           agama: p.agama || '',
           kewarganegaraan: nationalityOption?.code || p.kewarganegaraan || '',
           no_hp: p.no_hp || '',
@@ -738,9 +727,7 @@ export default function RegistrasiSpmbPage() {
           asal_lulusan: p.asal_lulusan || 'sekolah',
           asal_sekolah: p.asal_sekolah || '',
           jurusan_sekolah: p.jurusan_sekolah || '',
-          npsn_sekolah: p.npsn_sekolah || '',
           tahun_lulus: p.tahun_lulus || '',
-          nilai_rata_rapor: p.nilai_rata_rapor ? String(p.nilai_rata_rapor) : '',
           asal_pt: p.asal_pt || '',
           jenis_pt: p.jenis_pt || '',
           alamat_pt: p.alamat_pt || '',
@@ -751,14 +738,17 @@ export default function RegistrasiSpmbPage() {
           tahun_lulus_pt: p.tahun_lulus_pt || '',
           nama_ayah: p.nama_ayah || '',
           pekerjaan_ayah: p.pekerjaan_ayah || '',
+          telepon_ayah: p.telepon_ayah || '',
+          penghasilan_ayah: p.penghasilan_ayah || '',
           nama_ibu: p.nama_ibu || '',
           pekerjaan_ibu: p.pekerjaan_ibu || '',
-          penghasilan_ortu: p.penghasilan_ortu || '',
-          nama_ortu: p.nama_ortu || '',
+          telepon_ibu: p.telepon_ibu || '',
+          penghasilan_ibu: p.penghasilan_ibu || '',
           alamat_ortu: p.alamat_ortu || '',
-          telp_ortu: p.telp_ortu || '',
           nama_wali: p.nama_wali || '',
           telepon_wali: p.telepon_wali || '',
+          pekerjaan_wali: p.pekerjaan_wali || '',
+          penghasilan_wali: p.penghasilan_wali || '',
           info_daftar: p.info_daftar || '',
           ket_info_daftar: p.ket_info_daftar || '',
           used_referral_code: p.used_referral_code || '',
@@ -798,7 +788,7 @@ export default function RegistrasiSpmbPage() {
             // Inferensi langkah berdasarkan data yang telah terisi
             if (p.dokumen_pendaftaran && Array.isArray(p.dokumen_pendaftaran) && p.dokumen_pendaftaran.length > 0) {
               targetStep = 7;
-            } else if (p.nama_ayah || p.nama_ibu || p.nama_ortu) {
+            } else if (p.nama_ayah || p.nama_ibu || p.nama_wali) {
               targetStep = 6;
             } else if (p.asal_sekolah) {
               targetStep = 5;
@@ -928,9 +918,7 @@ export default function RegistrasiSpmbPage() {
       setValue('asal_lulusan', p.asal_lulusan || 'sekolah');
       setValue('asal_sekolah', p.asal_sekolah || '');
       setValue('jurusan_sekolah', p.jurusan_sekolah || '');
-      setValue('npsn_sekolah', p.npsn_sekolah || '');
       setValue('tahun_lulus', p.tahun_lulus || '');
-      setValue('nilai_rata_rapor', p.nilai_rata_rapor ? String(p.nilai_rata_rapor) : '');
       setValue('asal_pt', p.asal_pt || '');
       setValue('jenis_pt', p.jenis_pt || '');
       setValue('alamat_pt', p.alamat_pt || '');
@@ -941,11 +929,16 @@ export default function RegistrasiSpmbPage() {
       setValue('tahun_lulus_pt', p.tahun_lulus_pt || '');
       setValue('nama_ayah', p.nama_ayah || '');
       setValue('pekerjaan_ayah', p.pekerjaan_ayah || '');
+      setValue('telepon_ayah', p.telepon_ayah || '');
+      setValue('penghasilan_ayah', p.penghasilan_ayah || '');
       setValue('nama_ibu', p.nama_ibu || '');
       setValue('pekerjaan_ibu', p.pekerjaan_ibu || '');
-      setValue('penghasilan_ortu', p.penghasilan_ortu || '');
+      setValue('telepon_ibu', p.telepon_ibu || '');
+      setValue('penghasilan_ibu', p.penghasilan_ibu || '');
       setValue('nama_wali', p.nama_wali || '');
       setValue('telepon_wali', p.telepon_wali || '');
+      setValue('pekerjaan_wali', p.pekerjaan_wali || '');
+      setValue('penghasilan_wali', p.penghasilan_wali || '');
 
       setIsEditingBiodata(true);
       setCurrentStep(1);
@@ -1140,10 +1133,10 @@ export default function RegistrasiSpmbPage() {
     ];
     else if (currentStep === 3) fieldsToValidate = [
       'no_hp', 'negara_domisili', 'alamat',
-      ...(hasIndonesianResidence ? ['provinsi', 'kota_kabupaten', 'kecamatan'] : []),
+      ...(!isWna && hasIndonesianResidence ? ['provinsi', 'kota_kabupaten', 'kecamatan'] : []),
     ];
     else if (currentStep === 4) fieldsToValidate = ['asal_sekolah', 'alamat_sekolah', 'jurusan_sekolah', 'tahun_lulus'];
-    else if (currentStep === 5) fieldsToValidate = ['nama_ayah', 'nama_ibu', 'nama_ortu', 'alamat_ortu', 'telp_ortu', 'info_daftar', 'ket_info_daftar'];
+    else if (currentStep === 5) fieldsToValidate = ['nama_ayah', 'nama_ibu', 'alamat_ortu', 'info_daftar', 'ket_info_daftar'];
     else if (currentStep === 6) fieldsToValidate = [];
 
     const isValid = await trigger(fieldsToValidate as any);
@@ -2067,48 +2060,7 @@ export default function RegistrasiSpmbPage() {
                 />
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                <Input
-                  label="Negara Domisili *"
-                  placeholder="Contoh: Indonesia, Malaysia, Singapura"
-                  error={errors.negara_domisili?.message}
-                  {...register('negara_domisili')}
-                />
-                {hasIndonesianResidence ? (
-                  <Input
-                    label="Provinsi Domisili *"
-                    placeholder="Nama Provinsi"
-                    error={errors.provinsi?.message}
-                    {...register('provinsi')}
-                  />
-                ) : (
-                  <Input
-                    label="Provinsi / State / Region"
-                    placeholder="Wilayah administratif (jika ada)"
-                    {...register('provinsi')}
-                  />
-                )}
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                <Input
-                  label={hasIndonesianResidence ? 'Kota / Kabupaten *' : 'Kota / City'}
-                  placeholder={hasIndonesianResidence ? 'Nama Kota/Kabupaten' : 'Nama kota'}
-                  error={errors.kota_kabupaten?.message}
-                  {...register('kota_kabupaten')}
-                />
-                <Input
-                  label={hasIndonesianResidence ? 'Kecamatan *' : 'Distrik / District'}
-                  placeholder={hasIndonesianResidence ? 'Nama Kecamatan' : 'Distrik (jika ada)'}
-                  error={errors.kecamatan?.message}
-                  {...register('kecamatan')}
-                />
-                <Input
-                  label="Kode Pos"
-                  placeholder="5 digit kode pos"
-                  {...register('kode_pos')}
-                />
-              </div>
+              <SpmbResidenceFields control={control} setValue={setValue} errors={errors} isWna={isWna} />
 
               <Textarea
                 label="Alamat Lengkap *"
@@ -2153,16 +2105,25 @@ export default function RegistrasiSpmbPage() {
               {watch('asal_lulusan') === 'sekolah' ? (
                 <>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                    <Input
-                      label="Nama Sekolah Asal *"
-                      placeholder="Contoh: SMAN 1 Jakarta / SMKN 2 Bandung"
-                      error={errors.asal_sekolah?.message}
-                      {...register('asal_sekolah')}
-                    />
-                    <Input
-                      label="NPSN Sekolah (Opsional)"
-                      placeholder="8 digit NPSN Sekolah"
-                      {...register('npsn_sekolah')}
+                    <Controller
+                      name="asal_sekolah"
+                      control={control}
+                      render={({ field }) => (
+                        <AsyncSelect
+                          label="Nama Sekolah Asal"
+                          required
+                          isCreatable
+                          loadOptions={spmbReferenceService.searchSchools}
+                          value={field.value}
+                          onChange={(option: SelectOption | null) => {
+                            const school = option as (SelectOption & { address?: string }) | null;
+                            field.onChange(school?.value || '');
+                            if (school?.address) setValue('alamat_sekolah', school.address);
+                          }}
+                          placeholder="Cari atau ketik nama sekolah"
+                          error={errors.asal_sekolah?.message}
+                        />
+                      )}
                     />
                   </div>
 
@@ -2186,13 +2147,6 @@ export default function RegistrasiSpmbPage() {
                       placeholder="2024 / 2025"
                       error={errors.tahun_lulus?.message}
                       {...register('tahun_lulus')}
-                    />
-                    <Input
-                      label="Nilai Rata-Rapor (Opsional)"
-                      type="number"
-                      step="0.01"
-                      placeholder="85.50"
-                      {...register('nilai_rata_rapor')}
                     />
                   </div>
                 </>
@@ -2297,19 +2251,7 @@ export default function RegistrasiSpmbPage() {
                   Biodata Utama &amp; Alamat Orang Tua / Penanggung Jawab
                 </h4>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <Input
-                    label="Nama Orang Tua *"
-                    placeholder="Nama Orang Tua / Penanggung Jawab"
-                    error={errors.nama_ortu?.message}
-                    {...register('nama_ortu')}
-                  />
-                  <Input
-                    label="No. Telepon / HP Orang Tua *"
-                    type="tel"
-                    placeholder="Contoh: 081234567890"
-                    error={errors.telp_ortu?.message}
-                    {...register('telp_ortu')}
-                  />
+                  <p className="text-xs text-slate-600">Lengkapi nama dan nomor telepon Ayah, Ibu, atau Wali pada bagian masing-masing.</p>
                 </div>
                 <Textarea
                   label="Alamat Orang Tua *"
@@ -2331,11 +2273,13 @@ export default function RegistrasiSpmbPage() {
                     error={errors.nama_ayah?.message}
                     {...register('nama_ayah')}
                   />
-                  <Input
-                    label="Pekerjaan Ayah"
-                    placeholder="PNS / Swasta / Wiraswasta"
-                    {...register('pekerjaan_ayah')}
-                  />
+                  <Controller name="pekerjaan_ayah" control={control} render={({ field }) => (
+                    <Select label="Pekerjaan Ayah" options={PEKERJAAN_OPTIONS} value={field.value} onChange={field.onChange} />
+                  )} />
+                  <Input label="Nomor Telepon Ayah" type="tel" {...register('telepon_ayah')} />
+                  <Controller name="penghasilan_ayah" control={control} render={({ field }) => (
+                    <Select label="Penghasilan Ayah" options={PENGHASILAN_OPTIONS} value={field.value} onChange={field.onChange} />
+                  )} />
                 </div>
 
                 <div className="space-y-4 p-4 bg-slate-50/70 border border-slate-100 rounded-xl">
@@ -2348,29 +2292,28 @@ export default function RegistrasiSpmbPage() {
                     error={errors.nama_ibu?.message}
                     {...register('nama_ibu')}
                   />
-                  <Input
-                    label="Pekerjaan Ibu"
-                    placeholder="PNS / Ibu Rumah Tangga"
-                    {...register('pekerjaan_ibu')}
-                  />
+                  <Controller name="pekerjaan_ibu" control={control} render={({ field }) => (
+                    <Select label="Pekerjaan Ibu" options={PEKERJAAN_OPTIONS} value={field.value} onChange={field.onChange} />
+                  )} />
+                  <Input label="Nomor Telepon Ibu" type="tel" {...register('telepon_ibu')} />
+                  <Controller name="penghasilan_ibu" control={control} render={({ field }) => (
+                    <Select label="Penghasilan Ibu" options={PENGHASILAN_OPTIONS} value={field.value} onChange={field.onChange} />
+                  )} />
                 </div>
               </div>
 
-              <div className="pt-2">
-                <Controller
-                  name="penghasilan_ortu"
-                  control={control}
-                  render={({ field }) => (
-                    <Select
-                      label="Rata-rata Penghasilan Orang Tua per Bulan"
-                      placeholder="-- Pilih Range Penghasilan --"
-                      options={PENGHASILAN_ORTU_OPTIONS}
-                      value={field.value}
-                      onChange={field.onChange}
-                      error={errors.penghasilan_ortu?.message}
-                    />
-                  )}
-                />
+              <div className="space-y-4 p-4 bg-slate-50/70 border border-slate-100 rounded-xl">
+                <h4 className="font-bold text-slate-800 text-sm border-b border-slate-200 pb-2">Informasi Wali</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <Input label="Nama Wali" {...register('nama_wali')} />
+                  <Input label="Nomor Telepon Wali" type="tel" {...register('telepon_wali')} />
+                  <Controller name="pekerjaan_wali" control={control} render={({ field }) => (
+                    <Select label="Pekerjaan Wali" options={PEKERJAAN_OPTIONS} value={field.value} onChange={field.onChange} />
+                  )} />
+                  <Controller name="penghasilan_wali" control={control} render={({ field }) => (
+                    <Select label="Penghasilan Wali" options={PENGHASILAN_OPTIONS} value={field.value} onChange={field.onChange} />
+                  )} />
+                </div>
               </div>
 
               <div className="space-y-4 p-4 bg-slate-50/70 border border-slate-100 rounded-xl">

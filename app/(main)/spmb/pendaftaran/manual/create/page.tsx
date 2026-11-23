@@ -18,6 +18,9 @@ import { Textarea } from '@/components/ui/Textarea';
 import { spmbService } from '@/services/spmb.service';
 import { useAuth } from '@/hooks/useAuth';
 import { validateApplicantIdentity } from '@/lib/spmb/applicant-identity';
+import { ASAL_LULUSAN_OPTIONS, AGAMA_OPTIONS, PEKERJAAN_OPTIONS, PENGHASILAN_OPTIONS, STATUS_SIPIL_OPTIONS } from '@/lib/spmb/registration-options';
+import { spmbReferenceService } from '@/services/spmb-reference.service';
+import { SpmbResidenceFields } from '@/components/spmb/SpmbResidenceFields';
 
 const manualRegistrationSchema = z.object({
   email: z.string().trim().email('Email calon wajib diisi dengan format yang benar.').max(255),
@@ -32,11 +35,11 @@ const manualRegistrationSchema = z.object({
   negara_penerbit_paspor: z.string().max(100).optional(),
   negara_kewarganegaraan: z.string().max(100).optional(),
   kode_negara_kewarganegaraan: z.string().max(2).optional(),
-  tanggal_lahir: z.string().optional(),
-  tempat_lahir: z.string().max(100).optional(),
+  tanggal_lahir: z.string().min(1, 'Tanggal lahir wajib diisi.').refine((date) => date < new Date().toISOString().slice(0, 10), 'Tanggal lahir harus sebelum hari ini.'),
+  tempat_lahir: z.string().trim().min(2, 'Tempat lahir wajib diisi.').max(100),
   jenis_kelamin: z.string().optional(),
   agama: z.string().max(50).optional(),
-  status_sipil: z.string().max(50).optional(),
+  status_sipil: z.string().min(1, 'Status sipil wajib dipilih.').refine((value): boolean => value === 'menikah' || value === 'belum_menikah', 'Status sipil tidak valid.'),
   kewarganegaraan: z.string().max(50).optional(),
   negara_domisili: z.string().max(100).optional(),
   no_hp: z.string().trim().min(1, 'Nomor HP wajib diisi.').max(30),
@@ -49,18 +52,19 @@ const manualRegistrationSchema = z.object({
   alamat_sekolah: z.string().max(1000).optional(),
   jurusan_sekolah: z.string().max(100).optional(),
   tahun_lulus: z.string().max(4).optional(),
-  npsn_sekolah: z.string().max(20).optional(),
-  nilai_rata_rapor: z.string().optional(),
   nama_ayah: z.string().max(255).optional(),
   pekerjaan_ayah: z.string().max(100).optional(),
   nama_ibu: z.string().max(255).optional(),
   pekerjaan_ibu: z.string().max(100).optional(),
-  penghasilan_ortu: z.string().max(100).optional(),
-  nama_ortu: z.string().max(255).optional(),
   alamat_ortu: z.string().max(1000).optional(),
-  telp_ortu: z.string().max(30).optional(),
   nama_wali: z.string().max(255).optional(),
   telepon_wali: z.string().max(30).optional(),
+  telepon_ayah: z.string().max(30).optional(),
+  penghasilan_ayah: z.string().max(100).optional(),
+  telepon_ibu: z.string().max(30).optional(),
+  penghasilan_ibu: z.string().max(100).optional(),
+  pekerjaan_wali: z.string().max(100).optional(),
+  penghasilan_wali: z.string().max(100).optional(),
   asal_lulusan: z.enum(['sekolah', 'pt']).or(z.literal('')).optional(),
   asal_pt: z.string().max(255).optional(),
   jenis_pt: z.string().max(100).optional(),
@@ -82,7 +86,7 @@ const manualRegistrationSchema = z.object({
     passportIssuingCountry: values.negara_penerbit_paspor || '',
     citizenshipCountry: values.negara_kewarganegaraan || '',
     citizenshipCountryCode: values.kode_negara_kewarganegaraan || '',
-    residenceCountry: values.negara_domisili || '',
+    residenceCountry: values.kewarganegaraan?.toUpperCase() === 'WNA' ? 'WNA' : (values.negara_domisili || ''),
     address: values.alamat,
     province: values.provinsi || '',
     city: values.kota_kabupaten || '',
@@ -101,12 +105,6 @@ const GENDER_OPTIONS: SelectOption[] = [
   { value: '', label: 'Pilih jenis kelamin' },
   { value: 'L', label: 'Laki-laki' },
   { value: 'P', label: 'Perempuan' },
-];
-
-const GRADUATION_ORIGIN_OPTIONS: SelectOption[] = [
-  { value: '', label: 'Pilih asal lulusan' },
-  { value: 'sekolah', label: 'Sekolah' },
-  { value: 'pt', label: 'Perguruan Tinggi' },
 ];
 
 const thirdPartyAccountSchema = z.object({
@@ -175,18 +173,19 @@ export default function CreateManualPendaftaranPage() {
       alamat_sekolah: '',
       jurusan_sekolah: '',
       tahun_lulus: '',
-      npsn_sekolah: '',
-      nilai_rata_rapor: '',
       nama_ayah: '',
       pekerjaan_ayah: '',
       nama_ibu: '',
       pekerjaan_ibu: '',
-      penghasilan_ortu: '',
-      nama_ortu: '',
       alamat_ortu: '',
-      telp_ortu: '',
       nama_wali: '',
       telepon_wali: '',
+      telepon_ayah: '',
+      penghasilan_ayah: '',
+      telepon_ibu: '',
+      penghasilan_ibu: '',
+      pekerjaan_wali: '',
+      penghasilan_wali: '',
       asal_lulusan: '',
       asal_pt: '',
       jenis_pt: '',
@@ -213,12 +212,16 @@ export default function CreateManualPendaftaranPage() {
   });
   const selectedThirdPartyIds = useWatch({ control, name: 'pihak_ketiga_user_ids' }) || [];
   const selectedNationality = useWatch({ control, name: 'kewarganegaraan' }) || 'WNI';
-  const selectedResidenceCountry = useWatch({ control, name: 'negara_domisili' }) || '';
   const isWna = selectedNationality.toUpperCase() === 'WNA';
-  const normalizedResidenceCountry = selectedResidenceCountry.trim().toUpperCase();
-  const residenceInIndonesia = normalizedResidenceCountry === 'ID'
-    || normalizedResidenceCountry === 'IDN'
-    || normalizedResidenceCountry === 'INDONESIA';
+  useEffect(() => {
+    if (isWna) {
+      setValue('provinsi', '');
+      setValue('kota_kabupaten', '');
+      setValue('kecamatan', '');
+      setValue('kode_pos', '');
+      setValue('negara_domisili', '');
+    }
+  }, [isWna, setValue]);
   const selectedThirdPartyList = selectedThirdPartyIds.map((id) => {
     const option = thirdPartyOptions.find((item) => item.value === id);
     const [name, username, email] = option?.label.split(' • ') || ['Akun terpilih', '-', '-'];
@@ -273,6 +276,7 @@ export default function CreateManualPendaftaranPage() {
     };
     loadOptions();
   }, [canManage, setValue]);
+
 
   const loadReferrers = useCallback(async (search: string) => {
     try {
@@ -434,7 +438,7 @@ export default function CreateManualPendaftaranPage() {
 
         <section className="card space-y-4 p-5">
           <div><h2 className="text-xs font-bold text-slate-900">Identitas dan Akun Calon</h2><p className="mt-1 text-2xs text-slate-500">Akun calon dibuat otomatis. Email harus unik dan digunakan sebagai alamat login/pemulihan akun.</p></div>
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+          <div className="space-y-4">
             <Input label="Nama Lengkap" required error={errors.nama_lengkap?.message} {...register('nama_lengkap')} />
             <Input type="email" label="Email Calon" required error={errors.email?.message} {...register('email')} />
             <Controller name="kewarganegaraan_id" control={control} render={({ field }) => (
@@ -470,50 +474,73 @@ export default function CreateManualPendaftaranPage() {
             ) : (
               <Input label="NIK" required error={errors.nik?.message} {...register('nik')} />
             )}
-            <Input type="date" label="Tanggal Lahir" error={errors.tanggal_lahir?.message} {...register('tanggal_lahir')} />
-            <Input label="Tempat Lahir" {...register('tempat_lahir')} />
+            <Input type="date" label="Tanggal Lahir" required error={errors.tanggal_lahir?.message} {...register('tanggal_lahir')} />
+            <Input label="Tempat Lahir" required error={errors.tempat_lahir?.message} {...register('tempat_lahir')} />
             <Controller name="jenis_kelamin" control={control} render={({ field }) => (
               <Select label="Jenis Kelamin" options={GENDER_OPTIONS} value={field.value} onChange={field.onChange} />
             )} />
-            <Input label="Agama" {...register('agama')} />
-            <Input label="Status Sipil" {...register('status_sipil')} />
+            <Controller name="agama" control={control} render={({ field }) => (
+              <Select label="Agama" options={AGAMA_OPTIONS} value={field.value} onChange={field.onChange} />
+            )} />
+            <Controller name="status_sipil" control={control} render={({ field }) => (
+              <Select label="Status Sipil" required options={STATUS_SIPIL_OPTIONS} value={field.value} onChange={field.onChange} error={errors.status_sipil?.message} />
+            )} />
             <Input label="Nomor Handphone" required error={errors.no_hp?.message} {...register('no_hp')} />
           </div>
+          <SpmbResidenceFields control={control} setValue={setValue} errors={errors} isWna={isWna} />
           <Textarea label="Alamat Domisili" required rows={3} error={errors.alamat?.message} {...register('alamat')} />
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
-            <Input label="Negara Domisili" required error={errors.negara_domisili?.message} {...register('negara_domisili')} />
-            <Input label={residenceInIndonesia ? 'Provinsi' : 'Provinsi / State / Region'} required={residenceInIndonesia} error={errors.provinsi?.message} {...register('provinsi')} />
-            <Input label={residenceInIndonesia ? 'Kabupaten/Kota' : 'Kota / City'} required={residenceInIndonesia} error={errors.kota_kabupaten?.message} {...register('kota_kabupaten')} />
-            <Input label={residenceInIndonesia ? 'Kecamatan' : 'Distrik / District'} required={residenceInIndonesia} error={errors.kecamatan?.message} {...register('kecamatan')} />
-            <Input label="Kode Pos" {...register('kode_pos')} />
-          </div>
         </section>
 
         <section className="card space-y-4 p-5">
           <div><h2 className="text-xs font-bold text-slate-900">Data Pendidikan dan Keluarga</h2><p className="mt-1 text-2xs text-slate-500">Lengkapi informasi yang tercantum pada formulir kertas.</p></div>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-            <Input label="Asal Sekolah" {...register('asal_sekolah')} />
+            <Controller name="asal_sekolah" control={control} render={({ field }) => (
+              <AsyncSelect
+                label="Asal Sekolah"
+                isCreatable
+                loadOptions={spmbReferenceService.searchSchools}
+                value={field.value}
+                onChange={(option: SelectOption | null) => {
+                  const school = option as (SelectOption & { address?: string }) | null;
+                  field.onChange(school?.value || '');
+                  if (school?.address) setValue('alamat_sekolah', school.address);
+                }}
+                placeholder="Cari atau ketik nama sekolah"
+              />
+            )} />
             <Input label="Jurusan Sekolah" {...register('jurusan_sekolah')} />
             <Input label="Tahun Lulus" {...register('tahun_lulus')} />
-            <Input label="NPSN Sekolah" {...register('npsn_sekolah')} />
-            <Input type="number" min="0" max="100" step="0.01" label="Nilai Rata-rata Rapor" {...register('nilai_rata_rapor')} />
-            <Input label="Nama Ayah" {...register('nama_ayah')} />
-            <Input label="Pekerjaan Ayah" {...register('pekerjaan_ayah')} />
-            <Input label="Nama Ibu" {...register('nama_ibu')} />
-            <Input label="Pekerjaan Ibu" {...register('pekerjaan_ibu')} />
-            <Input label="Penghasilan Orang Tua" {...register('penghasilan_ortu')} />
-            <Input label="Nama Orang Tua/Wali Utama" {...register('nama_ortu')} />
-            <Input label="Telepon Orang Tua" {...register('telp_ortu')} />
-            <Input label="Nama Wali" {...register('nama_wali')} />
-            <Input label="Telepon Wali" {...register('telepon_wali')} />
           </div>
           <Textarea label="Alamat Sekolah" rows={2} {...register('alamat_sekolah')} />
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+            <section className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 rounded border border-slate-200 p-4">
+              <h3 className="text-xs font-bold text-slate-800 md:col-span-2 lg:col-span-3">Ayah</h3>
+              <Input label="Nama Ayah" {...register('nama_ayah')} />
+              <Input label="Nomor Telepon Ayah" type="tel" {...register('telepon_ayah')} />
+              <Controller name="pekerjaan_ayah" control={control} render={({ field }) => <Select label="Pekerjaan Ayah" options={PEKERJAAN_OPTIONS} value={field.value} onChange={field.onChange} />} />
+              <Controller name="penghasilan_ayah" control={control} render={({ field }) => <Select label="Penghasilan Ayah" options={PENGHASILAN_OPTIONS} value={field.value} onChange={field.onChange} />} />
+            </section>
+            <section className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 rounded border border-slate-200 p-4">
+              <h3 className="text-xs font-bold text-slate-800 md:col-span-2 lg:col-span-3">Ibu</h3>
+              <Input label="Nama Ibu" {...register('nama_ibu')} />
+              <Input label="Nomor Telepon Ibu" type="tel" {...register('telepon_ibu')} />
+              <Controller name="pekerjaan_ibu" control={control} render={({ field }) => <Select label="Pekerjaan Ibu" options={PEKERJAAN_OPTIONS} value={field.value} onChange={field.onChange} />} />
+              <Controller name="penghasilan_ibu" control={control} render={({ field }) => <Select label="Penghasilan Ibu" options={PENGHASILAN_OPTIONS} value={field.value} onChange={field.onChange} />} />
+            </section>
+            <section className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 rounded border border-slate-200 p-4">
+              <h3 className="text-xs font-bold text-slate-800 md:col-span-2 lg:col-span-3">Wali</h3>
+              <Input label="Nama Wali" {...register('nama_wali')} />
+              <Input label="Nomor Telepon Wali" type="tel" {...register('telepon_wali')} />
+              <Controller name="pekerjaan_wali" control={control} render={({ field }) => <Select label="Pekerjaan Wali" options={PEKERJAAN_OPTIONS} value={field.value} onChange={field.onChange} />} />
+              <Controller name="penghasilan_wali" control={control} render={({ field }) => <Select label="Penghasilan Wali" options={PENGHASILAN_OPTIONS} value={field.value} onChange={field.onChange} />} />
+            </section>
+          </div>
           <Textarea label="Alamat Orang Tua/Wali" rows={2} {...register('alamat_ortu')} />
           <div className="border-t border-slate-100 pt-4">
             <h3 className="mb-3 text-xs font-semibold text-slate-800">Data Pendidikan Tinggi Sebelumnya (Opsional)</h3>
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
               <Controller name="asal_lulusan" control={control} render={({ field }) => (
-                <Select label="Asal Lulusan" options={GRADUATION_ORIGIN_OPTIONS} value={field.value} onChange={field.onChange} />
+                <Select label="Asal Lulusan" options={ASAL_LULUSAN_OPTIONS} value={field.value} onChange={field.onChange} />
               )} />
               <Input label="Asal Perguruan Tinggi" {...register('asal_pt')} />
               <Input label="Jenis Perguruan Tinggi" {...register('jenis_pt')} />

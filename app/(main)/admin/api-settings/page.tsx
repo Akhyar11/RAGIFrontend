@@ -1089,7 +1089,12 @@ Ketentuan:
                           {syncProgress.work_total ? (
                             <span>{(syncProgress.work_processed ?? 0).toLocaleString()} / {syncProgress.work_total.toLocaleString()} unit kerja</span>
                           ) : null}
-                          {syncProgress.result && <span>{syncProgress.result.synced ?? 0} berhasil ditulis</span>}
+                          {syncProgress.result && (
+                            <span>
+                              {syncProgress.result.created ?? 0} dibuat · {syncProgress.result.updated ?? 0} diperbarui
+                              {syncItem.key === 'siakad_dosen' ? ` · SSO ${syncProgress.result.sso_created ?? 0} dibuat / ${syncProgress.result.sso_updated ?? 0} diperbarui` : ''}
+                            </span>
+                          )}
                         </div>
                       ) : null}
                     </>
@@ -1119,9 +1124,12 @@ Ketentuan:
                     { label: 'Dibaca', value: syncResult.read_count ?? syncResult.source_total ?? 0 },
                     { label: syncResult.read_only || syncResult.preview ? 'Kandidat Dibuat' : 'Dibuat', value: syncResult.created ?? 0 },
                     { label: 'Diperbarui', value: syncResult.updated ?? 0 },
-                    { label: syncResult.read_only || syncResult.preview ? 'Kandidat Lolos' : 'Berhasil Disinkronkan', value: syncResult.synced ?? ((syncResult.created ?? 0) + (syncResult.updated ?? 0)) },
+                    { label: syncItem.key === 'siakad_dosen' && !syncResult.read_only && !syncResult.preview ? 'Akun SSO Dibuat' : syncResult.read_only || syncResult.preview ? 'Kandidat Lolos' : 'Berhasil Disinkronkan', value: syncItem.key === 'siakad_dosen' && !syncResult.read_only && !syncResult.preview ? (syncResult.sso_created ?? 0) : syncResult.synced ?? ((syncResult.created ?? 0) + (syncResult.updated ?? 0)) },
                     { label: 'Dilewati', value: syncResult.skipped ?? 0 },
                     { label: 'Gagal', value: syncResult.failed ?? 0 },
+                    ...(syncItem.key === 'siakad_dosen' && !syncResult.read_only && !syncResult.preview
+                      ? [{ label: 'Akun SSO Diperbarui', value: syncResult.sso_updated ?? 0 }]
+                      : []),
                   ].map((item) => (
                     <div key={item.label} className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-center">
                       <div className="text-lg font-bold text-slate-900">{item.value}</div>
@@ -1129,6 +1137,13 @@ Ketentuan:
                     </div>
                   ))}
                 </div>
+
+                {syncItem.key === 'siakad_dosen' && !syncResult.read_only && !syncResult.preview && (
+                  <div className="rounded-lg border border-sky-200 bg-sky-50 p-3 text-xs text-sky-950">
+                    Akun baru dibuat hanya untuk dosen aktif. Akun SSO lama yang tertaut atau cocok dengan identifier diperbarui meski dosen nonaktif.
+                    {' '}SSO dibuat: {syncResult.sso_created ?? 0}; SSO diperbarui: {syncResult.sso_updated ?? 0}.
+                  </div>
+                )}
 
                 {(syncResult.skipped_items?.length ?? 0) > 0 && (
                   <div className="max-h-60 space-y-2 overflow-y-auto rounded-lg border border-slate-200 p-3">

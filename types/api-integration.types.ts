@@ -50,6 +50,8 @@ export interface ApiIntegrationSyncResult {
   source_total?: number;
   created?: number;
   updated?: number;
+  sso_created?: number;
+  sso_updated?: number;
   synced?: number;
   skipped?: number;
   failed?: number;

@@ -31,6 +31,9 @@ import {
   LmsForumPost,
   LmsPertemuanItem,
   LmsPertemuanPayload,
+  LmsJurnalResponse,
+  LmsJurnalPertemuan,
+  LmsJurnalUpdatePayload,
   LmsDownloadUrl,
   LmsExportFile,
   LmsExportFormat,
@@ -148,6 +151,41 @@ export const lmsService = {
 
   destroyPertemuan: async (pertemuanId: number): Promise<ApiResponse<null>> => {
     const response = await apiClient.delete(`/v1/lms/pertemuan/${pertemuanId}`);
+    return response.data;
+  },
+
+  /**
+   * Baca jurnal presensi (nested kelas → pertemuan). Mahasiswa mendapat
+   * ringkasan tanpa bukti privat; pengelola memantau secara read-only.
+   */
+  getJurnal: async (kelasId: number, pertemuanId: number): Promise<ApiResponse<LmsJurnalResponse>> => {
+    const response = await apiClient.get(`/v1/lms/kelas/${kelasId}/pertemuan/${pertemuanId}/jurnal`);
+    return response.data;
+  },
+
+  /**
+   * Simpan jurnal sekaligus data pertemuan dalam satu permintaan multipart.
+   * Bukti dikirim sebagai berkas agar FileStorageService menyimpannya privat.
+   */
+  updateJurnal: async (
+    kelasId: number,
+    pertemuanId: number,
+    payload: LmsJurnalUpdatePayload
+  ): Promise<ApiResponse<{ jurnal: LmsJurnalPertemuan; can_edit: boolean }>> => {
+    const formData = new FormData();
+    Object.entries(payload).forEach(([key, value]) => {
+      if (value === undefined || value === null || value === '') return;
+      if (value instanceof File) {
+        formData.append(key, value);
+        return;
+      }
+      formData.append(key, String(value));
+    });
+
+    const response = await apiClient.put(
+      `/v1/lms/kelas/${kelasId}/pertemuan/${pertemuanId}/jurnal`,
+      formData
+    );
     return response.data;
   },
 
@@ -702,6 +740,25 @@ export const lmsService = {
       responseType: 'blob',
     });
     return buildExportFile(response.data, response.headers['content-disposition'], 'Rekap_Pengumpulan_Tugas');
+  },
+
+  // 13A. Cetak PDF — route terpisah dari format CSV/XLSX pada LmsExportService.
+  cetakKehadiranKelas: async (kelasId: number): Promise<LmsExportFile> => {
+    const response = await apiClient.get(`/v1/lms/kelas/${kelasId}/cetak/kehadiran`, {
+      responseType: 'blob',
+    });
+    return buildExportFile(response.data, response.headers['content-disposition'], 'Kehadiran_Kelas');
+  },
+
+  cetakRekapProdi: async (params: {
+    program_studi_id?: number;
+    tahun_akademik_id: number;
+  }): Promise<LmsExportFile> => {
+    const response = await apiClient.get('/v1/lms/cetak/rekap-prodi', {
+      params,
+      responseType: 'blob',
+    });
+    return buildExportFile(response.data, response.headers['content-disposition'], 'Rekap_Kehadiran_Prodi');
   },
 
   exportHasilQuiz: async (quizId: number, format: LmsExportFormat = 'csv'): Promise<LmsExportFile> => {

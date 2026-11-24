@@ -23,6 +23,7 @@ import PertemuanDiskusi from '@/components/lms/PertemuanDiskusi';
 import ExportLaporanModal from '@/components/lms/ExportLaporanModal';
 import { LmsQrScanner } from '@/components/lms/LmsQrScanner';
 import { lmsService } from '@/services/lms.service';
+import { siakadService } from '@/services/siakad.service';
 import { referensiService, MasterReferensiItem } from '@/services/referensi.service';
 import {
   LmsPertemuanDetail,
@@ -33,6 +34,10 @@ import {
   PERTEMUAN_STATUS_OPTIONS,
   PERTEMUAN_STATUS_VALUES,
   PERTEMUAN_STATUS_LABEL,
+  JENIS_KEGIATAN_OPTIONS,
+  JENIS_KEGIATAN_VALUES,
+  JenisKegiatan,
+  LmsJurnalResponse,
 } from '@/types/lms.types';
 import { PaginationMeta } from '@/types/api.types';
 import {
@@ -128,6 +133,9 @@ const isianSchema = z.object({
   jam_mulai: z.string().optional().default(''),
   jam_selesai: z.string().optional().default(''),
   status_pertemuan: z.enum(PERTEMUAN_STATUS_VALUES).optional().nullable().default(null),
+  // Jurnal presensi — satu form dengan data pertemuan.
+  jenis_kegiatan: z.enum(JENIS_KEGIATAN_VALUES).optional().nullable().default(null),
+  ruangan_id: z.string().optional().default(''),
 });
 
 type IsianFormValues = z.infer<typeof isianSchema>;
@@ -339,9 +347,14 @@ export default function LmsPertemuanDetailPage({ params }: PageProps) {
       jam_mulai: '',
       jam_selesai: '',
       status_pertemuan: null,
+      jenis_kegiatan: null,
+      ruangan_id: '',
     },
   });
   const [isEditingIsian, setIsEditingIsian] = useState<boolean>(false);
+  // Jurnal presensi + berkas bukti privat (dikirim lewat endpoint jurnal).
+  const [jurnalData, setJurnalData] = useState<LmsJurnalResponse | null>(null);
+  const [buktiFile, setBuktiFile] = useState<File | null>(null);
 
   // Fetch Data Master Referensi
   const fetchMasterReferensi = useCallback(async () => {
@@ -408,10 +421,21 @@ export default function LmsPertemuanDetailPage({ params }: PageProps) {
           setTokenInfo(null);
         }
       }
+
+      // Jurnal dibaca terpisah agar hak akses (can_edit / bukti privat)
+      // ditentukan server, bukan ditebak dari role di frontend.
+      try {
+        const jurnalRes = await lmsService.getJurnal(kelasId, pertemuanId);
+        if (jurnalRes.status === 'success' && jurnalRes.data) {
+          setJurnalData(jurnalRes.data);
+        }
+      } catch {
+        // Jurnal opsional saat detail gagal dimuat — form tetap memakai detail.
+      }
     } catch (err: any) {
       toast.error(err.message || 'Gagal memuat detail pertemuan LMS');
     }
-  }, [pertemuanId]);
+  }, [kelasId, pertemuanId]);
 
   const fetchLiveAttendance = useCallback(async () => {
     try {
@@ -528,15 +552,39 @@ export default function LmsPertemuanDetailPage({ params }: PageProps) {
         jam_mulai: detail.pertemuan.jam_mulai || '',
         jam_selesai: detail.pertemuan.jam_selesai || '',
         status_pertemuan: detail.pertemuan.status_pertemuan || null,
+        jenis_kegiatan: jurnalData?.jurnal.jenis_kegiatan || detail.pertemuan.jenis_kegiatan || null,
+        ruangan_id: (jurnalData?.jurnal.ruangan_id ?? detail.pertemuan.ruangan_id)
+          ? String(jurnalData?.jurnal.ruangan_id ?? detail.pertemuan.ruangan_id)
+          : '',
       });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [detail, isEditingIsian]);
+  }, [detail, jurnalData, isEditingIsian]);
+
+  // Satu payload untuk form "Isian": data pertemuan + jurnal + bukti privat.
+  const buildJurnalPayload = useCallback((values: IsianFormValues) => ({
+    pertemuan_ke: detail?.pertemuan.pertemuan_ke ?? 1,
+    tanggal: values.tanggal,
+    materi: values.materi || null,
+    catatan_pertemuan: values.catatan_pertemuan || null,
+    jam_mulai: values.jam_mulai || null,
+    jam_selesai: values.jam_selesai || null,
+    status_pertemuan: values.status_pertemuan || null,
+    jenis_kegiatan: (values.jenis_kegiatan as JenisKegiatan | null) || null,
+    ruangan_id: values.ruangan_id ? Number(values.ruangan_id) : null,
+    bukti_pembelajaran: buktiFile,
+  }), [detail, buktiFile]);
 
   // Buka Sesi Presensi sekaligus Simpan Jurnal Mengajar Dosen (Rotasi QR 30 Detik)
   const onBukaSesiDenganJurnal = async (values: IsianFormValues) => {
     setIsGeneratingToken(true);
     try {
+      // Simpan jurnal lengkap lebih dulu agar satu klik menulis sekali.
+      const jurnalRes = await lmsService.updateJurnal(kelasId, pertemuanId, buildJurnalPayload(values));
+      if (jurnalRes.status !== 'success') {
+        throw new Error(jurnalRes.message || 'Gagal menyimpan jurnal pertemuan');
+      }
+
       const res = await lmsService.bukaSesiPresensi(pertemuanId, {
         materi: values.materi,
         catatan_pertemuan: values.catatan_pertemuan || null,
@@ -552,6 +600,7 @@ export default function LmsPertemuanDetailPage({ params }: PageProps) {
           rotate_interval_seconds: res.data.rotate_interval_seconds || 30,
         });
         setShowBukaSesiModal(false);
+        setBuktiFile(null);
         toast.success(`Jurnal disimpan & sesi presensi dibuka! Kode berputar otomatis tiap ${res.data.rotate_interval_seconds || 30} detik.`);
         fetchDetail();
       }
@@ -663,24 +712,17 @@ export default function LmsPertemuanDetailPage({ params }: PageProps) {
     }
   };
 
-  // Submit Isian Pertemuan oleh Dosen (inline edit via updatePertemuan)
+  // Submit Isian Pertemuan oleh Dosen — satu klik lewat endpoint jurnal.
   const onSaveIsian = async (values: IsianFormValues) => {
     if (!detail) return;
 
     try {
-      const res = await lmsService.updatePertemuan(pertemuanId, {
-        pertemuan_ke: detail.pertemuan.pertemuan_ke,
-        tanggal: values.tanggal,
-        materi: values.materi || null,
-        catatan_pertemuan: values.catatan_pertemuan || null,
-        jam_mulai: values.jam_mulai || null,
-        jam_selesai: values.jam_selesai || null,
-        status_pertemuan: values.status_pertemuan || null,
-      });
+      const res = await lmsService.updateJurnal(kelasId, pertemuanId, buildJurnalPayload(values));
 
       if (res.status === 'success') {
-        toast.success('Isian pertemuan berhasil disimpan');
+        toast.success('Isian & jurnal pertemuan berhasil disimpan');
         setIsEditingIsian(false);
+        setBuktiFile(null);
         fetchDetail();
       }
     } catch (err: any) {
@@ -1467,6 +1509,77 @@ export default function LmsPertemuanDetailPage({ params }: PageProps) {
                   )}
                 />
 
+                {/* Jurnal presensi — ditulis bersama form "Isian" agar tidak 2x kerja. */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <Controller
+                    name="jenis_kegiatan"
+                    control={isianFormHook.control}
+                    render={({ field }) => (
+                      <Select
+                        label="Jenis Kegiatan"
+                        placeholder="Pilih jenis kegiatan..."
+                        options={JENIS_KEGIATAN_OPTIONS}
+                        value={field.value ?? ''}
+                        onChange={(val) => field.onChange(val ? String(val) : null)}
+                        error={isianFormHook.formState.errors.jenis_kegiatan?.message}
+                      />
+                    )}
+                  />
+                  <Controller
+                    name="ruangan_id"
+                    control={isianFormHook.control}
+                    render={({ field }) => (
+                      <AsyncSelect
+                        label="Ruangan Pertemuan"
+                        placeholder="Cari ruangan..."
+                        value={field.value}
+                        onChange={(val) => field.onChange(val ? String(val) : '')}
+                        loadOptions={async (input) => {
+                          try {
+                            const res = await siakadService.getRefRuangan({ search: input, per_page: 50 });
+                            const list = Array.isArray(res.data) ? res.data : [];
+                            return list.map((r: any) => ({
+                              value: String(r.id),
+                              label: r.kode ? `${r.nama} (${r.kode})` : String(r.nama),
+                            }));
+                          } catch {
+                            return [];
+                          }
+                        }}
+                        isClearable
+                        error={isianFormHook.formState.errors.ruangan_id?.message}
+                      />
+                    )}
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <Input
+                    type="file"
+                    label="Bukti Pembelajaran (privat — PDF/JPG/PNG, maks 5 MB)"
+                    accept=".pdf,.jpg,.jpeg,.png"
+                    onChange={(e) => setBuktiFile(e.target.files?.[0] || null)}
+                  />
+                  <div className="flex flex-col justify-end gap-2 text-2xs">
+                    {buktiFile ? (
+                      <span className="text-slate-600">
+                        Berkas dipilih: <strong>{buktiFile.name}</strong>
+                      </span>
+                    ) : jurnalData?.jurnal.bukti_pembelajaran_url ? (
+                      <a
+                        href={jurnalData.jurnal.bukti_pembelajaran_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[var(--module-primary)] hover:underline"
+                      >
+                        Lihat bukti tersimpan (tautan berlaku 15 menit)
+                      </a>
+                    ) : (
+                      <span className="text-slate-400">Belum ada bukti pembelajaran.</span>
+                    )}
+                  </div>
+                </div>
+
                 <div className="flex justify-end gap-2">
                   <Button variant="outline" icon={<X size={16} />} onClick={() => setIsEditingIsian(false)}>
                     Batal
@@ -1513,6 +1626,36 @@ export default function LmsPertemuanDetailPage({ params }: PageProps) {
                 <div className="flex flex-col gap-2 md:col-span-2">
                   <span className="text-2xs text-slate-400 uppercase tracking-wider font-semibold">Catatan Pertemuan</span>
                   <span className="text-slate-600 text-2xs leading-relaxed">{detail?.pertemuan.catatan_pertemuan || '-'}</span>
+                </div>
+
+                {/* Ringkasan jurnal presensi. Bukti privat hanya ditautkan jika
+                    server mengizinkan (mahasiswa menerima URL null). */}
+                <div className="flex flex-col gap-2">
+                  <span className="text-2xs text-slate-400 uppercase tracking-wider font-semibold">Jenis Kegiatan</span>
+                  <span className="font-medium text-slate-800 text-xs">
+                    {jurnalData?.jurnal.jenis_kegiatan_label || detail?.pertemuan.jenis_kegiatan_label || '-'}
+                  </span>
+                </div>
+                <div className="flex flex-col gap-2">
+                  <span className="text-2xs text-slate-400 uppercase tracking-wider font-semibold">Ruangan</span>
+                  <span className="font-medium text-slate-800 text-xs">
+                    {jurnalData?.jurnal.ruangan_nama || detail?.pertemuan.ruangan_nama || '-'}
+                  </span>
+                </div>
+                <div className="flex flex-col gap-2 md:col-span-2">
+                  <span className="text-2xs text-slate-400 uppercase tracking-wider font-semibold">Bukti Pembelajaran</span>
+                  {jurnalData?.jurnal.bukti_pembelajaran_url ? (
+                    <a
+                      href={jurnalData.jurnal.bukti_pembelajaran_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[var(--module-primary)] hover:underline text-2xs"
+                    >
+                      Lihat bukti pembelajaran (tautan berlaku 15 menit)
+                    </a>
+                  ) : (
+                    <span className="text-slate-400 text-2xs">Belum ada bukti pembelajaran.</span>
+                  )}
                 </div>
               </div>
             )}
@@ -2412,6 +2555,57 @@ export default function LmsPertemuanDetailPage({ params }: PageProps) {
               {...isianFormHook.register('jam_selesai')}
             />
           </div>
+
+          {/* Jurnal ikut terkirim saat tombol "Simpan Jurnal & Buka QR" ditekan. */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Controller
+              name="jenis_kegiatan"
+              control={isianFormHook.control}
+              render={({ field }) => (
+                <Select
+                  label="Jenis Kegiatan"
+                  placeholder="Pilih jenis kegiatan..."
+                  options={JENIS_KEGIATAN_OPTIONS}
+                  value={field.value ?? ''}
+                  onChange={(val) => field.onChange(val ? String(val) : null)}
+                  error={isianFormHook.formState.errors.jenis_kegiatan?.message}
+                />
+              )}
+            />
+            <Controller
+              name="ruangan_id"
+              control={isianFormHook.control}
+              render={({ field }) => (
+                <AsyncSelect
+                  label="Ruangan Pertemuan"
+                  placeholder="Cari ruangan..."
+                  value={field.value}
+                  onChange={(val) => field.onChange(val ? String(val) : '')}
+                  loadOptions={async (input) => {
+                    try {
+                      const res = await siakadService.getRefRuangan({ search: input, per_page: 50 });
+                      const list = Array.isArray(res.data) ? res.data : [];
+                      return list.map((r: any) => ({
+                        value: String(r.id),
+                        label: r.kode ? `${r.nama} (${r.kode})` : String(r.nama),
+                      }));
+                    } catch {
+                      return [];
+                    }
+                  }}
+                  isClearable
+                  error={isianFormHook.formState.errors.ruangan_id?.message}
+                />
+              )}
+            />
+          </div>
+
+          <Input
+            type="file"
+            label="Bukti Pembelajaran (privat — PDF/JPG/PNG, maks 5 MB)"
+            accept=".pdf,.jpg,.jpeg,.png"
+            onChange={(e) => setBuktiFile(e.target.files?.[0] || null)}
+          />
         </form>
       </Modal>
 

@@ -27,6 +27,24 @@ export const PERTEMUAN_STATUS_VALUES = PERTEMUAN_STATUS_OPTIONS.map(
   (option) => option.value
 ) as [PertemuanStatus, ...PertemuanStatus[]];
 
+/**
+ * Jenis kegiatan jurnal presensi. Closed-set domain (bukan entitas master),
+ * selaras dengan `Pertemuan::JENIS_KEGIATAN` di backend. Satu sumber untuk
+ * Select option dan schema Zod — jangan ditulis ulang di komponen.
+ */
+export type JenisKegiatan = 'teori' | 'praktikum' | 'seminar' | 'lainnya';
+
+export const JENIS_KEGIATAN_OPTIONS: SelectOption[] = [
+  { value: 'teori', label: 'Teori' },
+  { value: 'praktikum', label: 'Praktikum' },
+  { value: 'seminar', label: 'Seminar / Diskusi' },
+  { value: 'lainnya', label: 'Lainnya' },
+];
+
+export const JENIS_KEGIATAN_VALUES = JENIS_KEGIATAN_OPTIONS.map(
+  (option) => option.value
+) as [JenisKegiatan, ...JenisKegiatan[]];
+
 export const PERTEMUAN_STATUS_LABEL: Record<PertemuanStatus, string> = {
   belum: 'Belum Berlangsung',
   berlangsung: 'Berlangsung',
@@ -402,6 +420,10 @@ export type LmsPertemuanPayload = {
   jam_mulai?: string | null;
   jam_selesai?: string | null;
   status_pertemuan?: PertemuanStatus | null;
+  // Jurnal presensi (perpanjangan siakad_pertemuan).
+  jenis_kegiatan?: JenisKegiatan | null;
+  /** ID master sinapra_ruangan, bukan label ruangan. */
+  ruangan_id?: number | string | null;
 };
 
 export interface LmsPertemuanItem {
@@ -414,6 +436,16 @@ export interface LmsPertemuanItem {
   jam_mulai?: string | null;
   jam_selesai?: string | null;
   status_pertemuan?: PertemuanStatus;
+  jenis_kegiatan?: JenisKegiatan | null;
+  jenis_kegiatan_label?: string | null;
+  /** ID master sinapra_ruangan (relasi, bukan teks bebas). */
+  ruangan_id?: number | null;
+  ruangan_nama?: string | null;
+  /** Path relatif privat; hanya diisi untuk dosen pengampu/pengelola. */
+  bukti_pembelajaran_path?: string | null;
+  bukti_pembelajaran_disk?: string | null;
+  /** Signed URL 15 menit via /api/files/view — bukan URL storage langsung. */
+  bukti_pembelajaran_url?: string | null;
   token_absensi?: string | null;
   token_expired_at?: string | null;
   is_token_active?: boolean;
@@ -423,6 +455,39 @@ export interface LmsPertemuanItem {
   /** Hanya terisi pada endpoint agregat `/lms/pertemuan`. */
   kelas?: LmsKelasRingkas | null;
 }
+
+/** Jurnal presensi lokal — field inti pertemuan + bukti privat. */
+export interface LmsJurnalPertemuan {
+  pertemuan_id: number;
+  kelas_id: number;
+  pertemuan_ke: number;
+  tanggal: string;
+  materi?: string | null;
+  catatan_pertemuan?: string | null;
+  jenis_kegiatan?: JenisKegiatan | null;
+  jenis_kegiatan_label?: string | null;
+  ruangan_id?: number | null;
+  ruangan_nama?: string | null;
+  jam_mulai?: string | null;
+  jam_selesai?: string | null;
+  status_pertemuan?: PertemuanStatus | null;
+  bukti_pembelajaran_path?: string | null;
+  bukti_pembelajaran_disk?: string | null;
+  bukti_pembelajaran_url?: string | null;
+  updated_at?: string | null;
+}
+
+export interface LmsJurnalResponse {
+  jurnal: LmsJurnalPertemuan;
+  /** true hanya untuk Dosen Pengampu; admin/kaprodi & mahasiswa read-only. */
+  can_edit: boolean;
+  jenis_kegiatan_options: SelectOption[];
+}
+
+export type LmsJurnalUpdatePayload = LmsPertemuanPayload & {
+  /** Bukti pembelajaran privat (PDF/JPG/PNG, maks. 5 MB). */
+  bukti_pembelajaran?: File | null;
+};
 
 export interface LmsTokenGenerate {
   pertemuan_id: number;

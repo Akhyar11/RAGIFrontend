@@ -37,6 +37,7 @@ import {
   jendelaTertutupPesan,
 } from '@/components/lms/tryout/tryoutHelpers';
 import { PaginationMeta } from '@/types/api.types';
+import { downloadBlobFile } from '@/lib/download';
 import {
   Calendar,
   FileText,
@@ -161,6 +162,7 @@ export default function LmsKelasDetailPage({ params }: PageProps) {
   const [showTambah, setShowTambah] = useState(false);
   const [metodeAbsensiOptions, setMetodeAbsensiOptions] = useState<Array<{ value: string; label: string }>>([]);
   const [showExport, setShowExport] = useState(false);
+  const [isPrintingKehadiran, setIsPrintingKehadiran] = useState(false);
 
   // Permission export laporan: absensi/izin → kelola kelas, nilai → kelola nilai.
   const canExportPresensi = hasPermission('siakad.kelas.manage');
@@ -246,6 +248,19 @@ export default function LmsKelasDetailPage({ params }: PageProps) {
       setMatrix(null);
     } finally {
       setMatrixLoading(false);
+    }
+  }, [kelasId]);
+
+  const handleCetakKehadiran = useCallback(async () => {
+    setIsPrintingKehadiran(true);
+    try {
+      const file = await lmsService.cetakKehadiranKelas(kelasId);
+      downloadBlobFile(file.blob, file.filename);
+      toast.success('PDF kehadiran kelas berhasil dibuka.');
+    } catch (err: any) {
+      toast.error(err?.message || 'Gagal mencetak PDF kehadiran kelas.');
+    } finally {
+      setIsPrintingKehadiran(false);
     }
   }, [kelasId]);
 
@@ -685,16 +700,30 @@ export default function LmsKelasDetailPage({ params }: PageProps) {
                 I=Izin A=Alfa
               </p>
             </div>
-            {exportJenis.length > 0 && (
-              <Button
-                size="sm"
-                variant="outline"
-                icon={<Download size={16} />}
-                onClick={() => setShowExport(true)}
-              >
-                Export Laporan
-              </Button>
-            )}
+            <div className="flex items-center gap-2">
+              {canExportPresensi && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  icon={<FileText size={16} />}
+                  loading={isPrintingKehadiran}
+                  disabled={isPrintingKehadiran}
+                  onClick={handleCetakKehadiran}
+                >
+                  Cetak PDF
+                </Button>
+              )}
+              {exportJenis.length > 0 && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  icon={<Download size={16} />}
+                  onClick={() => setShowExport(true)}
+                >
+                  Export Laporan
+                </Button>
+              )}
+            </div>
           </div>
 
           {matrixLoading ? (

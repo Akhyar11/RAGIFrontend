@@ -35,6 +35,7 @@ import {
   Check,
   ClipboardList,
   Download,
+  FileText,
   Filter,
   RotateCcw,
   UserCheck,
@@ -67,6 +68,9 @@ export default function LmsPresensiPage() {
   const searchParams = useSearchParams();
   const { hasPermission } = useAuth();
   const canManage = hasPermission('lms.presensi.manage');
+  // Cetak rekap memakai Gate backend `siakad.kelas.manage`, sehingga kaprodi/
+  // admin SIAKAD yang tidak punya `lms.presensi.manage` tetap melihat tombol.
+  const canCetakRekap = canManage || hasPermission('siakad.kelas.manage');
   const tab = getTabFromQuery(searchParams.get('tab'));
 
   const [keaktifanRows, setKeaktifanRows] = useState<LmsKeaktifanDosenItem[]>([]);
@@ -106,6 +110,7 @@ export default function LmsPresensiPage() {
   const [showExport, setShowExport] = useState(false);
   const [exportFormat, setExportFormat] = useState<LmsExportFormat>('xlsx');
   const [isExporting, setIsExporting] = useState(false);
+  const [isPrintingRekap, setIsPrintingRekap] = useState(false);
 
   const handleTabChange = useCallback(
     (nextTab: TabKey) => {
@@ -288,6 +293,27 @@ export default function LmsPresensiPage() {
       toast.error(getApiErrorMessage(err, 'Gagal mengunduh laporan / rekap presensi.'));
     } finally {
       setIsExporting(false);
+    }
+  };
+
+  const handleCetakRekapProdi = async (): Promise<void> => {
+    const tahunAkademikId = toTahunAkademikId(filterTahunAkademik);
+    if (!tahunAkademikId) {
+      toast.error('Pilih tahun akademik terlebih dahulu.');
+      return;
+    }
+
+    setIsPrintingRekap(true);
+    try {
+      const file = await lmsService.cetakRekapProdi({
+        tahun_akademik_id: tahunAkademikId,
+      });
+      downloadBlobFile(file.blob, file.filename);
+      toast.success('PDF rekap kehadiran per prodi berhasil dibuka.');
+    } catch (err: unknown) {
+      toast.error(getApiErrorMessage(err, 'Gagal mencetak PDF rekap kehadiran.'));
+    } finally {
+      setIsPrintingRekap(false);
     }
   };
 
@@ -554,6 +580,21 @@ export default function LmsPresensiPage() {
         Data perkuliahan, dosen pengampu, KRS, dan presensi pada halaman ini bersumber dari modul
         SIAKAD di RAG. Perubahan tersimpan di RAG dan tidak dikirim ke sistem legacy.
       </div>
+
+      {canCetakRekap && tab === 'rekap' && (
+        <div className="flex justify-end">
+          <Button
+            size="sm"
+            variant="outline"
+            icon={<FileText size={16} />}
+            loading={isPrintingRekap}
+            disabled={isPrintingRekap}
+            onClick={handleCetakRekapProdi}
+          >
+            Cetak PDF
+          </Button>
+        </div>
+      )}
 
       <div className="card">
         <div className="card-header !justify-start flex items-center gap-2 overflow-x-auto border-b border-slate-200">

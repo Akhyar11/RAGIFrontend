@@ -12,6 +12,26 @@ export type StatusKepegawaian = 'pns' | 'non_pns' | 'kontrak' | 'tetap_yayasan';
 export type StatusPegawai = 'aktif' | 'non_aktif' | 'pensiun' | 'meninggal';
 export type JenjangPendidikan = 'sma' | 'd3' | 'd4' | 's1' | 's2' | 's3';
 
+export const STATUS_PEGAWAI_OPTIONS: { value: string; label: string }[] = [
+  { value: '', label: '-- Semua Status --' },
+  { value: 'aktif', label: 'Aktif' },
+  { value: 'non_aktif', label: 'Non-Aktif' },
+  { value: 'pensiun', label: 'Pensiun' },
+  { value: 'meninggal', label: 'Meninggal' },
+];
+
+export const PEGAWAI_SORT_BY_OPTIONS: { value: string; label: string }[] = [
+  { value: 'nama_lengkap', label: 'Nama Lengkap' },
+  { value: 'nip', label: 'NIP' },
+  { value: 'id', label: 'ID' },
+  { value: 'created_at', label: 'Tanggal Dibuat' },
+];
+
+export const PEGAWAI_SORT_DIR_OPTIONS: { value: string; label: string }[] = [
+  { value: 'asc', label: 'A - Z (Naik)' },
+  { value: 'desc', label: 'Z - A (Turun)' },
+];
+
 export interface UnitKerja {
   id: number;
   induk_id?: number | null;

@@ -6,6 +6,7 @@ import {
   Filter,
   RotateCcw,
   ShieldAlert,
+  Eye,
 } from 'lucide-react';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Button } from '@/components/ui/Button';
@@ -13,6 +14,7 @@ import { Badge } from '@/components/ui/Badge';
 import { Card, CardBody } from '@/components/ui/Card';
 import { Drawer } from '@/components/ui/Drawer';
 import { Select, type SelectOption } from '@/components/ui/Select';
+import { DropdownMenu } from '@/components/ui/DropdownMenu';
 import { DataTable, type ColumnDef } from '@/components/ui/DataTable';
 import { AsyncSelect } from '@/components/ui/AsyncSelect';
 import { siakadService } from '@/services/siakad.service';
@@ -27,15 +29,21 @@ interface MonitoringProdiRow {
   nama_prodi: string;
   jenjang: string;
   fakultas: string;
-  total_mahasiswa_aktif: number;
-  sudah_krs: number;
+  mahasiswa_ber_krs: number;
+  jumlah_krs: number;
+  total_sks: number;
+  rata_sks: number;
+  jumlah_mk: number;
   draft: number;
   diajukan: number;
   disetujui: number;
-  belum_krs: number;
+  dikunci: number;
   terkunci_keuangan: number;
-  persentase_krs: number;
-  persentase_disetujui: number;
+  // Hanya terisi pada periode berjalan (null untuk periode lampau).
+  total_mahasiswa_aktif: number | null;
+  belum_krs: number | null;
+  persentase_krs: number | null;
+  persentase_disetujui: number | null;
 }
 
 const STATUS_KRS_OPTIONS: SelectOption[] = [
@@ -243,6 +251,9 @@ export default function MonitoringKrsPage() {
     setIsFilterDrawerOpen(false);
   };
 
+  // Pembanding mahasiswa aktif hanya tersedia pada periode berjalan.
+  const periodeBerjalan = Boolean(summary?.periode_berjalan);
+
   // Columns definition for DataTable
   const columns: ColumnDef<MonitoringProdiRow>[] = [
     {
@@ -254,77 +265,104 @@ export default function MonitoringKrsPage() {
             {row.nama_prodi} {row.jenjang ? `(${row.jenjang})` : ''}
           </span>
           <span className="text-2xs text-slate-400 block">
-            Fakultas: {row.fakultas} • Kode: {row.kode_prodi || '-'}
+            {row.fakultas} • {row.kode_prodi || '-'}
           </span>
         </div>
       ),
     },
     {
-      key: 'total_mhs',
-      label: 'MHS AKTIF',
+      key: 'mahasiswa_ber_krs',
+      label: 'MAHASISWA BER-KRS',
       align: 'center',
       render: (row) => (
-        <span className="font-mono font-bold text-slate-800 text-xs">
-          {row.total_mahasiswa_aktif}
-        </span>
+        <div>
+          <span className="font-mono font-bold text-slate-900 text-xs block">{row.mahasiswa_ber_krs}</span>
+          <span className="text-2xs text-slate-400">{row.jumlah_krs} KRS</span>
+        </div>
       ),
     },
     {
-      key: 'sudah_krs',
-      label: 'SUDAH KRS',
+      key: 'rata_sks',
+      label: 'RATA-RATA SKS',
       align: 'center',
       render: (row) => (
-        <span className="font-mono font-bold text-emerald-600 text-xs">
-          {row.sudah_krs}
-        </span>
+        <div>
+          <span className="font-mono font-bold text-slate-900 text-xs block">{row.rata_sks}</span>
+          <span className="text-2xs text-slate-400">{row.total_sks} SKS total</span>
+        </div>
       ),
     },
     {
-      key: 'disetujui',
-      label: 'DISETUJUI DPA',
+      key: 'jumlah_mk',
+      label: 'MATA KULIAH DIBUKA',
       align: 'center',
-      render: (row) => (
-        <span className="font-mono font-bold text-primary-600 text-xs">
-          {row.disetujui}
-        </span>
-      ),
+      render: (row) => <span className="font-mono font-bold text-slate-800 text-xs">{row.jumlah_mk}</span>,
     },
     {
-      key: 'belum_krs',
-      label: 'BELUM KRS',
-      align: 'center',
-      render: (row) => (
-        <span className="font-mono font-bold text-rose-600 text-xs">
-          {row.belum_krs}
-        </span>
-      ),
+      key: 'status_krs',
+      label: 'STATUS KRS',
+      render: (row) => {
+        type StatusItem = { label: string; value: number; variant: 'gray' | 'amber' | 'green' | 'blue' };
+        const items: StatusItem[] = ([
+          { label: 'Draft', value: row.draft, variant: 'gray' },
+          { label: 'Diajukan', value: row.diajukan, variant: 'amber' },
+          { label: 'Disetujui', value: row.disetujui, variant: 'green' },
+          { label: 'Dikunci', value: row.dikunci, variant: 'blue' },
+        ] as StatusItem[]).filter((i) => i.value > 0);
+        if (items.length === 0) return <span className="text-2xs text-slate-400">Belum ada KRS</span>;
+        return (
+          <div className="flex flex-wrap gap-1">
+            {items.map((i) => (
+              <Badge key={i.label} variant={i.variant} className="text-2xs font-semibold">
+                {i.label} {i.value}
+              </Badge>
+            ))}
+          </div>
+        );
+      },
     },
     {
-      key: 'terkunci_keuangan',
-      label: 'TERKUNCI KEUANGAN',
-      align: 'center',
-      render: (row) => (
-        <span className="font-mono font-bold text-amber-600 text-xs">
-          {row.terkunci_keuangan}
-        </span>
-      ),
+      key: 'cakupan',
+      label: 'CAKUPAN MAHASISWA AKTIF',
+      render: (row) => {
+        if (row.total_mahasiswa_aktif === null || row.persentase_krs === null) {
+          return <span className="text-2xs text-slate-400">Hanya periode berjalan</span>;
+        }
+        const pct = Math.min(100, row.persentase_krs);
+        return (
+          <div className="min-w-[10rem]">
+            <div className="flex items-center justify-between text-2xs mb-1">
+              <span className="font-mono font-bold text-slate-800">
+                {row.total_mahasiswa_aktif - (row.belum_krs ?? 0)} / {row.total_mahasiswa_aktif}
+              </span>
+              <span className="font-mono text-slate-500">{row.persentase_krs}%</span>
+            </div>
+            <div className="h-1.5 w-full rounded-full bg-slate-100 overflow-hidden">
+              <div
+                className="h-full rounded-full bg-[var(--module-primary,var(--primary-600))]"
+                style={{ width: `${pct}%` }}
+              />
+            </div>
+            <span className="text-2xs text-rose-600 mt-1 block">{row.belum_krs} belum mengisi</span>
+          </div>
+        );
+      },
     },
     {
-      key: 'progress',
-      label: 'PROGRES KRS',
+      key: 'aksi',
+      label: 'AKSI',
       align: 'right',
       render: (row) => (
-        <div className="flex flex-col items-end gap-1">
-          <Badge
-            variant={row.persentase_krs >= 80 ? 'green' : row.persentase_krs >= 50 ? 'blue' : 'amber'}
-            className="text-2xs font-mono font-bold"
-          >
-            {row.persentase_krs}% Terisi
-          </Badge>
-          <span className="text-2xs text-slate-400">
-            {row.persentase_disetujui}% Disetujui
-          </span>
-        </div>
+        <DropdownMenu
+          items={[
+            {
+              label: 'Lihat Mahasiswa',
+              icon: <Eye size={14} />,
+              onClick: () =>
+                router.push(`/siakad/obe/krs/monitoring/prodi/${row.prodi_id}${selectedTaId ? `?ta=${selectedTaId}` : ''}`),
+            },
+          ]}
+        />
       ),
     },
   ];
@@ -408,76 +446,101 @@ export default function MonitoringKrsPage() {
             size="sm"
             icon={<Filter size={16} />}
             onClick={() => setIsFilterDrawerOpen(true)}
-            className="text-xs font-bold"
+            className="text-xs font-bold border-[var(--module-primary)] text-[var(--module-primary)] hover:bg-[var(--module-primary-subtle)]"
           >
             Filter
           </Button>
         }
       />
 
-      {/* Summary Cards */}
+      {/* Ringkasan: isi menyesuaikan periode berjalan atau lampau */}
       {summary && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-          <Card className="border border-slate-200 shadow-2xs">
-            <CardBody className="p-4">
-              <span className="text-2xs font-bold text-slate-500 uppercase tracking-wider block">
-                Total Mahasiswa Aktif
-              </span>
-              <span className="text-lg font-black text-slate-900 font-mono mt-1 block">
-                {summary.total_mahasiswa_aktif}
-              </span>
-              <span className="text-2xs text-slate-400 mt-0.5 block">Cakupan Terfilter</span>
-            </CardBody>
-          </Card>
-
-          <Card className="border border-slate-200 shadow-2xs">
-            <CardBody className="p-4">
-              <span className="text-2xs font-bold text-emerald-700 uppercase tracking-wider block">
-                Sudah Mengisi KRS
-              </span>
-              <span className="text-lg font-black text-emerald-600 font-mono mt-1 block">
-                {summary.total_sudah_krs}
-              </span>
-              <span className="text-2xs text-slate-400 mt-0.5 block">Draf & Diajukan</span>
-            </CardBody>
-          </Card>
-
-          <Card className="border border-slate-200 shadow-2xs">
-            <CardBody className="p-4">
-              <span className="text-2xs font-bold text-primary-700 uppercase tracking-wider block">
-                Disetujui Dosen PA
-              </span>
-              <span className="text-lg font-black text-primary-600 font-mono mt-1 block">
-                {summary.total_disetujui}
-              </span>
-              <span className="text-2xs text-slate-400 mt-0.5 block">Rencana Studi Valid</span>
-            </CardBody>
-          </Card>
-
-          <Card className="border border-slate-200 shadow-2xs">
-            <CardBody className="p-4">
-              <span className="text-2xs font-bold text-rose-700 uppercase tracking-wider block">
-                Belum Mengisi KRS
-              </span>
-              <span className="text-lg font-black text-rose-600 font-mono mt-1 block">
-                {summary.total_belum_krs}
-              </span>
-              <span className="text-2xs text-slate-400 mt-0.5 block">Perlu Dihubungi</span>
-            </CardBody>
-          </Card>
-
-          <Card className="border border-slate-200 shadow-2xs">
-            <CardBody className="p-4">
-              <span className="text-2xs font-bold text-amber-700 uppercase tracking-wider block">
-                Terkunci Keuangan
-              </span>
-              <span className="text-lg font-black text-amber-600 font-mono mt-1 block">
-                {summary.total_terkunci_keuangan}
-              </span>
-              <span className="text-2xs text-slate-400 mt-0.5 block">Tunggakan SPP / SIKEU</span>
-            </CardBody>
-          </Card>
-        </div>
+        <>
+          {!periodeBerjalan && (
+            <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-600">
+              Periode lampau: angka dihitung dari seluruh KRS yang tercatat pada periode ini. Pembanding
+              mahasiswa aktif dan jumlah belum mengisi hanya tersedia untuk periode berjalan.
+            </div>
+          )}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {periodeBerjalan && (
+              <Card className="border border-slate-200 shadow-2xs">
+                <CardBody className="p-4">
+                  <span className="text-2xs font-bold text-slate-500 uppercase tracking-wider block">
+                    Cakupan Pengisian
+                  </span>
+                  <span className="text-lg font-black text-slate-900 font-mono mt-1 block">
+                    {summary.persentase_krs ?? 0}%
+                  </span>
+                  <span className="text-2xs text-slate-400 mt-0.5 block">
+                    {summary.total_mahasiswa_aktif - (summary.total_belum_krs ?? 0)} dari{' '}
+                    {summary.total_mahasiswa_aktif} mahasiswa aktif
+                  </span>
+                </CardBody>
+              </Card>
+            )}
+            <Card className="border border-slate-200 shadow-2xs">
+              <CardBody className="p-4">
+                <span className="text-2xs font-bold text-slate-500 uppercase tracking-wider block">
+                  Mahasiswa Ber-KRS
+                </span>
+                <span className="text-lg font-black text-slate-900 font-mono mt-1 block">
+                  {summary.total_sudah_krs}
+                </span>
+                <span className="text-2xs text-slate-400 mt-0.5 block">{summary.total_krs} dokumen KRS</span>
+              </CardBody>
+            </Card>
+            <Card className="border border-slate-200 shadow-2xs">
+              <CardBody className="p-4">
+                <span className="text-2xs font-bold text-slate-500 uppercase tracking-wider block">
+                  Rata-rata SKS
+                </span>
+                <span className="text-lg font-black text-slate-900 font-mono mt-1 block">
+                  {summary.rata_sks}
+                </span>
+                <span className="text-2xs text-slate-400 mt-0.5 block">{summary.total_sks} SKS total</span>
+              </CardBody>
+            </Card>
+            <Card className="border border-slate-200 shadow-2xs">
+              <CardBody className="p-4">
+                <span className="text-2xs font-bold text-slate-500 uppercase tracking-wider block">
+                  Status KRS
+                </span>
+                <span className="text-2xs text-slate-700 mt-1.5 block">
+                  Disetujui <strong className="font-mono">{summary.total_disetujui}</strong> • Dikunci{' '}
+                  <strong className="font-mono">{summary.total_dikunci}</strong>
+                </span>
+                <span className="text-2xs text-slate-400 mt-0.5 block">
+                  Diajukan {summary.total_diajukan} • Draft {summary.total_draft}
+                </span>
+              </CardBody>
+            </Card>
+            {periodeBerjalan && (
+              <Card className="border border-slate-200 shadow-2xs">
+                <CardBody className="p-4">
+                  <span className="text-2xs font-bold text-rose-700 uppercase tracking-wider block">
+                    Belum Mengisi KRS
+                  </span>
+                  <span className="text-lg font-black text-rose-600 font-mono mt-1 block">
+                    {summary.total_belum_krs}
+                  </span>
+                  <span className="text-2xs text-slate-400 mt-0.5 block">Mahasiswa aktif perlu dihubungi</span>
+                </CardBody>
+              </Card>
+            )}
+            <Card className="border border-slate-200 shadow-2xs">
+              <CardBody className="p-4">
+                <span className="text-2xs font-bold text-amber-700 uppercase tracking-wider block">
+                  Terkunci Keuangan
+                </span>
+                <span className="text-lg font-black text-amber-600 font-mono mt-1 block">
+                  {summary.total_terkunci_keuangan}
+                </span>
+                <span className="text-2xs text-slate-400 mt-0.5 block">Tunggakan SPP / SIKEU</span>
+              </CardBody>
+            </Card>
+          </div>
+        </>
       )}
 
       {/* Tabel Rekapitulasi Per Program Studi with Server-side Pagination Meta */}
@@ -545,6 +608,8 @@ export default function MonitoringKrsPage() {
             />
           </div>
 
+          {periodeBerjalan && (
+          <>
           <div>
             <Select
               label="Status Pengisian KRS"
@@ -571,6 +636,8 @@ export default function MonitoringKrsPage() {
               onChange={(val) => setDrawerProgresKrs(String(val || ''))}
             />
           </div>
+          </>
+          )}
         </div>
       </Drawer>
     </div>

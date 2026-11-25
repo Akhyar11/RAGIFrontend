@@ -14,6 +14,8 @@ import {
   Sparkles,
   PlusCircle,
   Plus,
+  RotateCcw,
+  Loader2,
 } from 'lucide-react';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Card, CardHeader, CardBody } from '@/components/ui/Card';
@@ -26,7 +28,10 @@ import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { DataTable, type ColumnDef } from '@/components/ui/DataTable';
 import { DropdownMenu } from '@/components/ui/DropdownMenu';
 import { siakadService } from '@/services/siakad.service';
+import { useAuth } from '@/hooks/useAuth';
+import { KrsAdminList } from './_components/KrsAdminList';
 import toast from 'react-hot-toast';
+import type { PaginationMeta } from '@/types/api.types';
 import {
   KrsSubmitSchema,
   type KrsSubmitFormValues,
@@ -41,7 +46,7 @@ import {
   SORT_DIRECTION_OPTIONS,
 } from '@/lib/constants/siakad.constant';
 
-export default function KrsMandiriPage() {
+function KrsMandiriPortal() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [activeKrs, setActiveKrs] = useState<any | null>(null);
@@ -62,7 +67,6 @@ export default function KrsMandiriPage() {
   const [filterSortOrder, setFilterSortOrder] = useState('asc');
   const [classPage, setClassPage] = useState(1);
   const [classLimit, setClassLimit] = useState(10);
-  const [classMeta, setClassMeta] = useState<any | null>(null);
 
   // Confirmation dialogs
   const [dropTargetId, setDropTargetId] = useState<number | null>(null);
@@ -111,12 +115,6 @@ export default function KrsMandiriPage() {
           list = aData;
         }
         setAvailableClasses(list);
-        setClassMeta(availRes.value?.meta || {
-          page: classPage,
-          limit: classLimit,
-          total: list.length,
-          total_pages: Math.ceil(list.length / classLimit) || 1,
-        });
         setPlafonData({
           plafon_sks: aData.plafon_sks ?? 24,
           total_sks_diambil: aData.total_sks_diambil ?? 0,
@@ -129,7 +127,7 @@ export default function KrsMandiriPage() {
     } finally {
       setLoading(false);
     }
-  }, [searchKelas, filterHari, filterSemester, filterSortBy, filterSortOrder, classPage, classLimit]);
+  }, [searchKelas, filterHari, filterSemester, filterSortBy, filterSortOrder]);
 
   useEffect(() => {
     loadKrsData();
@@ -198,6 +196,15 @@ export default function KrsMandiriPage() {
     }
   };
 
+  const handleResetFilter = () => {
+    setSearchKelas('');
+    setFilterHari('ALL');
+    setFilterSemester('ALL');
+    setFilterSortBy('nama');
+    setFilterSortOrder('asc');
+    setClassPage(1);
+  };
+
   const statusKrs = activeKrs?.status || 'draft';
   const isLocked = statusKrs === 'disetujui' || statusKrs === 'dikunci';
   const krsDetails: any[] = activeKrs?.details || activeKrs?.krs_details || [];
@@ -236,6 +243,19 @@ export default function KrsMandiriPage() {
 
     return result;
   }, [availableClasses, searchKelas, filterHari, filterSemester, filterSortBy, filterSortOrder]);
+
+  // Katalog kelas difilter dan diurutkan di klien, jadi halaman juga dipotong di klien.
+  const classLastPage = Math.max(1, Math.ceil(filteredClasses.length / classLimit));
+  const activeClassPage = Math.min(classPage, classLastPage);
+  const pagedClasses = filteredClasses.slice((activeClassPage - 1) * classLimit, activeClassPage * classLimit);
+  const classMeta: PaginationMeta = {
+    current_page: activeClassPage,
+    last_page: classLastPage,
+    per_page: classLimit,
+    total: filteredClasses.length,
+    from: filteredClasses.length === 0 ? 0 : (activeClassPage - 1) * classLimit + 1,
+    to: Math.min(activeClassPage * classLimit, filteredClasses.length),
+  };
 
   const krsColumns: ColumnDef<any>[] = [
     {
@@ -545,9 +565,13 @@ export default function KrsMandiriPage() {
           <CardBody className="p-0">
             <DataTable
               columns={availableColumns}
-              data={filteredClasses}
+              data={pagedClasses}
               meta={classMeta}
               onPageChange={(p) => setClassPage(p)}
+              onLimitChange={(l) => {
+                setClassLimit(l);
+                setClassPage(1);
+              }}
               isLoading={loading}
               emptyMessage="Tidak ada kelas tersedia yang sesuai filter atau kuota telah habis."
             />
@@ -557,9 +581,30 @@ export default function KrsMandiriPage() {
 
       {/* Filter Drawer */}
       <Drawer
-        open={showFilterDrawer}
+        isOpen={showFilterDrawer}
         onClose={() => setShowFilterDrawer(false)}
         title="Filter & Pencarian Kelas KRS"
+        footer={
+          <div className="flex items-center justify-between gap-3 w-full">
+            <Button
+              variant="outline"
+              size="sm"
+              icon={<RotateCcw size={14} />}
+              onClick={handleResetFilter}
+              className="text-xs"
+            >
+              Reset
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => setShowFilterDrawer(false)}
+              className="text-xs font-bold"
+            >
+              Terapkan
+            </Button>
+          </div>
+        }
       >
         <div className="flex flex-col gap-4">
           <Input
@@ -597,14 +642,6 @@ export default function KrsMandiriPage() {
               onChange={(v) => setFilterSortOrder(String(v || 'asc'))}
             />
           </div>
-
-          <Button
-            variant="primary"
-            onClick={() => setShowFilterDrawer(false)}
-            className="mt-2"
-          >
-            Terapkan Filter
-          </Button>
         </div>
       </Drawer>
 
@@ -674,6 +711,41 @@ export default function KrsMandiriPage() {
           </div>
         </form>
       </Modal>
+    </div>
+  );
+}
+
+// Satu alamat, dua tampilan: pengelola (BAAK/admin) melihat daftar KRS seluruh
+// mahasiswa; mahasiswa memakai portal pengisian KRS mandiri di atas.
+export default function KrsPage() {
+  const { is_loading, isSuperAdmin, hasPermission, hasRole } = useAuth();
+
+  if (is_loading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="animate-spin text-[var(--module-primary)]" size={28} />
+      </div>
+    );
+  }
+
+  // Pembeda pengelola adalah hak persetujuan KRS, bukan hak baca: mahasiswa juga
+  // memegang `siakad.krs.read` untuk melihat KRS miliknya sendiri.
+  const isPengelola = isSuperAdmin || hasPermission('siakad.krs.approve');
+  if (isPengelola) return <KrsAdminList />;
+
+  if (hasRole('mahasiswa')) return <KrsMandiriPortal />;
+
+  return (
+    <div className="space-y-6">
+      <PageHeader
+        title="Kartu Rencana Studi (KRS)"
+        breadcrumbs={[{ label: 'SIAKAD', href: '/siakad' }, { label: 'KRS' }]}
+      />
+      <Card>
+        <CardBody className="p-6 text-center text-xs text-slate-500">
+          Halaman ini hanya untuk mahasiswa (pengisian KRS) dan pengelola akademik (daftar KRS).
+        </CardBody>
+      </Card>
     </div>
   );
 }

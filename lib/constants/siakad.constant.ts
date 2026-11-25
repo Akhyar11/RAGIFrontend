@@ -72,6 +72,50 @@ export const KRS_SORT_BY_OPTIONS: SelectOption[] = [
   { value: 'sks', label: 'Jumlah SKS' },
 ];
 
+// Status KRS: nilai tetap domain, selaras kolom `status` backend.
+export const KRS_STATUS_OPTIONS: SelectOption[] = [
+  { value: '', label: 'Semua Status' },
+  { value: 'draft', label: 'Draft' },
+  { value: 'diajukan', label: 'Menunggu DPA' },
+  { value: 'disetujui', label: 'Disetujui' },
+  { value: 'dikunci', label: 'Dikunci' },
+  { value: 'ditolak', label: 'Ditolak' },
+];
+
+// Kolom urut daftar KRS admin; selaras whitelist sort_by backend.
+export const KRS_LIST_SORT_BY_OPTIONS: SelectOption[] = [
+  { value: 'created_at', label: 'Tanggal Dibuat' },
+  { value: 'tahun_akademik_id', label: 'Periode Akademik' },
+  { value: 'total_sks_diambil', label: 'Jumlah SKS' },
+  { value: 'status', label: 'Status' },
+];
+
+// Filter status KRS pada daftar mahasiswa monitoring; selaras parameter backend `status_krs`.
+export const KRS_MONITORING_MAHASISWA_STATUS_OPTIONS: SelectOption[] = [
+  { value: 'belum', label: 'Belum mengisi KRS' },
+  { value: 'sudah', label: 'Sudah mengisi KRS' },
+  { value: 'draft', label: 'Draft' },
+  { value: 'diajukan', label: 'Menunggu DPA' },
+  { value: 'disetujui', label: 'Disetujui' },
+  { value: 'dikunci', label: 'Dikunci' },
+  { value: '', label: 'Semua mahasiswa aktif' },
+];
+
+// Urut daftar mahasiswa monitoring KRS per prodi; selaras whitelist sort_by backend.
+export const KRS_MONITORING_PRODI_SORT_BY_OPTIONS: SelectOption[] = [
+  { value: 'nim', label: 'NIM' },
+  { value: 'nama_lengkap', label: 'Nama Mahasiswa' },
+  { value: 'angkatan', label: 'Angkatan' },
+  { value: 'krs_sks', label: 'Jumlah SKS KRS' },
+];
+
+// Filter status keuangan KRS; selaras parameter backend `terkunci_keuangan`.
+export const KRS_KEUANGAN_FILTER_OPTIONS: SelectOption[] = [
+  { value: '', label: 'Semua' },
+  { value: 'ya', label: 'Terkunci keuangan' },
+  { value: 'tidak', label: 'Tidak terkunci' },
+];
+
 export const TRANSKRIP_SORT_BY_OPTIONS: SelectOption[] = [
   { value: 'nama_mk', label: 'Nama Mata Kuliah' },
   { value: 'sks', label: 'Jumlah SKS' },

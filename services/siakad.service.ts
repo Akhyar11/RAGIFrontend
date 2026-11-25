@@ -649,6 +649,16 @@ export const siakadService = {
     return response.data;
   },
 
+  getKrsMonitoringMahasiswa: async (params?: any): Promise<ApiResponse<any>> => {
+    const response = await apiClient.get('/v1/siakad/perkuliahan/krs/monitoring/mahasiswa', { params });
+    return response.data;
+  },
+
+  getKrsMonitoringMahasiswaDetail: async (mahasiswaId: number | string, params?: any): Promise<ApiResponse<any>> => {
+    const response = await apiClient.get(`/v1/siakad/perkuliahan/krs/monitoring/mahasiswa/${mahasiswaId}`, { params });
+    return response.data;
+  },
+
   getActiveKrs: async (params?: any): Promise<ApiResponse<any>> => {
     const response = await apiClient.get('/v1/siakad/perkuliahan/krs/active', { params });
     return response.data;

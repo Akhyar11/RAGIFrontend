@@ -1093,6 +1093,7 @@ Ketentuan:
                             <span>
                               {syncProgress.result.created ?? 0} dibuat · {syncProgress.result.updated ?? 0} diperbarui
                               {syncItem.key === 'siakad_dosen' ? ` · SSO ${syncProgress.result.sso_created ?? 0} dibuat / ${syncProgress.result.sso_updated ?? 0} diperbarui` : ''}
+                              {syncItem.key === 'siakad_mahasiswa' ? ` · akun SSO ${syncProgress.result.sso_created ?? 0} dibuat` : ''}
                             </span>
                           )}
                         </div>
@@ -1142,6 +1143,25 @@ Ketentuan:
                   <div className="rounded-lg border border-sky-200 bg-sky-50 p-3 text-xs text-sky-950">
                     Akun baru dibuat hanya untuk dosen aktif. Akun SSO lama yang tertaut atau cocok dengan identifier diperbarui meski dosen nonaktif.
                     {' '}SSO dibuat: {syncResult.sso_created ?? 0}; SSO diperbarui: {syncResult.sso_updated ?? 0}.
+                  </div>
+                )}
+
+                {syncItem.key === 'siakad_mahasiswa' && !syncResult.read_only && !syncResult.preview && (
+                  <div className="space-y-2 rounded-lg border border-sky-200 bg-sky-50 p-3 text-xs text-sky-950">
+                    <div>
+                      Akun SSO mahasiswa (username = NIM): dibuat {syncResult.sso_created ?? 0}; dihubungkan ke akun yang sudah ada {syncResult.sso_linked ?? 0};
+                      dilewati {syncResult.sso_skipped ?? 0}. Akun mahasiswa non-aktif dibuat dalam keadaan nonaktif ({syncResult.sso_inactive ?? 0}).
+                    </div>
+                    {syncResult.sso_note && <div className="font-semibold text-amber-800">{syncResult.sso_note}</div>}
+                    {(syncResult.sso_skipped_items?.length ?? 0) > 0 && (
+                      <div className="max-h-40 space-y-1 overflow-y-auto rounded border border-sky-100 bg-white p-2">
+                        {(syncResult.sso_skipped_items ?? []).map((item, index) => (
+                          <div key={`${item.source_id ?? index}-${index}`} className="text-2xs">
+                            <span className="font-semibold">{item.item_ref || item.source_id}</span>: {item.reason}
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
 

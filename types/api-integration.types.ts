@@ -52,6 +52,15 @@ export interface ApiIntegrationSyncResult {
   updated?: number;
   sso_created?: number;
   sso_updated?: number;
+  sso_linked?: number;
+  sso_skipped?: number;
+  sso_inactive?: number;
+  sso_note?: string | null;
+  sso_skipped_items?: Array<{
+    source_id: string | number | null;
+    item_ref?: string | null;
+    reason: string;
+  }>;
   synced?: number;
   skipped?: number;
   failed?: number;
@@ -80,7 +89,7 @@ export interface ApiIntegrationProgress {
   progress_id: string;
   integration_id: number;
   status: 'queued' | 'running' | 'completed' | 'failed';
-  phase: 'queued' | 'starting' | 'reading' | 'assignments' | 'preparing' | 'biodata' | 'saving' | 'completed' | 'failed';
+  phase: 'queued' | 'starting' | 'reading' | 'assignments' | 'accounts' | 'preparing' | 'biodata' | 'saving' | 'completed' | 'failed';
   progress: number;
   processed: number;
   total: number | null;

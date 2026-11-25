@@ -32,6 +32,64 @@ export const PEGAWAI_SORT_DIR_OPTIONS: { value: string; label: string }[] = [
   { value: 'desc', label: 'Z - A (Turun)' },
 ];
 
+export interface ExportableColumnOption {
+  key: string;
+  label: string;
+  category: 'identitas' | 'kepegawaian' | 'kontak_rekening';
+}
+
+export const EXPORTABLE_PEGAWAI_COLUMNS: ExportableColumnOption[] = [
+  // Kategori: Identitas & Akun SSO
+  { key: 'username', label: 'Username Akun SSO', category: 'identitas' },
+  { key: 'nip', label: 'NIP', category: 'identitas' },
+  { key: 'nidn', label: 'NIDN', category: 'identitas' },
+  { key: 'nuptk', label: 'NUPTK', category: 'identitas' },
+  { key: 'nik', label: 'NIK (No. KTP)', category: 'identitas' },
+  { key: 'nama_lengkap', label: 'Nama Lengkap', category: 'identitas' },
+  { key: 'gelar_depan', label: 'Gelar Depan', category: 'identitas' },
+  { key: 'gelar_belakang', label: 'Gelar Belakang', category: 'identitas' },
+  { key: 'nama_dan_gelar', label: 'Nama Lengkap & Gelar', category: 'identitas' },
+  { key: 'jenis_kelamin', label: 'Jenis Kelamin', category: 'identitas' },
+  { key: 'tempat_lahir', label: 'Tempat Lahir', category: 'identitas' },
+  { key: 'tanggal_lahir', label: 'Tanggal Lahir', category: 'identitas' },
+  { key: 'agama', label: 'Agama', category: 'identitas' },
+
+  // Kategori: Kepegawaian & Penugasan
+  { key: 'jenis_pegawai', label: 'Jenis Pegawai / Peran', category: 'kepegawaian' },
+  { key: 'status_kepegawaian', label: 'Status Kepegawaian', category: 'kepegawaian' },
+  { key: 'status', label: 'Status Keaktifan', category: 'kepegawaian' },
+  { key: 'unit_kerja', label: 'Unit Kerja / Homebase', category: 'kepegawaian' },
+  { key: 'jabatan', label: 'Jabatan Struktural', category: 'kepegawaian' },
+  { key: 'jabatan_fungsional', label: 'Jabatan Fungsional (JAD)', category: 'kepegawaian' },
+  { key: 'shift_kerja', label: 'Shift Kerja Presensi', category: 'kepegawaian' },
+  { key: 'lokasi_presensi', label: 'Lokasi Presensi', category: 'kepegawaian' },
+  { key: 'tanggal_masuk', label: 'Tanggal Masuk / TMT', category: 'kepegawaian' },
+
+  // Kategori: Kontak & Rekening
+  { key: 'email', label: 'Email', category: 'kontak_rekening' },
+  { key: 'telepon', label: 'Telepon / WhatsApp', category: 'kontak_rekening' },
+  { key: 'alamat', label: 'Alamat Domisili', category: 'kontak_rekening' },
+  { key: 'nama_bank', label: 'Nama Bank', category: 'kontak_rekening' },
+  { key: 'nomor_rekening', label: 'Nomor Rekening', category: 'kontak_rekening' },
+  { key: 'nama_rekening', label: 'Atas Nama Rekening', category: 'kontak_rekening' },
+];
+
+export const DEFAULT_SELECTED_EXPORT_COLUMNS: string[] = [
+  'username',
+  'nip',
+  'nidn',
+  'nama_lengkap',
+  'jenis_kelamin',
+  'jenis_pegawai',
+  'status_kepegawaian',
+  'status',
+  'unit_kerja',
+  'jabatan',
+  'jabatan_fungsional',
+  'email',
+  'telepon',
+];
+
 export interface UnitKerja {
   id: number;
   induk_id?: number | null;

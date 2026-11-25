@@ -28,6 +28,7 @@ import { Select } from '@/components/ui/Select';
 import { Drawer } from '@/components/ui/Drawer';
 import { Badge } from '@/components/ui/Badge';
 import { Modal } from '@/components/ui/Modal';
+import { Checkbox } from '@/components/ui/Checkbox';
 import { DataTable, type ColumnDef } from '@/components/ui/DataTable';
 import { DropdownMenu } from '@/components/ui/DropdownMenu';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
@@ -37,6 +38,8 @@ import {
   STATUS_PEGAWAI_OPTIONS,
   PEGAWAI_SORT_BY_OPTIONS,
   PEGAWAI_SORT_DIR_OPTIONS,
+  EXPORTABLE_PEGAWAI_COLUMNS,
+  DEFAULT_SELECTED_EXPORT_COLUMNS,
 } from '@/types/simpeg.types';
 import type { PaginationMeta } from '@/types/api.types';
 import toast from 'react-hot-toast';
@@ -156,6 +159,61 @@ export default function PegawaiPage() {
     setShowImportModal(false);
     setImportFile(null);
     setImportResult(null);
+  };
+
+  // Export Modal State & Handlers
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [selectedExportColumns, setSelectedExportColumns] = useState<string[]>(DEFAULT_SELECTED_EXPORT_COLUMNS);
+
+  const handleToggleExportColumn = (key: string) => {
+    setSelectedExportColumns((prev) =>
+      prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]
+    );
+  };
+
+  const handleSelectAllExportColumns = () => {
+    setSelectedExportColumns(EXPORTABLE_PEGAWAI_COLUMNS.map((c) => c.key));
+  };
+
+  const handleDeselectAllExportColumns = () => {
+    setSelectedExportColumns([]);
+  };
+
+  const handleExecuteExport = async () => {
+    if (selectedExportColumns.length === 0) {
+      toast.error('Pilih minimal 1 kolom untuk diekspor');
+      return;
+    }
+
+    setExporting(true);
+    try {
+      const activeFilters: Record<string, any> = {};
+      if (search) activeFilters.search = search;
+      if (selectedUnit) activeFilters.unit_kerja_id = selectedUnit;
+      if (selectedRoleId) activeFilters.role_id = selectedRoleId;
+      if (selectedShift) activeFilters.shift_template_id = selectedShift;
+      if (selectedStatus) activeFilters.status = selectedStatus;
+      if (filterOrderBy) activeFilters.order_by = filterOrderBy;
+      if (filterOrderDir) activeFilters.order_dir = filterOrderDir;
+
+      const blob = await simpegService.exportPegawai(activeFilters, selectedExportColumns);
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      const timestamp = new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14);
+      link.setAttribute('download', `data_pegawai_simpeg_${timestamp}.xlsx`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      toast.success('Data pegawai berhasil diekspor ke Excel!');
+      setShowExportModal(false);
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message || err?.message || 'Gagal mengekspor data pegawai');
+    } finally {
+      setExporting(false);
+    }
   };
 
   const loadPegawai = useCallback(async () => {
@@ -477,6 +535,58 @@ export default function PegawaiPage() {
         }
       />
 
+      {/* Indikator Filter Aktif & Aksi Cepat Ekspor */}
+      {(search || selectedUnit || selectedRoleId || selectedShift || selectedStatus) && (
+        <div className="flex items-center justify-between p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-700 gap-3 flex-wrap">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="font-bold flex items-center gap-1.5 text-slate-800">
+              <Filter size={14} /> Filter Aktif:
+            </span>
+            {search && <Badge variant="simpeg">Pencarian: {search}</Badge>}
+            {selectedUnit && (
+              <Badge variant="simpeg">
+                Unit: {unitList.find((u) => u.id.toString() === selectedUnit)?.nama || selectedUnit}
+              </Badge>
+            )}
+            {selectedRoleId && (
+              <Badge variant="simpeg">
+                Peran: {roleList.find((r) => r.id.toString() === selectedRoleId)?.name || selectedRoleId}
+              </Badge>
+            )}
+            {selectedShift && (
+              <Badge variant="simpeg">
+                Shift: {shiftList.find((s) => s.id.toString() === selectedShift)?.name || selectedShift}
+              </Badge>
+            )}
+            {selectedStatus && (
+              <Badge variant="simpeg">
+                Status: {STATUS_PEGAWAI_OPTIONS.find((s) => s.value === selectedStatus)?.label || selectedStatus}
+              </Badge>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              icon={<Download size={14} />}
+              onClick={() => setShowExportModal(true)}
+              className="text-2xs py-1 px-3 h-auto bg-white"
+            >
+              Export Hasil Filter
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              icon={<RotateCcw size={14} />}
+              onClick={handleResetFilter}
+              className="text-2xs py-1 px-3 h-auto text-slate-600 hover:text-rose-600 hover:bg-slate-100"
+            >
+              Reset Filter
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* DataTable Component with Server-Side Pagination */}
       <DataTable
         columns={columns}
@@ -588,8 +698,24 @@ export default function PegawaiPage() {
             />
           </div>
 
-          {canCreate && (
-            <div className="pt-2 border-t border-slate-200">
+          <div className="pt-2 border-t border-slate-200 space-y-2">
+            <Button
+              variant="outline"
+              className="w-full"
+              icon={<Download size={16} />}
+              onClick={() => {
+                setShowFilter(false);
+                setShowExportModal(true);
+              }}
+              style={{
+                borderColor: 'var(--module-primary)',
+                color: 'var(--module-primary)',
+              }}
+            >
+              Export Data Pegawai (Excel)
+            </Button>
+
+            {canCreate && (
               <Button
                 variant="outline"
                 className="w-full"
@@ -603,8 +729,8 @@ export default function PegawaiPage() {
               >
                 Import Pegawai (Excel/CSV)
               </Button>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </Drawer>
 
@@ -735,6 +861,156 @@ export default function PegawaiPage() {
               )}
             </div>
           )}
+        </div>
+      </Modal>
+
+      {/* Modal Pemilihan Kolom Export */}
+      <Modal
+        open={showExportModal}
+        onClose={() => setShowExportModal(false)}
+        title="Export Data Pegawai ke Excel (.xlsx)"
+        size="lg"
+        footer={
+          <div className="flex items-center justify-between w-full">
+            <span className="text-xs text-slate-500">
+              <strong className="text-slate-800">{selectedExportColumns.length}</strong> dari{' '}
+              {EXPORTABLE_PEGAWAI_COLUMNS.length} kolom dipilih
+            </span>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowExportModal(false)}
+                disabled={exporting}
+              >
+                Batal
+              </Button>
+              <Button
+                size="sm"
+                icon={<Download size={16} />}
+                loading={exporting}
+                disabled={exporting || selectedExportColumns.length === 0}
+                onClick={handleExecuteExport}
+              >
+                Unduh File Excel (.xlsx)
+              </Button>
+            </div>
+          </div>
+        }
+      >
+        <div className="flex flex-col gap-4">
+          {/* Status Filter Aktif Info */}
+          <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-600 flex items-start gap-3">
+            <Info size={16} className="text-[var(--module-primary)] shrink-0 mt-0.5" />
+            <div>
+              <p className="font-semibold text-slate-800">
+                {search || selectedUnit || selectedJenis || selectedShift || selectedRoleId || selectedStatus ? (
+                  <>Mengekspor Sesuai Filter Aktif</>
+                ) : (
+                  <>Mengekspor Seluruh Data Pegawai</>
+                )}
+              </p>
+              <p className="text-slate-500 mt-0.5">
+                {search || selectedUnit || selectedJenis || selectedShift || selectedRoleId || selectedStatus ? (
+                  <>
+                    Data yang diekspor akan difilter sesuai kriteria pencarian dan filter aktif di tabel saat ini (
+                    {meta?.total ? `${meta.total} data ditemukan` : 'sesuai filter aktif'}).
+                  </>
+                ) : (
+                  <>Tidak ada filter aktif. Seluruh data pegawai yang terdaftar ({meta?.total ? `${meta.total} pegawai` : 'di sistem'}) akan diekspor.</>
+                )}
+              </p>
+            </div>
+          </div>
+
+          {/* Toolbar Pilih Cepat */}
+          <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+            <span className="text-xs font-semibold text-slate-700">Pilih Kolom yang Akan Disertakan:</span>
+            <div className="flex items-center gap-1">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={handleSelectAllExportColumns}
+                className="text-xs h-auto py-1 px-2 text-[var(--module-primary)] hover:opacity-80"
+              >
+                Pilih Semua
+              </Button>
+              <span className="text-slate-300">|</span>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={handleDeselectAllExportColumns}
+                className="text-xs h-auto py-1 px-2 text-slate-500 hover:text-rose-600"
+              >
+                Hapus Pilihan
+              </Button>
+            </div>
+          </div>
+
+          {/* Group 1: Identitas Pribadi & Akun Login SSO */}
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <Badge variant="simpeg">1</Badge>
+              <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+                Identitas Pribadi & Akun Login SSO
+              </h4>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 p-3 rounded-xl bg-slate-50/70 border border-slate-200/80">
+              {EXPORTABLE_PEGAWAI_COLUMNS.filter((c) => c.category === 'identitas').map((col) => (
+                <Checkbox
+                  key={col.key}
+                  id={`export-col-${col.key}`}
+                  label={col.label}
+                  checked={selectedExportColumns.includes(col.key)}
+                  onChange={() => handleToggleExportColumn(col.key)}
+                />
+              ))}
+            </div>
+          </div>
+
+          {/* Group 2: Status Kepegawaian & Penugasan */}
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <Badge variant="simpeg">2</Badge>
+              <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+                Status Kepegawaian & Penugasan
+              </h4>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 p-3 rounded-xl bg-slate-50/70 border border-slate-200/80">
+              {EXPORTABLE_PEGAWAI_COLUMNS.filter((c) => c.category === 'kepegawaian').map((col) => (
+                <Checkbox
+                  key={col.key}
+                  id={`export-col-${col.key}`}
+                  label={col.label}
+                  checked={selectedExportColumns.includes(col.key)}
+                  onChange={() => handleToggleExportColumn(col.key)}
+                />
+              ))}
+            </div>
+          </div>
+
+          {/* Group 3: Kontak & Rekening Penggajian */}
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <Badge variant="simpeg">3</Badge>
+              <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+                Kontak & Rekening Penggajian
+              </h4>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 p-3 rounded-xl bg-slate-50/70 border border-slate-200/80">
+              {EXPORTABLE_PEGAWAI_COLUMNS.filter((c) => c.category === 'kontak_rekening').map((col) => (
+                <Checkbox
+                  key={col.key}
+                  id={`export-col-${col.key}`}
+                  label={col.label}
+                  checked={selectedExportColumns.includes(col.key)}
+                  onChange={() => handleToggleExportColumn(col.key)}
+                />
+              ))}
+            </div>
+          </div>
         </div>
       </Modal>
 

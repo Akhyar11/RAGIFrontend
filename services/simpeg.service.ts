@@ -270,6 +270,18 @@ export const simpegService = {
     return data;
   },
 
+  exportPegawai: async (filters: Record<string, any> = {}, columns: string[] = []): Promise<Blob> => {
+    const params: Record<string, any> = { ...filters };
+    if (columns.length > 0) {
+      params.columns = columns;
+    }
+    const response = await apiClient.get('/simpeg/pegawai/export', {
+      params,
+      responseType: 'blob',
+    });
+    return response.data;
+  },
+
   // ── RIWAYAT ──────────────────────────────────────────────────
   getRiwayatJabatan: async (pegawaiId: number): Promise<ApiResponse<RiwayatJabatan[]>> => {
     const { data } = await apiClient.get<ApiResponse<RiwayatJabatan[]>>(`/simpeg/pegawai/${pegawaiId}/riwayat-jabatan`);

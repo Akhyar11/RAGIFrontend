@@ -278,7 +278,7 @@ export default function PiutangMahasiswaPage() {
             {row.nomor_tagihan}
           </span>
           {viewMode === 'mahasiswa' && Array.isArray((row as any).nomor_tagihan_list) ? (
-            <div className="mt-1 flex flex-wrap gap-1 max-w-[230px]">
+            <div className="mt-1 flex flex-wrap gap-1 max-w-xs">
               {(row as any).nomor_tagihan_list.slice(0, 3).map((no: string) => (
                 <span key={no} className="font-mono text-2xs text-slate-500 bg-slate-50 border border-slate-200 px-1.5 py-0.5 rounded">
                   {no}
@@ -634,13 +634,13 @@ export default function PiutangMahasiswaPage() {
 
       {/* View Mode Switcher */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div className="inline-flex rounded-xl bg-slate-100 p-1 border border-slate-200">
+        <div className="inline-flex rounded-lg bg-slate-100 p-1 border border-slate-200">
           <button
             type="button"
             onClick={() => setViewMode('tagihan')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
+            className={`px-3 py-1.5 rounded-md text-xs font-bold transition ${
               viewMode === 'tagihan'
-                ? 'bg-white text-slate-900 shadow-2xs'
+                ? 'bg-white text-[var(--module-primary,#2563eb)] shadow-xs'
                 : 'text-slate-600 hover:text-slate-900'
             }`}
           >
@@ -649,9 +649,9 @@ export default function PiutangMahasiswaPage() {
           <button
             type="button"
             onClick={() => setViewMode('mahasiswa')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
+            className={`px-3 py-1.5 rounded-md text-xs font-bold transition ${
               viewMode === 'mahasiswa'
-                ? 'bg-white text-slate-900 shadow-2xs'
+                ? 'bg-white text-[var(--module-primary,#2563eb)] shadow-xs'
                 : 'text-slate-600 hover:text-slate-900'
             }`}
           >

@@ -229,9 +229,10 @@ export default function KelasRpsPage() {
   }, [form.mingguan]);
   const isBobot100 = Math.abs(totalBobot - 100) < 0.01;
 
-  const tahunAjaran = kelas?.tahun_akademik
-    ? `${kelas.tahun_akademik.tahun_mulai}/${kelas.tahun_akademik.tahun_selesai || ''}`
-    : kelas?.tahun_akademik?.nama || '';
+  const tahunAjaran = kelas?.tahun_akademik?.nama
+    || (kelas?.tahun_akademik
+      ? `${kelas.tahun_akademik.tahun_mulai}/${kelas.tahun_akademik.tahun_selesai || ''}`
+      : '');
 
   const handleOpenImport = async () => {
     if (!kelas) return;

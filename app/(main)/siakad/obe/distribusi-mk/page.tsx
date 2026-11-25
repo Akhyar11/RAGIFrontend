@@ -243,12 +243,12 @@ export default function DistribusiMengajarPage() {
     },
     {
       key: 'angkatan',
-      label: 'ANGKATAN',
+      label: 'TAHUN AKADEMIK',
       align: 'center',
       render: (r) => (
         <div>
           <span className="font-mono font-bold text-slate-900 text-xs block">
-            {r.tahun_akademik?.tahun_mulai || r.tahun_akademik?.nama || '-'}
+            {r.tahun_akademik?.nama || r.tahun_akademik?.tahun_mulai || '-'}
           </span>
           <span className="text-2xs text-slate-500 font-mono block">{r.tahun_akademik?.kode || ''}</span>
         </div>

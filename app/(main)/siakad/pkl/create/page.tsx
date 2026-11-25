@@ -53,7 +53,7 @@ export default function CreatePklPage() {
       const list: any[] = Array.isArray(res.data) ? res.data : res.data?.items || [];
       return list.map((ta) => ({
         value: Number(ta.id),
-        label: `${ta.tahun || ta.nama || ta.kode} ${ta.semester ? `(${ta.semester})` : ''} ${ta.is_active ? '• (Aktif)' : ''}`.trim(),
+        label: `${ta.nama || ta.kode} ${ta.is_active ? '• (Aktif)' : ''}`.trim(),
       }));
     } catch {
       return [];

@@ -30,7 +30,7 @@ import { DataTable, ColumnDef } from '@/components/ui/DataTable';
 import { AsyncSelect } from '@/components/ui/AsyncSelect';
 import { SEMESTER_OPTIONS } from '@/components/siakad/DistribusiMengajarForm';
 import { siakadService } from '@/services/siakad.service';
-import { useObeSettings } from '@/lib/obe-settings';
+import { useObeSettings, formatTahunAkademikLabel } from '@/lib/obe-settings';
 import { useAuth } from '@/hooks/useAuth';
 import toast from 'react-hot-toast';
 
@@ -143,12 +143,10 @@ export default function ObeSettingsPage() {
       const raw = res?.data;
       const list: any[] = Array.isArray(raw) ? raw : (raw?.items || raw || []);
       return list.map((ta: any) => {
-        const cleanLabel = ta.tahun_mulai && ta.tahun_selesai
-          ? `${ta.tahun_mulai}/${ta.tahun_selesai}`
-          : (ta.nama || ta.kode);
+        const cleanLabel = formatTahunAkademikLabel(ta);
         return {
           value: String(ta.id),
-          label: ta.nama && ta.nama !== cleanLabel ? `${cleanLabel} (${ta.nama})` : cleanLabel,
+          label: cleanLabel,
           cleanLabel,
           raw: ta,
         };

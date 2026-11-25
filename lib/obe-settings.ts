@@ -44,12 +44,16 @@ export function saveStoredObeSettings(settings: ObeSettings, userId?: number | s
   }
 }
 
+// Nama periode lengkap dengan semester, mis. "2026/2027 Ganjil". Satu sumber
+// untuk semua dropdown/label tahun akademik; jangan menyusun ulang dari
+// tahun_mulai/tahun_selesai karena semesternya hilang.
 export function formatTahunAkademikLabel(ta: any): string {
   if (!ta) return '';
+  if (ta.nama) return ta.nama;
   if (ta.tahun_mulai && ta.tahun_selesai) {
     return `${ta.tahun_mulai}/${ta.tahun_selesai}`;
   }
-  return ta.nama || ta.kode || '';
+  return ta.kode || '';
 }
 
 export function formatKurikulumLabel(k: any): string {

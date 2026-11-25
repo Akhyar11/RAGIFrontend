@@ -45,6 +45,7 @@ interface PiutangItem {
 export default function PiutangMahasiswaPage() {
   const router = useRouter();
   const [data, setData] = useState<PiutangItem[]>([]);
+  const [viewMode, setViewMode] = useState<'tagihan' | 'mahasiswa'>('tagihan');
   const [loading, setLoading] = useState(true);
   const [downloading, setDownloading] = useState(false);
   const [prodiList, setProdiList] = useState<{ value: string; label: string }[]>([]);
@@ -153,6 +154,7 @@ export default function PiutangMahasiswaPage() {
         tahun_akademik_id: appliedFilters.tahun_akademik_id === 'all' ? undefined : appliedFilters.tahun_akademik_id,
         sort_by: appliedFilters.sort_by,
         sort_order: appliedFilters.sort_order,
+        group_by: viewMode,
       });
 
       if (res && res.data) {
@@ -174,11 +176,11 @@ export default function PiutangMahasiswaPage() {
     } finally {
       setLoading(false);
     }
-  }, [appliedFilters, pagination.per_page]);
+  }, [appliedFilters, pagination.per_page, viewMode]);
 
   useEffect(() => {
     fetchPiutang(1);
-  }, [appliedFilters, fetchPiutang]);
+  }, [appliedFilters, viewMode, fetchPiutang]);
 
   const handleApplyFilter = () => {
     setAppliedFilters({
@@ -269,13 +271,28 @@ export default function PiutangMahasiswaPage() {
   const columns: ColumnDef<PiutangItem>[] = [
     {
       key: 'nomor_tagihan',
-      label: 'NOMOR TAGIHAN',
+      label: viewMode === 'mahasiswa' ? 'TAGIHAN TERKAIT' : 'NOMOR TAGIHAN',
       render: (row) => (
         <div>
           <span className="font-mono text-xs font-bold text-slate-800 bg-slate-100 px-2 py-1 rounded-md">
             {row.nomor_tagihan}
           </span>
-          <span className="text-2xs block text-slate-400 font-semibold mt-1">Periode: {row.tahun_akademik || '-'}</span>
+          {viewMode === 'mahasiswa' && Array.isArray((row as any).nomor_tagihan_list) ? (
+            <div className="mt-1 flex flex-wrap gap-1 max-w-[230px]">
+              {(row as any).nomor_tagihan_list.slice(0, 3).map((no: string) => (
+                <span key={no} className="font-mono text-2xs text-slate-500 bg-slate-50 border border-slate-200 px-1.5 py-0.5 rounded">
+                  {no}
+                </span>
+              ))}
+              {(row as any).nomor_tagihan_list.length > 3 && (
+                <span className="text-2xs text-slate-500 font-semibold">
+                  +{(row as any).nomor_tagihan_list.length - 3} lainnya
+                </span>
+              )}
+            </div>
+          ) : (
+            <span className="text-2xs block text-slate-400 font-semibold mt-1">Periode: {row.tahun_akademik || '-'}</span>
+          )}
         </div>
       ),
     },
@@ -388,19 +405,43 @@ export default function PiutangMahasiswaPage() {
       key: 'actions',
       label: 'AKSI',
       align: 'right',
-      render: (row) => (
-        <div className="flex items-center justify-end">
-          <DropdownMenu
-            items={[
-              {
-                label: 'Detail Tagihan',
-                icon: <Eye size={14} />,
-                onClick: () => router.push(`/sikeu/pembayaran-mahasiswa/tagihan`),
-              },
-            ]}
-          />
-        </div>
-      ),
+      render: (row) => {
+        const searchKey = row.nim && row.nim !== '-'
+          ? row.nim
+          : ((row as any).no_pendaftaran || row.nama_mahasiswa || row.nomor_tagihan);
+        return (
+          <div className="flex items-center justify-end">
+            <DropdownMenu
+              items={
+                viewMode === 'mahasiswa'
+                  ? [
+                      {
+                        label: 'Lihat Rincian Tagihan',
+                        icon: <Eye size={14} />,
+                        onClick: () => {
+                          setFilterSearch(searchKey);
+                          setAppliedFilters((prev) => ({ ...prev, search: searchKey }));
+                          setViewMode('tagihan');
+                        },
+                      },
+                      {
+                        label: 'Buka di Daftar Tagihan',
+                        icon: <FileText size={14} />,
+                        onClick: () => router.push(`/sikeu/pembayaran-mahasiswa/tagihan?search=${encodeURIComponent(searchKey)}`),
+                      },
+                    ]
+                  : [
+                      {
+                        label: 'Detail Tagihan',
+                        icon: <Eye size={14} />,
+                        onClick: () => router.push(`/sikeu/pembayaran-mahasiswa/tagihan?search=${encodeURIComponent(row.nomor_tagihan || searchKey)}`),
+                      },
+                    ]
+              }
+            />
+          </div>
+        );
+      },
     },
   ];
 
@@ -590,6 +631,34 @@ export default function PiutangMahasiswaPage() {
           </button>
         </div>
       )}
+
+      {/* View Mode Switcher */}
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="inline-flex rounded-xl bg-slate-100 p-1 border border-slate-200">
+          <button
+            type="button"
+            onClick={() => setViewMode('tagihan')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
+              viewMode === 'tagihan'
+                ? 'bg-white text-slate-900 shadow-2xs'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            Detail per Tagihan
+          </button>
+          <button
+            type="button"
+            onClick={() => setViewMode('mahasiswa')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
+              viewMode === 'mahasiswa'
+                ? 'bg-white text-slate-900 shadow-2xs'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            Rekap per Mahasiswa
+          </button>
+        </div>
+      </div>
 
       {/* DataTable */}
       <DataTable

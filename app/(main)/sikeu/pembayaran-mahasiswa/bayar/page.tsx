@@ -1813,7 +1813,11 @@ function BayarKasirContent() {
                     ? 'Tunai di Loket Kasir Kampus'
                     : detailItem.channel_bayar === 'LOKET_TRANSFER'
                       ? 'Transfer Manual Rekening Loket'
-                      : 'Virtual Account Online (Xendit)'}
+                      : detailItem.channel_bayar === 'TRANSFER_BANK' || detailItem.channel_bayar === 'MIGRASI'
+                        ? 'Transfer Bank (Migrasi / Manual)'
+                        : detailItem.channel_bayar && !String(detailItem.channel_bayar).toUpperCase().includes('XENDIT') && !String(detailItem.channel_bayar).toUpperCase().includes('VA')
+                          ? detailItem.channel_bayar
+                          : 'Virtual Account Online (Xendit)'}
                 </span>
               </div>
               {detailItem.virtual_account?.va_number && (

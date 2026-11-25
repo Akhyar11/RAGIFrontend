@@ -69,6 +69,7 @@ export const sikeuService = {
     per_page?: number;
     sort_by?: string;
     sort_order?: string;
+    group_by?: 'tagihan' | 'mahasiswa';
   }) => {
     const cleanParams: Record<string, string> = {};
     if (params) {
@@ -901,6 +902,7 @@ export const sikeuService = {
     per_page?: number;
     sort_by?: string;
     sort_order?: string;
+    group_by?: 'tagihan' | 'mahasiswa';
   }) => {
     const query = new URLSearchParams();
     if (params) {
@@ -1366,6 +1368,7 @@ export const sikeuService = {
     per_page?: number;
     sort_by?: string;
     sort_order?: string;
+    group_by?: 'tagihan' | 'mahasiswa';
   }) => {
     const q = new URLSearchParams();
     if (params?.search) q.append('search', params.search);

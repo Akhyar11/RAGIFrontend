@@ -150,6 +150,14 @@ export default function ListTagihanMahasiswaPage() {
   }, [page, appliedFilters]);
 
   useEffect(() => {
+    const q = new URLSearchParams(window.location.search).get('search');
+    if (q) {
+      setFilterSearch(q);
+      setAppliedFilters((prev) => ({ ...prev, search: q }));
+    }
+  }, []);
+
+  useEffect(() => {
     fetchTagihan();
   }, [fetchTagihan]);
 
@@ -397,7 +405,7 @@ export default function ListTagihanMahasiswaPage() {
             )}
           </div>
           <span className="font-mono text-2xs text-slate-500 block">
-            {row.nim !== '-' ? row.nim : `Calon #${row.calon_mahasiswa_id}`} • {row.prodi}
+            {row.nim !== '-' ? row.nim : (row.calon_mahasiswa_id ? `Calon #${row.calon_mahasiswa_id}` : 'Belum Terhubung')} • {row.prodi}
           </span>
         </div>
       ),

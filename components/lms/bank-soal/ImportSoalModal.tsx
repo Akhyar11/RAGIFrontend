@@ -20,8 +20,8 @@ import { loadKategoriOptions, loadRpsOptions } from './BankSoalForm';
 const importSchema = z.object({
   file: z
     .custom<File>((val) => val instanceof File, { message: 'File import wajib dipilih.' })
-    .refine((val) => /\.(xlsx|xls|csv)$/i.test(val?.name ?? ''), {
-      message: 'Format file harus XLSX, XLS, atau CSV.',
+    .refine((val) => /\.(xlsx|xls|csv|txt)$/i.test(val?.name ?? ''), {
+      message: 'Format file harus XLSX, XLS, CSV, atau TXT (Aiken).',
     })
     .refine((val) => (val?.size ?? 0) <= 10 * 1024 * 1024, {
       message: 'Ukuran file maksimal 10 MB.',
@@ -73,6 +73,27 @@ export default function ImportSoalModal({ open, onClose, onImported }: Props) {
     }
   };
 
+  const handleDownloadAikenTemplate = () => {
+    const content = [
+      'Ibukota Indonesia adalah ...',
+      'A. Jakarta',
+      'B. Bandung',
+      'C. Surabaya',
+      'D. Medan',
+      'ANSWER: A',
+      '',
+      'Hasil dari 2 + 2 x 2 adalah ...',
+      'A. 6',
+      'B. 8',
+      'C. 4',
+      'D. 10',
+      'ANSWER: A',
+      '',
+    ].join('\n');
+    downloadBlobFile(new Blob([content], { type: 'text/plain;charset=utf-8' }), 'template-import-bank-soal-aiken.txt');
+    toast.success('Template Aiken berhasil diunduh.');
+  };
+
   const handleSubmit = async (values: ImportValues) => {
     setIsImporting(true);
     try {
@@ -110,16 +131,27 @@ export default function ImportSoalModal({ open, onClose, onImported }: Props) {
       size="md"
       footer={
         <div className="flex justify-between gap-2 w-full">
-          <Button
-            type="button"
-            variant="outline"
-            icon={<Download size={16} />}
-            onClick={handleDownloadTemplate}
-            loading={isDownloading}
-            disabled={isDownloading || isImporting}
-          >
-            Unduh Template
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              icon={<Download size={16} />}
+              onClick={handleDownloadTemplate}
+              loading={isDownloading}
+              disabled={isDownloading || isImporting}
+            >
+              Template Excel
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              icon={<Download size={16} />}
+              onClick={handleDownloadAikenTemplate}
+              disabled={isImporting}
+            >
+              Template Aiken
+            </Button>
+          </div>
           <div className="flex gap-2">
             <Button type="button" variant="secondary" onClick={onClose} disabled={isImporting}>
               Batal
@@ -142,8 +174,8 @@ export default function ImportSoalModal({ open, onClose, onImported }: Props) {
         <div className="alert alert-warning text-xs">
           <AlertTriangle size={16} className="shrink-0" />
           <span>
-            Gunakan template resmi agar kolom terbaca. Baris yang tidak valid akan dilewati dan
-            dilaporkan setelah import selesai.
+            Gunakan template Excel/CSV atau format Aiken (.txt). Baris/soal yang tidak valid akan
+            dilewati dan dilaporkan setelah import selesai.
           </span>
         </div>
 
@@ -156,9 +188,9 @@ export default function ImportSoalModal({ open, onClose, onImported }: Props) {
               type="file"
               label="File Import"
               required
-              accept=".xlsx,.xls,.csv"
+              accept=".xlsx,.xls,.csv,.txt"
               error={form.formState.errors.file?.message}
-              hint="Format: XLSX, XLS, atau CSV. Maksimal 500 baris data."
+              hint="Format: XLSX, XLS, CSV, atau TXT (Aiken). Maksimal 500 baris/soal."
               onChange={(e) => {
                 const picked = e.target.files?.[0] ?? null;
                 field.onChange(picked);

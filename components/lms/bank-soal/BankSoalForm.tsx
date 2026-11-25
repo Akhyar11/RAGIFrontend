@@ -72,8 +72,10 @@ export default function BankSoalForm({ form, disabled }: Props) {
     register,
     control,
     setValue,
+    watch,
     formState: { errors },
   } = form;
+  const tipeSoal = watch('tipe_soal');
 
   const handleSaveKategori = async () => {
     if (!kategoriNama.trim()) {
@@ -217,14 +219,23 @@ export default function BankSoalForm({ form, disabled }: Props) {
         </div>
 
         <div className="md:col-span-2 lg:col-span-3">
-          <Textarea
-            label="Kunci Jawaban"
-            rows={3}
-            placeholder="Kunci jawaban / jawaban benar..."
-            disabled={disabled}
-            error={errors.kunci_jawaban?.message}
-            {...register('kunci_jawaban')}
-          />
+          {tipeSoal === 'pilihan_ganda' ? (
+            <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+              <p className="text-xs font-medium text-slate-700">Kunci Jawaban</p>
+              <p className="text-2xs text-slate-500 mt-1">
+                Kunci jawaban pilihan ganda ditentukan dari opsi yang ditandai benar pada tab/kelola opsi.
+              </p>
+            </div>
+          ) : (
+            <Textarea
+              label="Kunci Jawaban"
+              rows={3}
+              placeholder="Kunci jawaban / jawaban benar..."
+              disabled={disabled}
+              error={errors.kunci_jawaban?.message}
+              {...register('kunci_jawaban')}
+            />
+          )}
         </div>
 
         <div className="md:col-span-2 lg:col-span-3">

@@ -101,7 +101,7 @@ export default function BankSoalEditPage() {
         bobot: Number(values.bobot) || 0,
         pertanyaan: values.pertanyaan.trim(),
         gambar_path: values.gambar_path?.trim() || null,
-        kunci_jawaban: values.kunci_jawaban?.trim() || null,
+        kunci_jawaban: values.tipe_soal === 'pilihan_ganda' ? null : values.kunci_jawaban?.trim() || null,
         pembahasan: values.pembahasan?.trim() || null,
       });
       toast.success('Soal berhasil diperbarui.');

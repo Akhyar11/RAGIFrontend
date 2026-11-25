@@ -126,21 +126,26 @@ export default function LmsKelasDetailPage({ params }: PageProps) {
   const { hasRole, hasPermission, isDosen: isAuthDosen, isSuperAdmin, isAdmin } = useAuth();
   const [overview, setOverview] = useState<LmsKelasOverview | null>(null);
   const viewerContext = overview?.viewer_context;
-  const fallbackCanTeach = isAuthDosen || hasRole('dosen_pengajar');
+  const fallbackIsDosen = isAuthDosen || hasRole('dosen_pengajar');
   const fallbackIsPengelola =
-    !fallbackCanTeach &&
-    (isSuperAdmin || isAdmin || hasRole('admin_siakad') || hasPermission('siakad.kelas.manage'));
-  const canTeach = viewerContext ? viewerContext.can_teach : fallbackCanTeach;
+    !fallbackIsDosen &&
+    (isSuperAdmin || isAdmin || hasPermission('siakad.kelas.manage'));
+  // Mutasi perkuliahan hanya Super Admin (backend: gate `lms.manage-perkuliahan`).
+  // `viewer_mode`/`is_pengampu` tetap dipakai untuk menentukan tampilan peran.
+  const canManage = viewerContext ? viewerContext.can_teach : isSuperAdmin;
   const canConfigureKelas = viewerContext
     ? viewerContext.can_configure_kelas
-    : fallbackCanTeach || fallbackIsPengelola;
+    : isSuperAdmin;
   const isPengelolaReadOnly = viewerContext
-    ? viewerContext.is_pengelola && !viewerContext.can_teach
-    : fallbackIsPengelola;
-  const isDosen = canTeach || isPengelolaReadOnly;
+    ? viewerContext.is_pengelola && !canManage
+    : fallbackIsPengelola && !isSuperAdmin;
+  const isDosen =
+    canManage ||
+    (viewerContext ? viewerContext.viewer_mode === 'dosen' : fallbackIsDosen) ||
+    isPengelolaReadOnly;
   const isMahasiswa = viewerContext
     ? viewerContext.viewer_mode === 'mahasiswa'
-    : !isDosen;
+    : !isDosen && !isPengelolaReadOnly;
 
   const initialTab: ActiveTab = (searchParams.get('tab') as ActiveTab) || 'pertemuan';
   const [activeTab, setActiveTab] = useState<ActiveTab>(
@@ -476,7 +481,7 @@ export default function LmsKelasDetailPage({ params }: PageProps) {
         ]}
         action={
           <div className="flex items-center gap-2">
-            {canTeach && (
+            {canManage && (
               <Button size="sm" variant="outline" icon={<Upload size={16} />} onClick={() => setShowImport(true)}>
                 Import Materi
               </Button>
@@ -583,7 +588,7 @@ export default function LmsKelasDetailPage({ params }: PageProps) {
       {/* Tab: Perkuliahan */}
       {activeTab === 'pertemuan' && (
         <div className="space-y-4">
-          {canTeach && (
+          {canManage && (
             <div className="flex justify-end">
               <Button size="sm" icon={<Plus size={16} />} onClick={openTambah}>
                 Tambah Pertemuan
@@ -600,7 +605,7 @@ export default function LmsKelasDetailPage({ params }: PageProps) {
                   P{p.pertemuan_ke}
                 </div>
                 <div className="flex flex-col gap-2 flex-1 min-w-0">
-                  {canTeach && editingId === p.id ? (
+                  {canManage && editingId === p.id ? (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <Input
                         label="Judul / Materi"
@@ -650,7 +655,7 @@ export default function LmsKelasDetailPage({ params }: PageProps) {
               </div>
 
               <div className="flex items-center gap-2 justify-end flex-wrap">
-                {canTeach && editingId === p.id ? (
+                {canManage && editingId === p.id ? (
                   <>
                     <Button size="sm" variant="outline" icon={<X size={16} />} onClick={() => setEditingId(null)}>
                       Batal
@@ -667,7 +672,7 @@ export default function LmsKelasDetailPage({ params }: PageProps) {
                   </>
                 ) : (
                   <>
-                    {canTeach && (
+                    {canManage && (
                       <Button size="sm" variant="outline" icon={<Pencil size={16} />} onClick={() => startEdit(p)}>
                         Ubah
                       </Button>

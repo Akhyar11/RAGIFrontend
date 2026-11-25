@@ -260,7 +260,9 @@ export interface LmsViewerContext {
   is_pengampu: boolean;
   is_peserta_krs: boolean;
   is_pengelola: boolean;
+  /** Mutasi perkuliahan hanya untuk Super Admin. */
   can_teach: boolean;
+  /** Pengaturan kelas hanya untuk Super Admin. */
   can_configure_kelas: boolean;
   can_participate: boolean;
   can_export: boolean;
@@ -456,6 +458,23 @@ export interface LmsPertemuanItem {
   kelas?: LmsKelasRingkas | null;
 }
 
+/**
+ * Nilai default form jurnal/presensi dari plotting kelas.
+ * Isian yang sudah tersimpan pada pertemuan tetap diprioritaskan frontend.
+ */
+export interface LmsPlottingPertemuan {
+  hari: string | null;
+  jam_mulai: string | null;
+  jam_selesai: string | null;
+  /** ID master ruangan (relasi), bukan teks bebas. */
+  ruangan_id: number | null;
+  ruangan_nama?: string | null;
+  ruangan_kode?: string | null;
+  /** Tanggal terdekat yang mengikuti hari kuliah (Y-m-d). */
+  tanggal_default: string | null;
+  jenis_kegiatan_default: JenisKegiatan;
+}
+
 /** Jurnal presensi lokal — field inti pertemuan + bukti privat. */
 export interface LmsJurnalPertemuan {
   pertemuan_id: number;
@@ -479,8 +498,10 @@ export interface LmsJurnalPertemuan {
 
 export interface LmsJurnalResponse {
   jurnal: LmsJurnalPertemuan;
-  /** true hanya untuk Dosen Pengampu; admin/kaprodi & mahasiswa read-only. */
+  /** true untuk Dosen Pengampu kelas ini atau Super Admin. */
   can_edit: boolean;
+  /** Fallback isian form dari plotting kelas (dapat ditimpa dosen). */
+  plotting?: LmsPlottingPertemuan | null;
   jenis_kegiatan_options: SelectOption[];
 }
 
@@ -550,6 +571,8 @@ export interface LmsSesiPresensiAktifItem {
 export interface LmsPertemuanDetail {
   pertemuan: LmsPertemuanItem;
   viewer_context?: LmsViewerContext;
+  /** Fallback isian form jurnal/presensi dari plotting kelas. */
+  plotting?: LmsPlottingPertemuan | null;
   materi_list: LmsMateriItem[];
   tugas_list: LmsTugasItem[];
   quiz_list: LmsQuizItem[];

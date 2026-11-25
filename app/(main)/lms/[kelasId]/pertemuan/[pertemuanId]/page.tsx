@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef, use, type ReactNode } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef, use, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -156,21 +156,32 @@ export default function LmsPertemuanDetailPage({ params }: PageProps) {
   // State Utama
   const [detail, setDetail] = useState<LmsPertemuanDetail | null>(null);
   const viewerContext = detail?.viewer_context;
-  const fallbackCanTeach = isAuthDosen || hasRole('dosen_pengajar');
+  const fallbackIsDosen = isAuthDosen || hasRole('dosen_pengajar');
   const fallbackIsPengelola =
-    !fallbackCanTeach &&
-    (isSuperAdmin || isAdmin || hasRole('admin_siakad') || hasPermission('siakad.kelas.manage'));
-  const canTeach = viewerContext ? viewerContext.can_teach : fallbackCanTeach;
+    !fallbackIsDosen &&
+    (isSuperAdmin || isAdmin || hasPermission('siakad.kelas.manage'));
+  // Mutasi perkuliahan hanya Super Admin (backend: gate `lms.manage-perkuliahan`).
+  const canManage = viewerContext ? viewerContext.can_teach : isSuperAdmin;
+  // Jurnal & presensi adalah pengecualian: dosen pengampu kelasnya sendiri boleh
+  // mengisi, sedangkan materi/tugas/quiz/nilai/setting tetap `canManage`.
+  const canManageJurnal = viewerContext
+    ? canManage || (viewerContext.is_pengampu && viewerContext.viewer_mode === 'dosen')
+    : isSuperAdmin;
+  // Dosen pengampu yang juga berperan sebagai pengelola tetap boleh mengisi
+  // jurnal/presensi kelasnya; mode read-only hanya untuk pengelola non-pengampu.
   const isPengelolaReadOnly = viewerContext
-    ? viewerContext.is_pengelola && !viewerContext.can_teach
-    : fallbackIsPengelola;
-  const isDosen = canTeach;
-  const canManageKelas = canTeach;
-  const canInputPresensi = canTeach;
-  const canProsesIzin = canTeach;
+    ? viewerContext.is_pengelola && !canManageJurnal
+    : fallbackIsPengelola && !canManageJurnal;
+  const isDosen =
+    canManage ||
+    (viewerContext ? viewerContext.viewer_mode === 'dosen' : fallbackIsDosen) ||
+    isPengelolaReadOnly;
+  const canManageKelas = canManage;
+  const canInputPresensi = canManageJurnal;
+  const canProsesIzin = canManageJurnal;
   const isMahasiswa = viewerContext
     ? viewerContext.viewer_mode === 'mahasiswa'
-    : !canTeach && !isPengelolaReadOnly;
+    : !isDosen && !isPengelolaReadOnly;
   type TabKey =
     | 'isian'
     | 'presensi'
@@ -491,7 +502,7 @@ export default function LmsPertemuanDetailPage({ params }: PageProps) {
   }, [detail?.presensi_ditutup, tokenInfo?.token]);
 
   useEffect(() => {
-    if (!canTeach || !tokenInfo?.token || detail?.presensi_ditutup) return;
+    if (!canManageJurnal || !tokenInfo?.token || detail?.presensi_ditutup) return;
 
     let active = true;
     let timer: ReturnType<typeof setTimeout>;
@@ -505,11 +516,11 @@ export default function LmsPertemuanDetailPage({ params }: PageProps) {
       active = false;
       clearTimeout(timer);
     };
-  }, [canTeach, detail?.presensi_ditutup, fetchLiveAttendance, tokenInfo?.token]);
+  }, [canManageJurnal, detail?.presensi_ditutup, fetchLiveAttendance, tokenInfo?.token]);
 
   // Auto-rotasi token tiap 30 detik selama sesi presensi terbuka pada layar Dosen Pengampu
   useEffect(() => {
-    if (!canTeach || !tokenInfo?.token || detail?.presensi_ditutup) {
+    if (!canManageJurnal || !tokenInfo?.token || detail?.presensi_ditutup) {
       return;
     }
     const intervalSec = tokenInfo.rotate_interval_seconds || 30;
@@ -540,26 +551,57 @@ export default function LmsPertemuanDetailPage({ params }: PageProps) {
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [canTeach, tokenInfo?.token, tokenInfo?.rotate_interval_seconds, detail?.presensi_ditutup, pertemuanId]);
+  }, [canManageJurnal, tokenInfo?.token, tokenInfo?.rotate_interval_seconds, detail?.presensi_ditutup, pertemuanId]);
+
+  // Isian yang sudah ada selalu menang; plotting hanya fallback. Dosen tetap
+  // bebas mengubah semua field setelah form terisi otomatis.
+  const resolveIsianValues = useCallback((): IsianFormValues => {
+    const pertemuan = detail?.pertemuan;
+    const jurnal = jurnalData?.jurnal;
+    const plotting = detail?.plotting || jurnalData?.plotting;
+    const ruanganId = jurnal?.ruangan_id ?? pertemuan?.ruangan_id ?? plotting?.ruangan_id;
+
+    return {
+      materi: pertemuan?.materi || jurnal?.materi || '',
+      catatan_pertemuan: pertemuan?.catatan_pertemuan || jurnal?.catatan_pertemuan || '',
+      tanggal: pertemuan?.tanggal || jurnal?.tanggal || plotting?.tanggal_default || '',
+      jam_mulai: pertemuan?.jam_mulai || jurnal?.jam_mulai || plotting?.jam_mulai || '',
+      jam_selesai: pertemuan?.jam_selesai || jurnal?.jam_selesai || plotting?.jam_selesai || '',
+      status_pertemuan: pertemuan?.status_pertemuan || jurnal?.status_pertemuan || null,
+      jenis_kegiatan:
+        jurnal?.jenis_kegiatan ||
+        pertemuan?.jenis_kegiatan ||
+        plotting?.jenis_kegiatan_default ||
+        null,
+      ruangan_id: ruanganId ? String(ruanganId) : '',
+    };
+  }, [detail, jurnalData]);
+
+  // Opsi awal AsyncSelect ruangan agar ruangan plotting tampil sebelum users
+  // mengetik (tanpa hardcode entitas master).
+  const ruanganDefaultOptions = useMemo(() => {
+    const values = resolveIsianValues();
+    if (!values.ruangan_id) return [];
+    const ruanganId = Number(values.ruangan_id);
+    const label =
+      jurnalData?.jurnal.ruangan_nama ||
+      detail?.pertemuan.ruangan_nama ||
+      detail?.plotting?.ruangan_nama ||
+      jurnalData?.plotting?.ruangan_nama ||
+      detail?.plotting?.ruangan_kode ||
+      jurnalData?.plotting?.ruangan_kode ||
+      `Ruangan ${ruanganId}`;
+
+    return [{ value: String(ruanganId), label }];
+  }, [detail, jurnalData, resolveIsianValues]);
 
   // Sinkronkan form Isian dari detail (dosen) — jangan timpa saat sedang mengedit.
   useEffect(() => {
     if (detail?.pertemuan && !isEditingIsian) {
-      isianFormHook.reset({
-        materi: detail.pertemuan.materi || '',
-        catatan_pertemuan: detail.pertemuan.catatan_pertemuan || '',
-        tanggal: detail.pertemuan.tanggal || '',
-        jam_mulai: detail.pertemuan.jam_mulai || '',
-        jam_selesai: detail.pertemuan.jam_selesai || '',
-        status_pertemuan: detail.pertemuan.status_pertemuan || null,
-        jenis_kegiatan: jurnalData?.jurnal.jenis_kegiatan || detail.pertemuan.jenis_kegiatan || null,
-        ruangan_id: (jurnalData?.jurnal.ruangan_id ?? detail.pertemuan.ruangan_id)
-          ? String(jurnalData?.jurnal.ruangan_id ?? detail.pertemuan.ruangan_id)
-          : '',
-      });
+      isianFormHook.reset(resolveIsianValues());
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [detail, jurnalData, isEditingIsian]);
+  }, [detail, jurnalData, isEditingIsian, resolveIsianValues]);
 
   // Satu payload untuk form "Isian": data pertemuan + jurnal + bukti privat.
   const buildJurnalPayload = useCallback((values: IsianFormValues) => ({
@@ -1086,7 +1128,7 @@ export default function LmsPertemuanDetailPage({ params }: PageProps) {
         </span>
       ),
     },
-    ...(canTeach
+    ...(canManage
       ? [
           {
             key: 'aksi',
@@ -1226,7 +1268,7 @@ export default function LmsPertemuanDetailPage({ params }: PageProps) {
       {isPengelolaReadOnly && (
         <Alert variant="info" icon={<FileCheck size={18} className="shrink-0 text-slate-600 mt-0.5" />}>
           <div>
-            <strong>Mode Monitoring Pengelola (Read-Only):</strong> Anda melihat sesi pertemuan ini sebagai pengelola institusi/prodi. Pengelolaan materi, tugas, kuis, penilaian, dan presensi hanya dapat dilakukan oleh Dosen Pengampu kelas ini.
+            <strong>Mode Monitoring Pengelola (Read-Only):</strong> Anda melihat sesi pertemuan ini sebagai pengelola institusi/prodi. Jurnal dan presensi dapat diisi oleh Dosen Pengampu kelas ini atau Super Admin; materi, tugas, kuis, penilaian, dan pengaturan kelas hanya oleh Super Admin.
           </div>
         </Alert>
       )}
@@ -1369,9 +1411,9 @@ export default function LmsPertemuanDetailPage({ params }: PageProps) {
                 Scan QR / Input Presensi
               </Button>
             )
-          ) : isPengelolaReadOnly ? (
+          ) : !canManageJurnal ? (
             <span className="text-2xs font-semibold text-slate-400">
-              Mode Monitoring Pengelola — aktivasi token oleh Dosen Pengampu.
+              Mode Monitoring Pengelola — jurnal dan sesi presensi diisi oleh Dosen Pengampu atau Super Admin.
             </span>
           ) : detail?.presensi_ditutup ? (
             <span className="text-2xs font-semibold text-slate-400">
@@ -1448,9 +1490,11 @@ export default function LmsPertemuanDetailPage({ params }: PageProps) {
                 </h4>
                 <p className="text-2xs text-slate-500">
                   Kelola judul materi, catatan, jadwal, dan status penyelesaian sesi pertemuan.
+                  Isian awal diambil dari plotting kelas (tanggal mengikuti hari kuliah, jam,
+                  ruangan, dan jenis kegiatan) dan tetap bisa diubah.
                 </p>
               </div>
-              {canTeach && !isEditingIsian && (
+              {canManageJurnal && !isEditingIsian && (
                 <Button size="sm" variant="outline" icon={<Pencil size={16} />} onClick={() => setIsEditingIsian(true)}>
                   Ubah Isian
                 </Button>
@@ -1534,6 +1578,7 @@ export default function LmsPertemuanDetailPage({ params }: PageProps) {
                         placeholder="Cari ruangan..."
                         value={field.value}
                         onChange={(val) => field.onChange(val ? String(val) : '')}
+                        defaultOptions={ruanganDefaultOptions}
                         loadOptions={async (input) => {
                           try {
                             const res = await siakadService.getRefRuangan({ search: input, per_page: 50 });
@@ -1952,7 +1997,7 @@ export default function LmsPertemuanDetailPage({ params }: PageProps) {
           )}
           <div className="flex items-center justify-between">
             <h4 className="text-xs font-bold text-slate-800">Materi & Bahan Perkuliahan</h4>
-            {canTeach && (
+            {canManage && (
               <Button
                 size="sm"
                 icon={<Plus size={16} />}
@@ -1984,7 +2029,7 @@ export default function LmsPertemuanDetailPage({ params }: PageProps) {
                       >
                         {m.tipe_konten}
                       </Badge>
-                      {canTeach && (
+                      {canManage && (
                         <DropdownMenu
                           items={[
                             {
@@ -2065,7 +2110,7 @@ export default function LmsPertemuanDetailPage({ params }: PageProps) {
                   : 'Nilai yang diinputkan dosen akan otomatis tersinkronisasi ke sistem OBE (siakad_nilai_komponen_mhs).'}
               </p>
             </div>
-            {canTeach && (
+            {canManage && (
               <Button
                 size="sm"
                 icon={<Plus size={16} />}
@@ -2106,7 +2151,7 @@ export default function LmsPertemuanDetailPage({ params }: PageProps) {
                       </div>
                     </div>
 
-                    {!isMahasiswa && (canExportNilai || canTeach) && (
+                    {!isMahasiswa && (canExportNilai || canManage) && (
                       <DropdownMenu
                         items={[
                           ...(canExportNilai
@@ -2118,7 +2163,7 @@ export default function LmsPertemuanDetailPage({ params }: PageProps) {
                                 },
                               ]
                             : []),
-                          ...(canTeach
+                          ...(canManage
                             ? [
                                 {
                                   label: 'Hapus Tugas',
@@ -2268,7 +2313,7 @@ export default function LmsPertemuanDetailPage({ params }: PageProps) {
             quizList={detail?.quiz_list || []}
             komponenObeList={detail?.komponen_obe_list || []}
             isMahasiswa={isMahasiswa}
-            canTeach={canTeach}
+            canManage={canManage}
             onRefresh={fetchDetail}
           />
         </div>
@@ -2517,7 +2562,7 @@ export default function LmsPertemuanDetailPage({ params }: PageProps) {
           className="space-y-4"
         >
           <div className="p-3 rounded-lg bg-blue-50 border border-blue-200 text-2xs text-blue-800">
-            Saat Anda menyimpan jurnal ini, sesi presensi mahasiswa otomatis dibuka dengan <strong>QR Code & Token 6-Digit yang berputar otomatis setiap 30 detik</strong> untuk mencegah kecurangan titip absen.
+            Saat Anda menyimpan jurnal ini, sesi presensi mahasiswa otomatis dibuka dengan <strong>QR Code & Token 6-Digit yang berputar otomatis setiap 30 detik</strong> untuk mencegah kecurangan titip absen. Isian tanggal, jam, ruangan, dan jenis kegiatan sudah diambil dari plotting kelas dan dapat diubah sebelum disimpan.
           </div>
 
           <Input
@@ -2581,6 +2626,7 @@ export default function LmsPertemuanDetailPage({ params }: PageProps) {
                   placeholder="Cari ruangan..."
                   value={field.value}
                   onChange={(val) => field.onChange(val ? String(val) : '')}
+                  defaultOptions={ruanganDefaultOptions}
                   loadOptions={async (input) => {
                     try {
                       const res = await siakadService.getRefRuangan({ search: input, per_page: 50 });

@@ -1053,6 +1053,15 @@ export const siakadService = {
     return response.data;
   },
 
+  updateOpsi: async (
+    soalId: number,
+    opsiId: number,
+    payload: { teks: string; gambar_path?: string | null; is_benar: boolean; urutan?: number }
+  ): Promise<ApiResponse<any>> => {
+    const response = await apiClient.put(`/v1/siakad/obe/soal/${soalId}/opsi/${opsiId}`, payload);
+    return response.data;
+  },
+
   deleteOpsi: async (soalId: number, opsiId: number): Promise<ApiResponse<any>> => {
     const response = await apiClient.delete(`/v1/siakad/obe/soal/${soalId}/opsi/${opsiId}`);
     return response.data;

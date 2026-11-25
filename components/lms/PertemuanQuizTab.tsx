@@ -46,7 +46,7 @@ interface PertemuanQuizTabProps {
   quizList: LmsQuizItem[];
   komponenObeList: Array<{ id: number; nama_komponen: string; bobot: number }>;
   isMahasiswa: boolean;
-  canTeach?: boolean;
+  canManage?: boolean;
   onRefresh: () => void;
 }
 
@@ -56,7 +56,7 @@ export default function PertemuanQuizTab({
   quizList,
   komponenObeList,
   isMahasiswa,
-  canTeach = !isMahasiswa,
+  canManage = false,
   onRefresh,
 }: PertemuanQuizTabProps) {
   const [showQuizModal, setShowQuizModal] = useState(false);
@@ -156,7 +156,7 @@ export default function PertemuanQuizTab({
   // ── Tampilan dosen / pengelola ──
   return (
     <div className="space-y-4">
-      {canTeach && (
+      {canManage && (
         <div className="flex justify-end">
           <Button size="sm" icon={<Plus size={16} />} onClick={openCreate}>
             Buat Quiz
@@ -180,7 +180,7 @@ export default function PertemuanQuizTab({
             { key: 'status', label: 'STATUS', render: (q: LmsQuizItem) =>
                 q.is_published ? <Badge variant="green">Published</Badge> : <Badge variant="yellow">Draft</Badge>,
             },
-            ...(canTeach
+            ...(canManage
               ? [
                   {
                     key: 'aksi',

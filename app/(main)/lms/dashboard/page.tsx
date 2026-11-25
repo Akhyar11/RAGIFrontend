@@ -315,14 +315,11 @@ export default function LmsDashboardPage() {
           {!isPengelola && (
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
               <section className="card">
-                <div className="card-header flex items-center justify-between gap-3">
+                <div className="card-header">
                   <h2 className="font-semibold flex items-center gap-2">
                     <ClipboardList size={18} />
                     {isMahasiswa ? 'Tugas & Kuis yang perlu dikerjakan' : 'Tugas & Kuis kelas Anda'}
                   </h2>
-                  <Link href="/lms/pertemuan" className="text-sm font-medium text-[var(--module-primary)] hover:underline">
-                    Lihat semua
-                  </Link>
                 </div>
                 <div className="card-body">
                   {deadlineActivities.length > 0 ? (
@@ -388,14 +385,11 @@ export default function LmsDashboardPage() {
               </section>
 
               <section className="card">
-                <div className="card-header flex items-center justify-between gap-3">
+                <div className="card-header">
                   <h2 className="font-semibold flex items-center gap-2">
                     <BookOpenText size={18} />
                     Materi terbaru
                   </h2>
-                  <Link href="/lms/pertemuan" className="text-sm font-medium text-[var(--module-primary)] hover:underline">
-                    Lihat semua
-                  </Link>
                 </div>
                 <div className="card-body">
                   {data.preview.materi.length > 0 ? (

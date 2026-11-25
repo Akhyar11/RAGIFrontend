@@ -56,6 +56,17 @@ export interface ApiIntegrationSyncResult {
   skipped?: number;
   failed?: number;
   pages?: number;
+  assignment_source_total?: number;
+  distributions_created?: number;
+  distributions_updated?: number;
+  assignments_synced?: number;
+  assignment_skipped?: number;
+  assignment_skipped_items?: Array<{
+    source_id: string | number | null;
+    item_ref?: string | null;
+    row: number;
+    reason: string;
+  }>;
   skipped_items?: Array<{
     source_id: string | number | null;
     kode_prodi?: string | null;
@@ -69,7 +80,7 @@ export interface ApiIntegrationProgress {
   progress_id: string;
   integration_id: number;
   status: 'queued' | 'running' | 'completed' | 'failed';
-  phase: 'queued' | 'starting' | 'reading' | 'preparing' | 'biodata' | 'saving' | 'completed' | 'failed';
+  phase: 'queued' | 'starting' | 'reading' | 'assignments' | 'preparing' | 'biodata' | 'saving' | 'completed' | 'failed';
   progress: number;
   processed: number;
   total: number | null;

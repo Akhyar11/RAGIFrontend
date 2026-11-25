@@ -4,65 +4,12 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
 import {
-  LayoutDashboard,
-  User,
-  ShieldCheck,
-  Shield,
-  Smartphone,
-  Users,
-  ShieldAlert,
-  Key,
-  Lock,
-  UserCheck,
-  Activity,
-  History,
-  ExternalLink,
-  Bell,
+  ChevronDown,
   ChevronLeft,
-  X,
   GraduationCap,
-  Building2,
-  Briefcase,
-  Contact,
-  Award,
-  FileText,
-  Calendar,
-  Clock,
-  DollarSign,
-  TrendingUp,
-  CheckSquare,
-  List,
-  Home,
-  UserPlus,
-  PieChart,
   Search,
-  RefreshCw,
-  BookOpen,
-  Sparkles,
   Star,
-  Database,
-  Tags,
-  Layers,
-  Menu as MenuIcon,
-  Sliders,
-  Monitor,
-  Settings,
-  AlertTriangle,
-  Coins,
-  Tag,
-  Share2,
-  DoorOpen,
-  Handshake,
-  HeartHandshake,
-  Fingerprint,
-  Ruler,
-  Package,
-  Boxes,
-  Stamp,
-  Shapes,
-  Lightbulb,
-  FlaskConical,
-  Scale
+  X,
 } from 'lucide-react';
 import { useUiStore } from '@/store/uiStore';
 import { useAuth } from '@/hooks/useAuth';
@@ -72,144 +19,6 @@ import { menuService } from '@/services/menu.service';
 import { moduleService, AppModule } from '@/services/module.service';
 import { SystemLogo } from '@/components/layout/SystemLogo';
 import { Menu } from '@/types/menu';
-
-const getIconComponent = (iconName?: string | null) => {
-  const iconMap: Record<string, any> = {
-    'FaHome': Home,
-    'FaUserPlus': UserPlus,
-    'FaChartPie': PieChart,
-    'FaBalanceScale': Scale,
-    'FaUsers': Users,
-    'FaUserCheck': UserCheck,
-    'FaList': List,
-    'FaShieldAlt': Shield,
-    'FaShield': Shield,
-    'FaFileAlt': FileText,
-    'FaClipboardCheck': CheckSquare,
-    'FaFileCheck': CheckSquare,
-    'FaCreditCard': DollarSign,
-    'FaBookOpen': FileText,
-    'FaAward': Award,
-    'FaLayers': Layers,
-    'FaListOl': List,
-    'FaThList': List,
-    'FaProjectDiagram': Share2,
-    'FaLayerGroup': Layers,
-    'FaShapes': Shapes,
-    'FaLightbulb': Lightbulb,
-    'FaFlaskConical': FlaskConical,
-    'FaCubes': Boxes,
-    'FaFileContract': FileText,
-    'FaBoxes': Boxes,
-    'FaCalendar': Calendar,
-    'FaTrophy': Award,
-    'FaBriefcase': Briefcase,
-    'FaClock': Clock,
-    'FaSitemap': Building2,
-    'FaMoneyBillWave': DollarSign,
-    'FaCalendarCheck': Calendar,
-    'FaBuilding': Building2,
-    'FaWrench': Activity,
-    'FaShoppingCart': CheckSquare,
-    'FaUser': User,
-    'FaSmartphone': Smartphone,
-    'FaShieldCheck': ShieldCheck,
-    'FaLock': Lock,
-    'FaKey': Key,
-    'FaGraduationCap': GraduationCap,
-    'FaUserGraduate': GraduationCap,
-    'FaChalkboard': Users,
-    'FaChalkboardTeacher': Users,
-    'FaExchangeAlt': RefreshCw,
-    'FaPen': FileText,
-    'FaSyncAlt': RefreshCw,
-    'FaCloudUploadAlt': RefreshCw,
-    'FaDatabase': Database,
-    'FaTags': Tags,
-    'Database': Database,
-    'Tags': Tags,
-    'FaSlidersH': Sliders,
-    'FaSliders': Sliders,
-    'FaBars': MenuIcon,
-    'FaMenu': MenuIcon,
-    'FaDesktop': Monitor,
-    'FaLaptop': Monitor,
-    'FaMonitor': Monitor,
-    'FaHistory': History,
-    'FaCogs': Settings,
-    'FaCog': Settings,
-    'FaChartBar': PieChart,
-    'FaSparkles': Sparkles,
-    'FaHourglassHalf': Clock,
-    'FaFileSignature': FileText,
-    'FaCheckSquare': CheckSquare,
-    'FaDollarSign': DollarSign,
-    'FaCoins': Coins,
-    'FaExclamationTriangle': AlertTriangle,
-    'FaTag': Tag,
-    'FaShareAlt': Share2,
-    'FaDoorOpen': DoorOpen,
-    'FaHandshake': Handshake,
-    'FaHandsHelping': HeartHandshake,
-    'BookOpen': BookOpen,
-    'FaRulerCombined': Ruler,
-    'Package': Package,
-    'Boxes': Boxes,
-    'Layers': Layers,
-    'Tag': Tag,
-    'FileSignature': FileText,
-    'FileText': FileText,
-    'FaStamp': Stamp,
-    'FaFingerprint': Fingerprint,
-    'FaBell': Bell,
-  };
-  const IconComponent = (iconName && iconMap[iconName]) || LayoutDashboard;
-  return IconComponent;
-};
-
-/**
- * Pool ikon rail two-level navigation. Setiap grup menu di rail WAJIB memakai
- * ikon berbeda agar mudah dibedakan antar-modul (lihat desain Opsi C).
- * `buildRailIconMap` mengisi ikon yang duplikat / tidak dikenal dari pool ini.
- */
-const RAIL_ICON_POOL: any[] = [
-  LayoutDashboard, Home, Users, UserCheck, UserPlus, User, Shield, ShieldCheck,
-  ShieldAlert, Key, Lock, Layers, Database, Tags, History, Settings, Sliders,
-  Monitor, Smartphone, Activity, GraduationCap, Building2, Briefcase, Award,
-  FileText, Calendar, Clock, DollarSign, Coins, TrendingUp, CheckSquare, List,
-  PieChart, BookOpen, RefreshCw, Sparkles, Tag, Share2, DoorOpen, Handshake,
-  HeartHandshake, Ruler, Package, Boxes, Stamp, Shapes, Lightbulb, Contact,
-];
-
-/**
- * Petakan setiap menu level-atas ke SATU ikon rail yang dijamin berbeda.
- * Prioritas: ikon bawaan menu bila belum dipakai grup lain; selebihnya ambil
- * berurutan dari RAIL_ICON_POOL. Deterministik per daftar menu.
- */
-const buildRailIconMap = (menus: Menu[]): Map<string | number, any> => {
-  const used = new Set<any>();
-  const map = new Map<string | number, any>();
-  const deferred: Menu[] = [];
-  for (const menu of menus) {
-    const comp = getIconComponent(menu.icon);
-    const isFallback = comp === LayoutDashboard && menu.icon !== 'FaHome' && menu.icon !== undefined;
-    if (!used.has(comp) && !isFallback) {
-      used.add(comp);
-      map.set(menu.id, comp);
-    } else {
-      deferred.push(menu);
-    }
-  }
-  let poolIdx = 0;
-  for (const menu of deferred) {
-    while (poolIdx < RAIL_ICON_POOL.length && used.has(RAIL_ICON_POOL[poolIdx])) poolIdx++;
-    const comp = RAIL_ICON_POOL[poolIdx] || LayoutDashboard;
-    used.add(comp);
-    map.set(menu.id, comp);
-    poolIdx++;
-  }
-  return map;
-};
 
 export function Sidebar({ tenantModule }: { tenantModule: string }) {
   const pathname = usePathname();
@@ -490,21 +299,14 @@ export function Sidebar({ tenantModule }: { tenantModule: string }) {
     return null;
   }, [processedMenus, activeMenuId]);
 
-  // ── Two-level navigation (Opsi C): rail ikon + panel submenu ──
-  // Kunci rail: `g:<id>` untuk grup (url '#...'), id menu untuk daun.
-  const railKeyOf = (menu: Menu): string | number =>
-    menu.url.startsWith('#') ? `g:${menu.id}` : menu.id;
+  // Grup dropdown: pilihan buka/tutup user menang; selebihnya grup yang
+  // memuat menu aktif terbuka sebagai bawaan.
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
 
-  // Ikon rail dijamin berbeda antar-grup dalam modul aktif.
-  const railIconMap = useMemo(() => buildRailIconMap(processedMenus), [processedMenus]);
+  const isGroupOpen = (key: string) => openGroups[key] ?? (key === activeGroupKey || key === 'fav');
+  const toggleGroup = (key: string) =>
+    setOpenGroups((prev) => ({ ...prev, [key]: !(prev[key] ?? (key === activeGroupKey || key === 'fav')) }));
 
-  // Grup yang memuat menu aktif (fallback seleksi awal).
-  // Pilihan eksplisit user (pinnedSelection) menang sampai rute berubah.
-  const [pinnedSelection, setPinnedSelection] = useState<string | number | null>(null);
-
-  useEffect(() => {
-    setPinnedSelection(null);
-  }, [pathname]);
 
   // Shortcut Ctrl+K / Cmd+K: buka panel lalu fokus ke pencarian.
   const setSidebarOpen = useUiStore((s) => s.setSidebarOpen);
@@ -566,13 +368,6 @@ export function Sidebar({ tenantModule }: { tenantModule: string }) {
     return false;
   };
 
-  // ── Seleksi rail efektif (Opsi C): pilihan user menang, selebihnya
-  // mengikuti rute (grup menu aktif → daun aktif → item pertama).
-  const firstRailKey = processedMenus.length > 0 ? railKeyOf(processedMenus[0]) : null;
-  const derivedSelection = activeGroupKey ?? activeMenuId ?? firstRailKey;
-  const effectiveSelection = pinnedSelection ?? derivedSelection;
-  const selectedMenu =
-    processedMenus.find((m) => railKeyOf(m) === effectiveSelection) ?? null;
 
   const portalLabel = 'Menu Utama';
 
@@ -586,101 +381,152 @@ export function Sidebar({ tenantModule }: { tenantModule: string }) {
   const activeModuleName = appModules.find((m) => m.code === activeModuleSlug)?.name;
   const moduleSubtitle = activeModuleName ? `${activeModuleName} Utama` : portalLabel;
 
-  return (
-    <aside className={`sidebar sidebar-twolevel ${sidebar_open ? '' : 'sidebar-collapsed'}`}>
-      {/* ── Rail ikon two-level (ikon tiap grup dijamin berbeda) ── */}
-      <div className="sidebar-rail">
+  const q = searchQuery.trim().toLowerCase();
+
+  const renderItem = (item: Menu) => {
+    const isFav = favorites.includes(item.url);
+    const itemActive = isMainActive(item.url, item.id);
+    return (
+      <div key={item.id} className="sidebar-link-row">
+        <Link
+          href={item.url}
+          className={`sidebar-panel-item${itemActive ? ' active' : ''}`}
+          title={item.name}
+          aria-current={itemActive ? 'page' : undefined}
+        >
+          <span>{item.name}</span>
+        </Link>
         <button
           type="button"
-          onClick={toggleSidebar}
-          className="sidebar-rail-logo"
-          title={appName}
-          aria-label={appName}
+          onClick={() => toggleFavorite(item.url)}
+          className={`sidebar-pin${isFav ? ' is-fav' : ''}`}
+          title={isFav ? 'Lepas dari Favorit' : 'Sematkan ke Favorit'}
+          aria-label={isFav ? 'Lepas dari Favorit' : 'Sematkan ke Favorit'}
         >
-          <SystemLogo
-            className="sidebar-logo overflow-hidden !bg-transparent"
-            imageClassName="h-full w-full object-contain"
-            fallback={<GraduationCap size={22} color="white" />}
-          />
-        </button>
-
-        <nav className="sidebar-rail-nav" aria-label="Navigasi utama">
-          {loading ? (
-            <div className="sidebar-loading">…</div>
-          ) : (
-            <>
-              {favoriteLinks.length > 0 && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setPinnedSelection('fav');
-                    setSidebarOpen(true);
-                  }}
-                  className={`sidebar-rail-item${effectiveSelection === 'fav' ? ' active' : ''}`}
-                  title="Favorit"
-                  aria-label="Menu favorit"
-                >
-                  <Star size={20} fill={effectiveSelection === 'fav' ? 'currentColor' : 'none'} />
-                </button>
-              )}
-              {processedMenus.map((menu) => {
-                const key = railKeyOf(menu);
-                const RailIcon = railIconMap.get(menu.id) || LayoutDashboard;
-                const railActive = key === effectiveSelection;
-                if (menu.url.startsWith('#')) {
-                  return (
-                    <button
-                      key={menu.id}
-                      type="button"
-                      onClick={() => {
-                        setPinnedSelection(key);
-                        setSidebarOpen(true);
-                      }}
-                      className={`sidebar-rail-item${railActive ? ' active' : ''}`}
-                      title={menu.name}
-                      aria-label={menu.name}
-                    >
-                      <RailIcon size={20} />
-                    </button>
-                  );
-                }
-                // Daun (satu menu): ikon rail HANYA membuka panel, navigasi
-                // tetap lewat klik item di panel (konsisten untuk semua menu).
-                return (
-                  <button
-                    key={menu.id}
-                    type="button"
-                    onClick={() => {
-                      setPinnedSelection(menu.id);
-                      setSidebarOpen(true);
-                    }}
-                    className={`sidebar-rail-item${railActive ? ' active' : ''}`}
-                    title={menu.name}
-                    aria-label={menu.name}
-                  >
-                    <RailIcon size={20} />
-                  </button>
-                );
-              })}
-            </>
-          )}
-        </nav>
-
-        <button
-          type="button"
-          onClick={toggleSidebar}
-          className="sidebar-rail-toggle hide-mobile"
-          title={sidebar_open ? 'Sembunyikan panel' : 'Tampilkan panel'}
-          aria-label={sidebar_open ? 'Sembunyikan panel' : 'Tampilkan panel'}
-        >
-          <ChevronLeft size={18} className={sidebar_open ? '' : 'sidebar-rail-toggle-flip'} />
+          <Star size={13} fill={isFav ? 'currentColor' : 'none'} />
         </button>
       </div>
+    );
+  };
 
-      {/* ── Panel submenu two-level (Opsi C) ── */}
+  // Satu grup dropdown: judul bisa diklik untuk buka/tutup daftar submenu.
+  const renderGroup = (key: string, title: string, items: Menu[], forceOpen = false) => {
+    const open = forceOpen || isGroupOpen(key);
+    const hasActive = items.some((c) => c.id === activeMenuId);
+    return (
+      <div key={key} className="sidebar-acc">
+        <button
+          type="button"
+          onClick={() => toggleGroup(key)}
+          className={`sidebar-acc-head${open ? ' open' : ''}${hasActive ? ' has-active' : ''}`}
+          aria-expanded={open}
+        >
+          <span className="sidebar-acc-title">{title}</span>
+          <ChevronDown size={14} className="sidebar-acc-chev" aria-hidden="true" />
+        </button>
+        {open && <div className="sidebar-acc-list">{items.map((c) => renderItem(c))}</div>}
+      </div>
+    );
+  };
+
+  const renderMenuList = () => {
+    if (loading) {
+      return <div className="sidebar-loading">Loading menus...</div>;
+    }
+
+    if (menuError && processedMenus.length === 0) {
+      return (
+        <div className="p-4 text-center">
+          <div className="text-xs text-rose-500 font-medium mb-2">{menuError}</div>
+          <button
+            type="button"
+            onClick={() => {
+              setLoading(true);
+              setMenuError(null);
+              menuService
+                .getMyMenus(moduleCode)
+                .then((m) => setDynamicMenus(m || []))
+                .catch(() => {
+                  setDynamicMenus([]);
+                  setMenuError('Gagal memuat menu dari server.');
+                })
+                .finally(() => setLoading(false));
+            }}
+            className="text-2xs text-slate-500 hover:text-slate-800 underline cursor-pointer"
+          >
+            Muat ulang
+          </button>
+        </div>
+      );
+    }
+
+    if (processedMenus.length === 0) {
+      return <div className="sidebar-loading">{q ? 'Menu tidak ditemukan.' : 'Belum ada menu tersedia.'}</div>;
+    }
+
+    // Saat mencari, semua grup yang cocok terbuka otomatis.
+    const nodes: React.ReactNode[] = [];
+    if (!q && favoriteLinks.length > 0) {
+      nodes.push(renderGroup('fav', 'Favorit', favoriteLinks));
+    }
+    for (const menu of processedMenus) {
+      const kids = menu.children || [];
+      if (menu.url.startsWith('#')) {
+        const shown = q ? kids.filter((c) => c.name.toLowerCase().includes(q)) : kids;
+        if (shown.length > 0) nodes.push(renderGroup(`g:${menu.id}`, menu.name, shown, !!q));
+        continue;
+      }
+      // Menu tunggal tanpa anak: tautan langsung. Dengan anak: jadi grup
+      // yang anggota pertamanya adalah menu itu sendiri.
+      if (kids.length === 0) {
+        nodes.push(<div key={menu.id} className="sidebar-acc-single">{renderItem(menu)}</div>);
+      } else {
+        const shown = q ? kids.filter((c) => c.name.toLowerCase().includes(q)) : kids;
+        const self = !q || menu.name.toLowerCase().includes(q) ? [menu] : [];
+        nodes.push(renderGroup(`g:${menu.id}`, menu.name, [...self, ...shown], !!q));
+      }
+    }
+    return <>{nodes}</>;
+  };
+
+  return (
+    <aside className={`sidebar sidebar-dropdown ${sidebar_open ? '' : 'sidebar-collapsed'}`}>
+      {/* Strip tipis saat sidebar disembunyikan di desktop: hanya logo + tombol buka */}
+      {!sidebar_open && (
+        <div className="sidebar-mini hide-mobile">
+          <button
+            type="button"
+            onClick={toggleSidebar}
+            className="sidebar-rail-logo"
+            title={appName}
+            aria-label={`Tampilkan menu ${appName}`}
+          >
+            <SystemLogo
+              className="sidebar-logo overflow-hidden !bg-transparent"
+              imageClassName="h-full w-full object-contain"
+              fallback={<GraduationCap size={22} color="white" />}
+            />
+          </button>
+          <button
+            type="button"
+            onClick={toggleSidebar}
+            className="sidebar-rail-toggle"
+            title="Tampilkan menu"
+            aria-label="Tampilkan menu"
+          >
+            <ChevronLeft size={18} className="sidebar-rail-toggle-flip" />
+          </button>
+        </div>
+      )}
+
       {sidebar_open && (
         <div className="sidebar-panel">
           <div className="sidebar-panel-brand-row">
+            <SystemLogo
+              className="sidebar-logo overflow-hidden !bg-transparent"
+              imageClassName="h-full w-full object-contain"
+              fallback={<GraduationCap size={22} color="white" />}
+            />
             <div className="sidebar-panel-brand">
               <div className="sidebar-brand-text">{appName}</div>
               <div className="sidebar-brand-sub">{moduleSubtitle}</div>
@@ -689,8 +535,8 @@ export function Sidebar({ tenantModule }: { tenantModule: string }) {
               type="button"
               onClick={toggleSidebar}
               className="btn btn-ghost btn-icon btn-sm hide-mobile"
-              title="Sembunyikan panel"
-              aria-label="Sembunyikan panel"
+              title="Sembunyikan menu"
+              aria-label="Sembunyikan menu"
             >
               <ChevronLeft size={18} />
             </button>
@@ -710,7 +556,7 @@ export function Sidebar({ tenantModule }: { tenantModule: string }) {
               <input
                 ref={searchInputRef}
                 type="text"
-                placeholder="Cari"
+                placeholder="Cari menu"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="sidebar-search-input"
@@ -720,136 +566,9 @@ export function Sidebar({ tenantModule }: { tenantModule: string }) {
             </div>
           </div>
 
-          <div className="sidebar-panel-body">
-        {/* Dynamic Menus from Database */}
-        {(() => {
-          const q = searchQuery.trim().toLowerCase();
-
-          const renderPanelItem = (item: Menu) => {
-            const isFav = favorites.includes(item.url);
-            const itemActive = isMainActive(item.url, item.id);
-            return (
-              <div key={item.id} className="sidebar-link-row">
-                <Link
-                  href={item.url}
-                  className={`sidebar-panel-item${itemActive ? ' active' : ''}`}
-                  title={item.name}
-                >
-                  {itemActive && <span className="sidebar-panel-dot" aria-hidden="true" />}
-                  <span>{item.name}</span>
-                </Link>
-                <button
-                  type="button"
-                  onClick={() => toggleFavorite(item.url)}
-                  className={`sidebar-pin${isFav ? ' is-fav' : ''}`}
-                  title={isFav ? 'Lepas dari Favorit' : 'Sematkan ke Favorit'}
-                >
-                  <Star size={13} fill={isFav ? 'currentColor' : 'none'} />
-                </button>
-              </div>
-            );
-          };
-
-          if (loading) {
-            return <div className="sidebar-loading">Loading menus...</div>;
-          }
-
-          if (menuError && processedMenus.length === 0) {
-            return (
-              <div className="p-4 text-center">
-                <div className="text-xs text-rose-500 font-medium mb-2">{menuError}</div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setLoading(true);
-                    setMenuError(null);
-                    menuService
-                      .getMyMenus(moduleCode)
-                      .then((m) => setDynamicMenus(m || []))
-                      .catch(() => {
-                        setDynamicMenus([]);
-                        setMenuError('Gagal memuat menu dari server.');
-                      })
-                      .finally(() => setLoading(false));
-                  }}
-                  className="text-2xs text-slate-500 hover:text-slate-800 underline cursor-pointer"
-                >
-                  Muat ulang
-                </button>
-              </div>
-            );
-          }
-
-          // Mode pencarian: hasil datar lintas grup dengan caption grup.
-          if (q) {
-            const grouped = new Map<string, Menu[]>();
-            for (const menu of processedMenus) {
-              if (menu.url.startsWith('#')) {
-                const kids = (menu.children || []).filter((c) => c.name.toLowerCase().includes(q));
-                if (kids.length > 0) grouped.set(menu.name, kids);
-              } else if (menu.name.toLowerCase().includes(q)) {
-                const list = grouped.get(portalLabel) || [];
-                list.push(menu);
-                grouped.set(portalLabel, list);
-              }
-            }
-            if (grouped.size === 0) {
-              return <div className="sidebar-loading">Menu tidak ditemukan.</div>;
-            }
-            return (
-              <>
-                {[...grouped.entries()].map(([group, items]) => (
-                  <div key={group}>
-                    <div className="sidebar-panel-caption">{group}</div>
-                    {items.map((item) => renderPanelItem(item))}
-                  </div>
-                ))}
-              </>
-            );
-          }
-
-          // Tab Favorit dari rail.
-          if (effectiveSelection === 'fav') {
-            if (favoriteLinks.length === 0) {
-              return <div className="sidebar-loading">Belum ada menu favorit.</div>;
-            }
-            return (
-              <>
-                <div className="sidebar-panel-title">Favorit</div>
-                {favoriteLinks.map((fav) => renderPanelItem(fav))}
-              </>
-            );
-          }
-
-          if (!selectedMenu) {
-            return <div className="sidebar-loading">Belum ada menu tersedia.</div>;
-          }
-
-          // Grup terpilih: judul + daftar submenu teks (tanpa ikon, seperti Opsi C).
-          if (selectedMenu.url.startsWith('#')) {
-            const kids = selectedMenu.children || [];
-            if (kids.length === 0) {
-              return <div className="sidebar-loading">Belum ada submenu.</div>;
-            }
-            return (
-              <>
-                <div className="sidebar-panel-title">{selectedMenu.name}</div>
-                {kids.map((child) => renderPanelItem(child))}
-              </>
-            );
-          }
-
-          // Daun terpilih: tampilkan dirinya + anaknya bila ada.
-          const subKids = selectedMenu.children || [];
-          return (
-            <>
-              <div className="sidebar-panel-title">{selectedMenu.name}</div>
-              {renderPanelItem(selectedMenu)}
-              {subKids.map((child) => renderPanelItem(child))}
-            </>
-          );
-        })()}
-          </div>
+          <nav className="sidebar-panel-body" aria-label="Navigasi utama">
+            {renderMenuList()}
+          </nav>
 
           {/* Info pengguna */}
           {user && (

@@ -143,10 +143,20 @@ export default function DetailPengajuanPage() {
 
   const submitKeputusan = async () => {
     if (!modal) return;
+    const isPlottingKeuangan = modal.konteks === 'tahap' && modal.aksi === 'approve' && data?.status === 'pending_keuangan';
+    if (isPlottingKeuangan && !sumberKasId) {
+      toast.error('Pilih sumber unit kas terlebih dahulu sebelum diteruskan ke Direktur');
+      return;
+    }
     setActing(true);
     try {
       if (modal.konteks === 'tahap') {
-        await pengajuanOperasionalService.approve(id, modal.aksi, catatan);
+        await pengajuanOperasionalService.approve(
+          id,
+          modal.aksi,
+          catatan,
+          isPlottingKeuangan ? { unit_kas_id: Number(sumberKasId) } : undefined
+        );
       } else if (modal.lpjId) {
         await pengajuanOperasionalService.verifikasiLpj(modal.lpjId, modal.aksi, catatan);
       }
@@ -588,6 +598,17 @@ export default function DetailPengajuanPage() {
 
       <Modal isOpen={!!modal} onClose={() => setModal(null)} title={modal?.aksi === 'approve' ? 'Konfirmasi Persetujuan' : 'Konfirmasi Penolakan'}>
         <div className="space-y-4">
+          {modal?.konteks === 'tahap' && modal.aksi === 'approve' && data?.status === 'pending_keuangan' && (
+            <Select
+              label="Plotting Sumber Unit Kas (Saldo) *"
+              value={sumberKasId}
+              onChange={(val: any) => setSumberKasId(String(val || ''))}
+              options={sumberKasList.map((u: any) => ({
+                value: String(u.id),
+                label: `${u.nama_kas}${u.kanal ? ` [${String(u.kanal).replace('_', ' ')}]` : ''} — ${formatRupiah(Number(u.saldo_saat_ini) || 0)}`,
+              }))}
+            />
+          )}
           <Textarea label="Catatan (opsional)" value={catatan} onChange={(e) => setCatatan(e.target.value)} />
           <div className="flex justify-end gap-2">
             <Button variant="ghost" onClick={() => setModal(null)}>Batal</Button>

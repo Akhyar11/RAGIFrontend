@@ -122,10 +122,15 @@ export const pengajuanOperasionalService = {
     return data;
   },
 
-  approve: async (id: number | string, aksi: 'approve' | 'reject', catatan?: string) => {
+  approve: async (
+    id: number | string,
+    aksi: 'approve' | 'reject',
+    catatan?: string,
+    extra?: { unit_kas_id?: number; nominal_disetujui?: number }
+  ) => {
     const { data } = await apiClient.post<ApiResponse<PengajuanOperasional>>(
       `/v1/sikeu/pengajuan-operasional/${id}/approve`,
-      { aksi, catatan }
+      { aksi, catatan, ...extra }
     );
     return data;
   },

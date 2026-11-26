@@ -37,3 +37,9 @@ export const ASAL_LULUSAN_OPTIONS: SelectOption[] = [
   { value: 'sekolah', label: 'Sekolah (SMA / SMK / MA / Sederajat)' },
   { value: 'pt', label: 'Perguruan Tinggi (Transfer / Alih Jenjang)' },
 ];
+
+/** Kode referensi kewarganegaraan (nilai tetap domain, selaras dengan master referensi `kewarganegaraan`). */
+export const NATIONALITY_CODE = { WNI: 'WNI', WNA: 'WNA' } as const;
+
+/** Status pendaftaran yang diperlakukan khusus di UI (selaras dengan PendaftaranCalonMhs backend). */
+export const SPMB_STATUS = { MAHASISWA_BARU: 'mahasiswa_baru' } as const;

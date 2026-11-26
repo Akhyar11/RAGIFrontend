@@ -903,7 +903,7 @@ export default function DetailPendaftaranPage({ params }: { params: Promise<{ id
                 <MetadataItem label="Tahun Lulus" value={pendaftar.tahun_lulus} />
                 <MetadataItem label="NPSN Sekolah" value={pendaftar.npsn_sekolah} />
                 <MetadataItem label="Nilai Rata Rapor" value={pendaftar.nilai_rata_rapor ? String(pendaftar.nilai_rata_rapor) : '-'} />
-                <MetadataItem label="Gelombang Penerimaan" value={pendaftar.gelombang_penerimaan?.nama || 'Gelombang 1'} />
+                <MetadataItem label="Gelombang Penerimaan" value={pendaftar.gelombang_penerimaan?.nama || '-'} />
               </div>
             </div>
           </DetailSection>

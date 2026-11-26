@@ -1,5 +1,6 @@
 import axios from 'axios';
 import type { SelectOption } from '@/components/ui/Select';
+import { buildCountryOptions } from '@/lib/spmb/countries';
 
 const WILAYAH_API_BASE = 'https://www.emsifa.com/api-wilayah-indonesia/v2';
 const SEKOLAH_API_BASE = 'https://api-sekolah-indonesia.vercel.app';
@@ -28,12 +29,7 @@ interface SekolahResponse {
   dataSekolah?: SekolahRecord[];
 }
 
-interface CountryRecord {
-  cca2: string;
-  name: { common: string };
-}
-
-let countriesPromise: Promise<Array<SelectOption & { code: string }>> | undefined;
+let countryOptions: Array<SelectOption & { code: string }> | undefined;
 
 async function getWilayah(path: string): Promise<WilayahRecord[]> {
   const response = await referenceApi.get<WilayahResponse>(`${WILAYAH_API_BASE}/${path}`);
@@ -63,13 +59,9 @@ export const spmbReferenceService = {
       .map(({ id, name, postal_code }) => ({ value: id, label: name, postalCode: postal_code || '' }));
   },
 
-  getCountries: (): Promise<Array<SelectOption & { code: string }>> => {
-    countriesPromise ||= referenceApi.get<CountryRecord[]>(
-      'https://restcountries.com/v3.1/all?fields=cca2,name',
-    ).then(({ data }) => data
-      .map((country) => ({ value: country.cca2, label: country.name.common, code: country.cca2 }))
-      .sort((first, second) => first.label.localeCompare(second.label, 'id')));
-    return countriesPromise;
+  getCountries: async (): Promise<Array<SelectOption & { code: string }>> => {
+    countryOptions ||= buildCountryOptions();
+    return countryOptions;
   },
 
   searchSchools: async (search: string): Promise<SelectOption[]> => {

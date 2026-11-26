@@ -32,6 +32,8 @@ import {
   Download,
   UserCheck,
   Plus,
+  FileUp,
+  Pencil,
 } from 'lucide-react';
 import { spmbService, PendaftaranCalonMhs, PendaftaranBerkas } from '@/services/spmb.service';
 import toast from 'react-hot-toast';
@@ -42,6 +44,7 @@ import { PageHeader } from '@/components/layout/PageHeader';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
+import { AsyncSelect } from '@/components/ui/AsyncSelect';
 import { Textarea } from '@/components/ui/Textarea';
 import { Modal } from '@/components/ui/Modal';
 import { Badge } from '@/components/ui/Badge';
@@ -50,6 +53,8 @@ import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { useAuth } from '@/hooks/useAuth';
 import { useAuthStore } from '@/store/authStore';
 
+import { ImportPendaftaranModal } from '@/components/spmb/ImportPendaftaranModal';
+import { SPMB_STATUS } from '@/lib/spmb/registration-options';
 import { SPMB_STATUS_CONFIG, SpmbStatusBadge, SpmbPaymentBadge } from '@/components/spmb/SpmbStatusBadge';
 
 
@@ -135,6 +140,8 @@ function DetailSection({
 export default function DataPendaftarPage() {
   const { hasPermission } = useAuth();
   const canKonversiMahasiswa = hasPermission('spmb.manage');
+  // Edit dan import memakai izin yang sama dengan halaman edit/endpoint: spmb.manage.
+  const canManagePendaftaran = hasPermission('spmb.manage');
   const canViewAllPendaftar = canKonversiMahasiswa;
   const router = useRouter();
   const [authHydrated, setAuthHydrated] = useState(() => useAuthStore.persist.hasHydrated());
@@ -149,9 +156,12 @@ export default function DataPendaftarPage() {
   const [totalItems, setTotalItems] = useState(0);
 
   const [showFilter, setShowFilter] = useState(false);
+  const [showImport, setShowImport] = useState(false);
   const [filterSearch, setFilterSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
   const [filterReferralCode, setFilterReferralCode] = useState('');
+  const [filterGelombang, setFilterGelombang] = useState('');
+  const [filterJalur, setFilterJalur] = useState('');
   const [filterOrderBy, setFilterOrderBy] = useState('created_at');
   const [filterOrderDir, setFilterOrderDir] = useState('desc');
   
@@ -159,6 +169,8 @@ export default function DataPendaftarPage() {
     search: '',
     status: '',
     referral_code: '',
+    gelombang_id: '',
+    jalur_masuk_id: '',
     orderBy: 'created_at',
     orderDir: 'desc'
   });
@@ -259,6 +271,24 @@ export default function DataPendaftarPage() {
 
 
   // Fetch Pendaftaran list with server-side pagination
+  const loadGelombangOptions = useCallback(async (search: string) => {
+    try {
+      const res = await spmbService.getGelombang({ nama: search || undefined, per_page: 50 });
+      return (res?.data || []).map((g: { id: number; nama: string }) => ({ value: String(g.id), label: g.nama }));
+    } catch {
+      return [];
+    }
+  }, []);
+
+  const loadJalurOptions = useCallback(async (search: string) => {
+    try {
+      const res = await spmbService.getJalurMasuk({ name: search || undefined, limit: 50 });
+      return (res?.data || []).map((j: { id: number; nama: string }) => ({ value: String(j.id), label: j.nama }));
+    } catch {
+      return [];
+    }
+  }, []);
+
   const fetchData = useCallback(async () => {
     try {
       setLoading(true);
@@ -278,6 +308,12 @@ export default function DataPendaftarPage() {
       }
       if (appliedFilters.referral_code?.trim()) {
         queryParams.referral_code = appliedFilters.referral_code.trim();
+      }
+      if (appliedFilters.gelombang_id) {
+        queryParams.gelombang_id = appliedFilters.gelombang_id;
+      }
+      if (appliedFilters.jalur_masuk_id) {
+        queryParams.jalur_masuk_id = appliedFilters.jalur_masuk_id;
       }
 
       const res = await spmbService.getPendaftaran(queryParams);
@@ -379,6 +415,18 @@ export default function DataPendaftarPage() {
               {totalItems} Pendaftar
             </span>
 
+
+            {canManagePendaftaran && (
+              <Button
+                variant="outline"
+                icon={<FileUp size={16} />}
+                onClick={() => setShowImport(true)}
+                style={{ borderColor: 'var(--module-primary)', color: 'var(--module-primary)' }}
+              >
+                Import Excel
+              </Button>
+            )}
+
             <Button 
               variant="outline"
               icon={<Filter size={16} />} 
@@ -395,6 +443,12 @@ export default function DataPendaftarPage() {
             )}
           </div>
         }
+      />
+
+      <ImportPendaftaranModal
+        open={showImport}
+        onClose={() => setShowImport(false)}
+        onImported={() => { setPage(1); fetchData(); }}
       />
 
       {/* RESPONSIVE DATA DISPLAY: DESKTOP TABLE vs MOBILE CARDS */}
@@ -449,6 +503,20 @@ export default function DataPendaftarPage() {
               )
             },
             { 
+              key: 'gelombang', 
+              label: 'GELOMBANG & JALUR', 
+              render: (row) => (
+                <div className="flex flex-col">
+                  <span className="font-semibold text-slate-800 text-xs">
+                    {row.gelombang_penerimaan?.nama || <span className="text-slate-400 font-normal">Belum ditetapkan</span>}
+                  </span>
+                  <span className="text-2xs text-slate-500">
+                    {row.gelombang_penerimaan?.jalur_masuk?.nama || '-'}
+                  </span>
+                </div>
+              )
+            },
+            { 
               key: 'used_referral_code', 
               label: 'Referral', 
               render: (row) => (
@@ -486,6 +554,13 @@ export default function DataPendaftarPage() {
                         icon: <Eye size={15} />,
                         onClick: () => handleOpenDetail(row)
                       },
+                      ...(canManagePendaftaran && row.status !== SPMB_STATUS.MAHASISWA_BARU ? [
+                        {
+                          label: 'Edit Data',
+                          icon: <Pencil size={15} />,
+                          onClick: () => router.push(`/spmb/pendaftaran/${row.id}/edit`)
+                        }
+                      ] : []),
                       {
                         label: 'Keputusan Administrasi',
                         icon: <CheckCircle2 size={16} />,
@@ -532,7 +607,7 @@ export default function DataPendaftarPage() {
             title="Data Pendaftaran Tidak Ditemukan"
             description="Belum ada data pendaftar calon mahasiswa yang sesuai dengan pencarian atau filter saat ini."
             action={
-              (appliedFilters.search || appliedFilters.status || appliedFilters.referral_code) && (
+              (appliedFilters.search || appliedFilters.status || appliedFilters.referral_code || appliedFilters.gelombang_id || appliedFilters.jalur_masuk_id) && (
                 <Button
                   variant="outline"
                   size="sm"
@@ -540,7 +615,9 @@ export default function DataPendaftarPage() {
                     setFilterSearch('');
                     setFilterStatus('');
                     setFilterReferralCode('');
-                    setAppliedFilters({ search: '', status: '', referral_code: '', orderBy: 'created_at', orderDir: 'desc' });
+                    setFilterGelombang('');
+                    setFilterJalur('');
+                    setAppliedFilters({ search: '', status: '', referral_code: '', gelombang_id: '', jalur_masuk_id: '', orderBy: 'created_at', orderDir: 'desc' });
                     setPage(1);
                   }}
                   className="mt-2"
@@ -577,6 +654,13 @@ export default function DataPendaftarPage() {
                     <span className="text-slate-400 block text-2xs font-medium">Prodi Pilihan</span>
                     <span className="text-slate-700 font-semibold truncate block">
                       {row.program_studi?.nama || '-'}
+                    </span>
+                  </div>
+                  <div className="col-span-2">
+                    <span className="text-slate-400 block text-2xs font-medium">Gelombang / Jalur</span>
+                    <span className="text-slate-700 font-semibold text-xs block">
+                      {row.gelombang_penerimaan?.nama || 'Belum ditetapkan'}
+                      {row.gelombang_penerimaan?.jalur_masuk?.nama ? ` · ${row.gelombang_penerimaan.jalur_masuk.nama}` : ''}
                     </span>
                   </div>
                   {row.used_referral_code && (
@@ -634,9 +718,11 @@ export default function DataPendaftarPage() {
                 setFilterSearch('');
                 setFilterStatus('');
                 setFilterReferralCode('');
+                setFilterGelombang('');
+                setFilterJalur('');
                 setFilterOrderBy('created_at');
                 setFilterOrderDir('desc');
-                setAppliedFilters({ search: '', status: '', referral_code: '', orderBy: 'created_at', orderDir: 'desc' });
+                setAppliedFilters({ search: '', status: '', referral_code: '', gelombang_id: '', jalur_masuk_id: '', orderBy: 'created_at', orderDir: 'desc' });
                 setShowFilter(false);
                 setPage(1);
               }}
@@ -651,6 +737,8 @@ export default function DataPendaftarPage() {
                   search: filterSearch,
                   status: filterStatus,
                   referral_code: filterReferralCode,
+                  gelombang_id: filterGelombang,
+                  jalur_masuk_id: filterJalur,
                   orderBy: filterOrderBy,
                   orderDir: filterOrderDir
                 });
@@ -684,6 +772,24 @@ export default function DataPendaftarPage() {
               { value: 'lulus_administrasi', label: 'Lulus Administrasi' },
               { value: 'gagal_administrasi', label: 'Gagal Administrasi' }
             ]}
+          />
+
+          <AsyncSelect
+            label="Gelombang"
+            value={filterGelombang}
+            onChange={(option: { value: string } | null) => setFilterGelombang(option ? String(option.value) : '')}
+            loadOptions={loadGelombangOptions}
+            placeholder="Semua Gelombang"
+            isClearable
+          />
+
+          <AsyncSelect
+            label="Jalur Pendaftaran"
+            value={filterJalur}
+            onChange={(option: { value: string } | null) => setFilterJalur(option ? String(option.value) : '')}
+            loadOptions={loadJalurOptions}
+            placeholder="Semua Jalur"
+            isClearable
           />
 
           <Input

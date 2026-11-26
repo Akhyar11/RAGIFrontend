@@ -223,6 +223,28 @@ export interface PendaftaranBerkas {
   catatan?: string;
 }
 
+export interface PendaftaranImportRow {
+  row: number;
+  no_daftar: string;
+  nama: string;
+  email: string;
+  program_studi: string;
+  status: 'valid' | 'error';
+  errors: string[];
+}
+
+export interface PendaftaranImportPreview {
+  summary: { total: number; valid: number; error: number };
+  warnings: string[];
+  rows: PendaftaranImportRow[];
+}
+
+export interface PendaftaranImportResult {
+  summary: { total: number; imported: number; failed: number };
+  failed: Array<{ row: number; no_daftar: string; nama: string; errors: string[] }>;
+  default_password_used: boolean;
+}
+
 export const spmbService = {
   getProgramStudi: async (params?: { page?: number; limit?: number; search?: string; sort_by?: string; sort_dir?: string }) => {
     const response = await api.get('/spmb/prodi', { params });
@@ -467,9 +489,23 @@ export const spmbService = {
   },
 
   // Admin Pendaftaran
-  getPendaftaran: async (params?: { search?: string; status?: string; order_by?: string; order_dir?: string; page?: number; per_page?: number }) => {
+  getPendaftaran: async (params?: { search?: string; status?: string; gelombang_id?: number | string; jalur_masuk_id?: number | string; order_by?: string; order_dir?: string; page?: number; per_page?: number }) => {
     const response = await api.get('/spmb/pendaftaran', { params });
     return response.data;
+  },
+
+  uploadBuktiTransferPendaftaran: async (id: number, file: File) => {
+    const form = new FormData();
+    form.append('bukti_transfer', file);
+    const response = await api.post(`/spmb/pendaftaran/${id}/bukti-transfer`, form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return response.data;
+  },
+
+  updatePendaftaran: async (id: number, data: Record<string, string | number | number[] | null>) => {
+    const response = await api.put(`/spmb/pendaftaran/${id}`, data);
+    return response.data.data as PendaftaranCalonMhs;
   },
 
   getPendaftaranDetail: async (id: number) => {
@@ -497,6 +533,29 @@ export const spmbService = {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
     return response.data;
+  },
+
+  downloadImportPendaftaranTemplate: async () => {
+    const response = await api.get('/spmb/pendaftaran/import/template', { responseType: 'blob' });
+    return response.data as Blob;
+  },
+
+  previewImportPendaftaran: async (file: File) => {
+    const form = new FormData();
+    form.append('file', file);
+    const response = await api.post('/spmb/pendaftaran/import/preview', form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return response.data.data as PendaftaranImportPreview;
+  },
+
+  importPendaftaran: async (file: File) => {
+    const form = new FormData();
+    form.append('file', file);
+    const response = await api.post('/spmb/pendaftaran/import', form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return response.data.data as PendaftaranImportResult;
   },
 
   downloadBuktiTransferManual: async (pendaftaranId: number, proofId: number) => {

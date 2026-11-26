@@ -789,8 +789,11 @@ export const spmbService = {
   },
 
   createMasterBiayaWithEvidence: async (data: {
-    jalur_masuk_id: number;
-    program_studi_id: number;
+    jalur_masuk_id?: number;
+    program_studi_id?: number;
+    /** Mode banyak: satu baris master biaya dibuat per kombinasi jalur × program studi. */
+    jalur_masuk_ids?: number[];
+    program_studi_ids?: number[];
     evidence_type: 'arsip' | 'upload';
     nomor_sk?: string;
     dokumen_pendukung?: File;
@@ -799,8 +802,10 @@ export const spmbService = {
     items: { komponen_biaya_id: number; nominal: number; dibebankan_saat_pendaftaran?: boolean; berlaku_diskon?: boolean; keterangan?: string }[];
   }) => {
     const formData = new FormData();
-    formData.append('jalur_masuk_id', String(data.jalur_masuk_id));
-    formData.append('program_studi_id', String(data.program_studi_id));
+    if (data.jalur_masuk_id !== undefined) formData.append('jalur_masuk_id', String(data.jalur_masuk_id));
+    if (data.program_studi_id !== undefined) formData.append('program_studi_id', String(data.program_studi_id));
+    (data.jalur_masuk_ids || []).forEach((id, index) => formData.append(`jalur_masuk_ids[${index}]`, String(id)));
+    (data.program_studi_ids || []).forEach((id, index) => formData.append(`program_studi_ids[${index}]`, String(id)));
     formData.append('evidence_type', data.evidence_type);
     if (data.nomor_sk) formData.append('nomor_sk', data.nomor_sk);
     if (data.dokumen_pendukung) formData.append('dokumen_pendukung', data.dokumen_pendukung);

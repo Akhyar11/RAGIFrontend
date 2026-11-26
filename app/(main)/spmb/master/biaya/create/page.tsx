@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ArrowLeft, Save, Plus, AlertCircle, Trash2, Info, Search, CheckCircle2, ExternalLink } from 'lucide-react';
 import { useForm, Controller, useFieldArray, useWatch } from 'react-hook-form';
@@ -10,6 +10,7 @@ import { PageHeader } from '@/components/layout/PageHeader';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
+import { AsyncSelect } from '@/components/ui/AsyncSelect';
 import { Textarea } from '@/components/ui/Textarea';
 import { Checkbox } from '@/components/ui/Checkbox';
 import { Badge } from '@/components/ui/Badge';
@@ -18,13 +19,13 @@ import { spmbService } from '@/services/spmb.service';
 import { arsipService } from '@/services/arsip.service';
 import { formatRupiah } from '@/lib/utils';
 import { EVIDENCE_TYPE_OPTIONS } from '@/lib/spmb/master-biaya-options';
-import type { JalurMasuk, MasterKomponenBiaya } from '@/types/spmb.types';
+import type { MasterKomponenBiaya } from '@/types/spmb.types';
 import type { CheckSkResult } from '@/types/arsip.types';
 import toast from 'react-hot-toast';
 
 const masterBiayaFormSchema = z.object({
-  jalur_masuk_id: z.string().min(1, 'Jalur masuk wajib dipilih'),
-  program_studi_id: z.string().min(1, 'Program studi wajib dipilih'),
+  jalur_masuk_ids: z.array(z.string()).min(1, 'Pilih minimal satu jalur masuk'),
+  program_studi_ids: z.array(z.string()).min(1, 'Pilih minimal satu program studi'),
   evidence_type: z.enum(['arsip', 'upload']),
   nomor_sk: z.string().max(150, 'Nomor SK maksimal 150 karakter').optional().or(z.literal('')),
   dokumen_pendukung: z.any().optional(),
@@ -57,9 +58,7 @@ export default function CreateMasterBiayaPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const [jalurList, setJalurList] = useState<JalurMasuk[]>([]);
   const [komponenMaster, setKomponenMaster] = useState<MasterKomponenBiaya[]>([]);
-  const [prodiList, setProdiList] = useState<any[]>([]);
 
   const [submitting, setSubmitting] = useState(false);
   const [loadingInitial, setLoadingInitial] = useState(true);
@@ -86,8 +85,8 @@ export default function CreateMasterBiayaPage() {
   } = useForm<MasterBiayaFormValues>({
     resolver: zodResolver(masterBiayaFormSchema),
     defaultValues: {
-      jalur_masuk_id: defaultJalurId,
-      program_studi_id: defaultProdiId,
+      jalur_masuk_ids: defaultJalurId ? [defaultJalurId] : [],
+      program_studi_ids: defaultProdiId ? [defaultProdiId] : [],
       evidence_type: 'arsip',
       nomor_sk: '',
       dokumen_pendukung: undefined,
@@ -162,23 +161,7 @@ export default function CreateMasterBiayaPage() {
     const loadPrerequisites = async () => {
       try {
         setLoadingInitial(true);
-        const [jalurRes, prodiRes, kompRes] = await Promise.all([
-          spmbService.getJalurMasuk({ status: 'aktif', limit: 100 }),
-          spmbService.getProgramStudi({ limit: 100 }),
-          spmbService.getKomponenBiayaList({ is_active: true, limit: 100 }),
-        ]);
-
-        const jalur: JalurMasuk[] = Array.isArray(jalurRes?.data) ? jalurRes.data : [];
-        setJalurList(jalur);
-        if (jalur.length > 0 && !defaultJalurId) {
-          setValue('jalur_masuk_id', String(jalur[0].id));
-        }
-
-        const prodis = Array.isArray(prodiRes?.data) ? prodiRes.data : [];
-        setProdiList(prodis);
-        if (prodis.length > 0 && !defaultProdiId) {
-          setValue('program_studi_id', String(prodis[0].id));
-        }
+        const kompRes = await spmbService.getKomponenBiayaList({ is_active: true, limit: 100 });
 
         const komps = Array.isArray(kompRes?.data) ? kompRes.data : [];
         setKomponenMaster(komps);
@@ -207,7 +190,36 @@ export default function CreateMasterBiayaPage() {
     };
 
     loadPrerequisites();
-  }, [defaultJalurId, defaultProdiId, replace, setValue]);
+  }, [replace]);
+
+  // Opsi dimuat dari server: jalur aktif dan program studi.
+  const loadJalurOptions = useCallback(async (search: string) => {
+    try {
+      const res = await spmbService.getJalurMasuk({ name: search || undefined, status: 'aktif', limit: 50 });
+      return (Array.isArray(res?.data) ? res.data : []).map((jalur: { id: number; nama: string; kode?: string }) => ({
+        value: String(jalur.id),
+        label: `${jalur.nama}${jalur.kode ? ` (${jalur.kode})` : ''}`,
+      }));
+    } catch {
+      return [];
+    }
+  }, []);
+
+  const loadProdiOptions = useCallback(async (search: string) => {
+    try {
+      const res = await spmbService.getProgramStudi({ search: search || undefined, limit: 100 });
+      return (Array.isArray(res?.data) ? res.data : []).map((p: { id: number; nama: string; jenjang?: string }) => ({
+        value: String(p.id),
+        label: `${p.jenjang ? `[${p.jenjang}] ` : ''}${p.nama}`,
+      }));
+    } catch {
+      return [];
+    }
+  }, []);
+
+  const selectedJalurIds = useWatch({ control, name: 'jalur_masuk_ids' }) || [];
+  const selectedProdiIds = useWatch({ control, name: 'program_studi_ids' }) || [];
+  const combinationCount = selectedJalurIds.length * selectedProdiIds.length;
 
   const handleNominalChange = (index: number, rawValue: string) => {
     const cleanNumber = Math.max(0, Number(rawValue.replace(/\D/g, '')) || 0);
@@ -264,9 +276,9 @@ export default function CreateMasterBiayaPage() {
 
     try {
       setSubmitting(true);
-      await spmbService.createMasterBiayaWithEvidence({
-        jalur_masuk_id: Number(values.jalur_masuk_id),
-        program_studi_id: Number(values.program_studi_id),
+      const response = await spmbService.createMasterBiayaWithEvidence({
+        jalur_masuk_ids: values.jalur_masuk_ids.map(Number),
+        program_studi_ids: values.program_studi_ids.map(Number),
         evidence_type: values.evidence_type,
         nomor_sk: trimmedSk || undefined,
         dokumen_pendukung: values.evidence_type === 'upload' ? values.dokumen_pendukung?.[0] : undefined,
@@ -280,7 +292,16 @@ export default function CreateMasterBiayaPage() {
         })),
       });
 
-      toast.success('Konfigurasi biaya program studi berhasil disimpan');
+      const summary = response?.data?.ringkasan as { dibuat: number; dilewati: number } | undefined;
+      const skipped = (response?.data?.dilewati || []) as Array<{ jalur?: string; program_studi?: string; alasan: string }>;
+      if (summary && summary.dilewati > 0) {
+        const detail = skipped.slice(0, 5)
+          .map((item) => `${item.jalur} × ${item.program_studi} (${item.alasan === 'terhapus' ? 'ada di tempat sampah' : 'sudah ada'})`)
+          .join(', ');
+        toast.success(`${summary.dibuat} master biaya dibuat. ${summary.dilewati} dilewati: ${detail}${skipped.length > 5 ? ', ...' : ''}`, { duration: 8000 });
+      } else {
+        toast.success(summary ? `${summary.dibuat} master biaya berhasil dibuat` : 'Konfigurasi biaya program studi berhasil disimpan');
+      }
       router.push('/spmb/master/biaya');
     } catch (error: any) {
       toast.error(error?.response?.data?.message || error.message || 'Gagal menyimpan data');
@@ -318,38 +339,38 @@ export default function CreateMasterBiayaPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <Controller
                   control={control}
-                  name="jalur_masuk_id"
+                  name="jalur_masuk_ids"
                   render={({ field }) => (
-                    <Select
+                    <AsyncSelect
                       label="Jalur Pendaftaran"
                       required
+                      isMulti
+                      loadOptions={loadJalurOptions}
+                      defaultOptions
                       value={field.value}
-                      onChange={field.onChange}
-                      options={jalurList.map((jalur) => ({
-                        value: String(jalur.id),
-                        label: `${jalur.nama}${jalur.kode ? ` (${jalur.kode})` : ''}`,
-                      }))}
-                      error={errors.jalur_masuk_id?.message}
-                      hint="Biaya berlaku untuk semua gelombang pada jalur ini."
+                      onChange={(options: Array<{ value: string }> | null) => field.onChange((options || []).map((option) => String(option.value)))}
+                      error={errors.jalur_masuk_ids?.message}
+                      hint="Boleh lebih dari satu. Biaya berlaku untuk semua gelombang pada jalur terpilih."
                     />
                   )}
                 />
 
                 <Controller
                   control={control}
-                  name="program_studi_id"
+                  name="program_studi_ids"
                   render={({ field }) => (
-                    <Select
+                    <AsyncSelect
                       label="Program Studi"
                       required
+                      isMulti
+                      loadOptions={loadProdiOptions}
+                      defaultOptions
                       value={field.value}
-                      onChange={field.onChange}
-                      options={prodiList.map((p) => ({
-                        value: String(p.id),
-                        label: `${p.jenjang ? `[${p.jenjang}] ` : ''}${p.nama}`,
-                      }))}
-                      error={errors.program_studi_id?.message}
-                      hint="Pilih program studi yang akan diatur biayanya."
+                      onChange={(options: Array<{ value: string }> | null) => field.onChange((options || []).map((option) => String(option.value)))}
+                      error={errors.program_studi_ids?.message}
+                      hint={combinationCount > 0
+                        ? `Akan dibuat ${combinationCount} baris master biaya (${selectedJalurIds.length} jalur × ${selectedProdiIds.length} program studi). Kombinasi yang sudah ada dilewati.`
+                        : 'Boleh lebih dari satu. Satu baris master biaya dibuat untuk setiap kombinasi jalur × program studi.'}
                     />
                   )}
                 />

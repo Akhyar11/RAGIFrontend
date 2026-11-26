@@ -200,7 +200,9 @@ export default function MasterGelombangPage() {
       label: 'Jalur Masuk',
       render: (row) => (
         <span className="font-medium text-slate-800 text-xs">
-          {row.jalur_masuk?.nama || 'Semua jalur (umum)'}
+          {(row.daftar_jalur || []).length > 0
+            ? (row.daftar_jalur || []).map((j) => j.nama).join(', ')
+            : (row.jalur_masuk?.nama || 'Semua jalur (umum)')}
         </span>
       ),
     },

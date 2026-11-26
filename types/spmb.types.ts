@@ -13,6 +13,9 @@ export interface GelombangPenerimaan {
   id: number;
   /** Kosong = gelombang umum yang dapat dipakai jalur mana pun. */
   jalur_masuk_id: number | null;
+  /** Jalur yang dipetakan ke gelombang (pilihan ganda); kosong = gelombang umum. */
+  jalur_masuk_ids?: number[];
+  daftar_jalur?: Array<{ id: number; kode: string; nama: string }>;
   nama: string;
   /** Periode tahunan berulang dengan format MM-DD, tanpa tahun. */
   tanggal_buka: string;

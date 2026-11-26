@@ -28,7 +28,7 @@ import { PeriodeTanggalInput } from '@/components/spmb/PeriodeTanggalInput';
 // ============================================================
 const gelombangFormSchema = z.object({
   nama: z.string().min(1, 'Nama gelombang wajib diisi').max(255, 'Nama gelombang maksimal 255 karakter'),
-  jalur_masuk_id: z.number().min(1).optional().nullable(),
+  jalur_masuk_ids: z.array(z.number()).optional(),
   potongan_biaya_daftar_ulang: z.number().min(0, 'Potongan biaya daftar ulang minimal 0').max(100, 'Potongan biaya daftar ulang maksimal 100').optional(),
   kuota_total: z.number().min(1, 'Kuota pendaftar minimal 1'),
   tanggal_buka: z.string().regex(/^\d{2}-\d{2}$/, 'Periode buka pendaftaran wajib diisi'),
@@ -119,7 +119,7 @@ export default function EditGelombangPage({ params }: { params: Promise<{ id: st
   const [fetching, setFetching] = useState(true);
 
   // Selected Option States for AsyncSelects to ensure instant label display
-  const [selectedJalur, setSelectedJalur] = useState<any>(null);
+  const [jalurSeed, setJalurSeed] = useState<Array<{ value: number; label: string }>>([]);
 
   const { register, handleSubmit, control, reset, watch, formState: { errors } } = useForm<GelombangFormValues>({
     resolver: zodResolver(gelombangFormSchema) as any,
@@ -137,7 +137,7 @@ export default function EditGelombangPage({ params }: { params: Promise<{ id: st
   const selectedStatus = watch('status');
   const loadJalurMasuk = useCallback(async (input: string) => {
     try {
-      const res = await spmbService.getJalurMasuk();
+      const res = await spmbService.getJalurMasuk({ limit: 100 });
       const list = res?.data || [];
       return list
         .filter((j: any) => j.is_active && (j.nama || '').toLowerCase().includes(input.toLowerCase()))
@@ -161,22 +161,11 @@ export default function EditGelombangPage({ params }: { params: Promise<{ id: st
         const res = await spmbService.getGelombangById(id);
         const row = res.data;
 
-        if (row.jalur_masuk) {
-          setSelectedJalur({
-            value: row.jalur_masuk.id,
-            label: row.jalur_masuk.nama,
-            ...row.jalur_masuk
-          });
-        } else if (row.jalur_masuk_id) {
-          setSelectedJalur({
-            value: row.jalur_masuk_id,
-            label: `Jalur Masuk #${row.jalur_masuk_id}`
-          });
-        }
+        setJalurSeed((row.daftar_jalur || []).map((j: { id: number; nama: string }) => ({ value: j.id, label: j.nama })));
 
         reset({
           nama: row.nama,
-          jalur_masuk_id: row.jalur_masuk_id ? Number(row.jalur_masuk_id) : null,
+          jalur_masuk_ids: (row.jalur_masuk_ids || []).map((jid: number | string) => Number(jid)),
           potongan_biaya_daftar_ulang: Number(row.potongan_biaya_daftar_ulang || 0),
           kuota_total: row.kuota_total,
           status: row.status,
@@ -201,7 +190,7 @@ export default function EditGelombangPage({ params }: { params: Promise<{ id: st
       setLoading(true);
       const payload = {
         ...data,
-        jalur_masuk_id: data.jalur_masuk_id ? Number(data.jalur_masuk_id) : null,
+        jalur_masuk_ids: data.jalur_masuk_ids ?? [],
         potongan_biaya_daftar_ulang: data.potongan_biaya_daftar_ulang !== undefined ? Number(data.potongan_biaya_daftar_ulang) : undefined,
       };
       await spmbService.updateGelombang(id, payload as any);
@@ -253,22 +242,20 @@ export default function EditGelombangPage({ params }: { params: Promise<{ id: st
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               <div>
                 <Controller
-                  name="jalur_masuk_id"
+                  name="jalur_masuk_ids"
                   control={control}
                   render={({ field }) => (
                     <AsyncSelect
-                      label="Jalur Masuk (Opsional)"
+                      label="Jalur Masuk (Opsional, bisa lebih dari satu)"
                       placeholder="Kosong = gelombang umum untuk semua jalur"
                       loadOptions={loadJalurMasuk}
-                      defaultOptions
+                      defaultOptions={jalurSeed.length ? jalurSeed : true}
+                      isMulti
                       isClearable
-                      value={selectedJalur ?? field.value ?? undefined}
-                      onChange={(opt: any) => {
-                        setSelectedJalur(opt);
-                        field.onChange(opt ? Number(opt.value) : null);
-                      }}
-                      error={errors.jalur_masuk_id?.message}
-                      hint="Isi hanya bila gelombang ini khusus satu jalur. Kosongkan agar gelombang dapat dipakai jalur mana pun."
+                      value={field.value ?? []}
+                      onChange={(opts: Array<{ value: number | string }> | null) => field.onChange((opts || []).map((opt) => Number(opt.value)))}
+                      error={errors.jalur_masuk_ids?.message as string | undefined}
+                      hint="Pilih jalur yang boleh memakai gelombang ini. Kosongkan agar gelombang dapat dipakai jalur mana pun yang tidak punya gelombang khusus."
                     />
                   )}
                 />

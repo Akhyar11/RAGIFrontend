@@ -19,6 +19,7 @@ import { spmbService, type PendaftaranCalonMhs } from '@/services/spmb.service';
 import { spmbReferenceService } from '@/services/spmb-reference.service';
 import { ASAL_LULUSAN_OPTIONS, AGAMA_OPTIONS, NATIONALITY_CODE, PEKERJAAN_OPTIONS, PENGHASILAN_OPTIONS, SPMB_STATUS, STATUS_SIPIL_OPTIONS } from '@/lib/spmb/registration-options';
 import { SpmbResidenceFields } from '@/components/spmb/SpmbResidenceFields';
+import { formatJalurGelombang } from '@/lib/spmb/gelombang';
 
 const optional = (max: number) => z.string().max(max).optional();
 
@@ -90,7 +91,7 @@ const editSchema = z.object({
 type EditValues = z.infer<typeof editSchema>;
 type SelectOption = { value: string; label: string };
 type NationalityOption = SelectOption & { code: string };
-type ListItem = { id: number; nama: string; jenjang?: string; kode?: string; jalur_masuk?: { nama?: string } };
+type ListItem = { id: number; nama: string; jenjang?: string; kode?: string; jalur_masuk?: { nama?: string }; daftar_jalur?: Array<{ nama: string }> };
 type ApiError = { response?: { data?: { message?: string; errors?: Record<string, string[]> } } };
 type ProofItem = NonNullable<PendaftaranCalonMhs['bukti_pembayaran_manual']>[number];
 
@@ -219,8 +220,8 @@ export default function EditPendaftaranPage({ params }: { params: Promise<{ id: 
     try {
       const toOption = (g: ListItem) => ({
         value: String(g.id),
-        label: `${g.nama}${g.jalur_masuk?.nama ? ` • ${g.jalur_masuk.nama}` : ' • Umum'}`,
-        jalur: g.jalur_masuk?.nama || '',
+        label: `${g.nama} • ${formatJalurGelombang(g)}`,
+        jalur: formatJalurGelombang(g),
       });
       let options: Array<SelectOption & { jalur: string }>;
       if (selectedJalur) {
@@ -268,8 +269,8 @@ export default function EditPendaftaranPage({ params }: { params: Promise<{ id: 
 
         setWaveOptions(listOf(waves).map((g) => ({
           value: String(g.id),
-          label: `${g.nama}${g.jalur_masuk?.nama ? ` • ${g.jalur_masuk.nama}` : ''}`,
-          jalur: g.jalur_masuk?.nama || '',
+          label: `${g.nama} • ${formatJalurGelombang(g)}`,
+          jalur: formatJalurGelombang(g),
         })));
         setProgramOptions(listOf(programs).map((p) => ({
           value: String(p.id),

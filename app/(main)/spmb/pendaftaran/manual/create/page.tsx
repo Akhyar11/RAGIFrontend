@@ -16,6 +16,7 @@ import { Modal } from '@/components/ui/Modal';
 import { DataTable, type ColumnDef } from '@/components/ui/DataTable';
 import { Textarea } from '@/components/ui/Textarea';
 import { spmbService, type GelombangResolveResult } from '@/services/spmb.service';
+import { formatJalurGelombang } from '@/lib/spmb/gelombang';
 import { useAuth } from '@/hooks/useAuth';
 import { validateApplicantIdentity } from '@/lib/spmb/applicant-identity';
 import { ASAL_LULUSAN_OPTIONS, AGAMA_OPTIONS, PEKERJAAN_OPTIONS, PENGHASILAN_OPTIONS, STATUS_SIPIL_OPTIONS } from '@/lib/spmb/registration-options';
@@ -272,7 +273,7 @@ export default function CreateManualPendaftaranPage() {
         .filter((item) => !keyword || item.nama.toLowerCase().includes(keyword))
         .map((item) => ({
           value: String(item.id),
-          label: `${item.nama}${item.jalur_masuk?.nama ? ` • ${item.jalur_masuk.nama}` : ' • Umum'}`,
+          label: `${item.nama} • ${formatJalurGelombang(item)}`,
         }));
     } catch {
       return [];

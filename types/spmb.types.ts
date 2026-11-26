@@ -11,7 +11,8 @@ export interface JalurMasuk {
 
 export interface GelombangPenerimaan {
   id: number;
-  jalur_masuk_id: number;
+  /** Kosong = gelombang umum yang dapat dipakai jalur mana pun. */
+  jalur_masuk_id: number | null;
   nama: string;
   /** Periode tahunan berulang dengan format MM-DD, tanpa tahun. */
   tanggal_buka: string;

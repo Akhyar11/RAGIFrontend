@@ -25,7 +25,8 @@ export interface JalurMasuk {
 
 export interface GelombangPenerimaan {
   id: number;
-  jalur_masuk_id: number;
+  /** Kosong = gelombang umum yang dapat dipakai jalur mana pun. */
+  jalur_masuk_id: number | null;
   nama: string;
   /** Periode tahunan berulang dengan format MM-DD, tanpa tahun. */
   tanggal_buka: string;
@@ -54,7 +55,9 @@ export interface BerkasRequirement {
 
 export interface PendaftaranCalonMhs {
   id: number;
-  gelombang_id: number;
+  gelombang_id: number | null;
+  jalur_masuk_id?: number | null;
+  jalur_masuk?: JalurMasuk | null;
   user_id: number;
   program_studi_id: number;
   program_studi_pilihan2_id?: number;
@@ -223,6 +226,14 @@ export interface PendaftaranBerkas {
   catatan?: string;
 }
 
+export interface GelombangResolveResult {
+  jalur_masuk_id: number;
+  mode: 'otomatis' | 'pilih' | 'tidak_tersedia';
+  sumber: 'terpetakan' | 'umum';
+  gelombang: GelombangPenerimaan | null;
+  options: GelombangPenerimaan[];
+}
+
 export interface PendaftaranImportRow {
   row: number;
   no_daftar: string;
@@ -348,6 +359,14 @@ export const spmbService = {
       params: { ...params, per_page: params?.per_page ?? 100 },
     });
     return response.data;
+  },
+
+  /** Tentukan gelombang untuk jalur yang dipilih: otomatis, pilih dari opsi, atau tidak tersedia. */
+  resolveGelombang: async (jalurMasukId: number | string, konteks: 'manual' | 'online' = 'manual') => {
+    const response = await api.get('/spmb/gelombang/resolve', {
+      params: { jalur_masuk_id: jalurMasukId, konteks },
+    });
+    return response.data.data as GelombangResolveResult;
   },
 
   getGelombangById: async (id: number) => {

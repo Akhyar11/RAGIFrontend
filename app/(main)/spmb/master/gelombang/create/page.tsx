@@ -21,7 +21,7 @@ import { PeriodeTanggalInput } from '@/components/spmb/PeriodeTanggalInput';
 // ============================================================
 const gelombangFormSchema = z.object({
   nama: z.string().min(1, 'Nama gelombang wajib diisi').max(255, 'Nama gelombang maksimal 255 karakter'),
-  jalur_masuk_id: z.number().min(1, 'Jalur masuk wajib dipilih'),
+  jalur_masuk_id: z.number().min(1).optional().nullable(),
   potongan_biaya_daftar_ulang: z.number().min(0, 'Potongan biaya daftar ulang minimal 0').max(100, 'Potongan biaya daftar ulang maksimal 100').optional(),
   kuota_total: z.number().min(1, 'Kuota pendaftar minimal 1'),
   tanggal_buka: z.string().regex(/^\d{2}-\d{2}$/, 'Periode buka pendaftaran wajib diisi'),
@@ -70,7 +70,7 @@ export default function CreateGelombangPage() {
       setLoading(true);
       const payload = {
         ...data,
-        jalur_masuk_id: Number(data.jalur_masuk_id),
+        jalur_masuk_id: data.jalur_masuk_id ? Number(data.jalur_masuk_id) : null,
         potongan_biaya_daftar_ulang: data.potongan_biaya_daftar_ulang !== undefined ? Number(data.potongan_biaya_daftar_ulang) : undefined,
       };
       await spmbService.createGelombang(payload as any);
@@ -111,15 +111,15 @@ export default function CreateGelombangPage() {
                   control={control}
                   render={({ field }) => (
                     <AsyncSelect
-                      label="Jalur Masuk"
-                      required
-                      placeholder="Pilih Jalur Masuk..."
+                      label="Jalur Masuk (Opsional)"
+                      placeholder="Kosong = gelombang umum untuk semua jalur"
                       loadOptions={loadJalurMasuk}
                       defaultOptions
-                      value={field.value}
-                      onChange={(opt: any) => field.onChange(opt ? Number(opt.value) : undefined)}
+                      isClearable
+                      value={field.value ?? undefined}
+                      onChange={(opt: any) => field.onChange(opt ? Number(opt.value) : null)}
                       error={errors.jalur_masuk_id?.message}
-                      hint="Jalur penerimaan yang dinaungi."
+                      hint="Isi hanya bila gelombang ini khusus satu jalur. Kosongkan agar gelombang dapat dipakai jalur mana pun."
                     />
                   )}
                 />

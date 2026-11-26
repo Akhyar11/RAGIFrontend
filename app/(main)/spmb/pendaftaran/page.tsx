@@ -511,7 +511,7 @@ export default function DataPendaftarPage() {
                     {row.gelombang_penerimaan?.nama || <span className="text-slate-400 font-normal">Belum ditetapkan</span>}
                   </span>
                   <span className="text-2xs text-slate-500">
-                    {row.gelombang_penerimaan?.jalur_masuk?.nama || '-'}
+                    {row.jalur_masuk?.nama || row.gelombang_penerimaan?.jalur_masuk?.nama || '-'}
                   </span>
                 </div>
               )
@@ -660,7 +660,7 @@ export default function DataPendaftarPage() {
                     <span className="text-slate-400 block text-2xs font-medium">Gelombang / Jalur</span>
                     <span className="text-slate-700 font-semibold text-xs block">
                       {row.gelombang_penerimaan?.nama || 'Belum ditetapkan'}
-                      {row.gelombang_penerimaan?.jalur_masuk?.nama ? ` · ${row.gelombang_penerimaan.jalur_masuk.nama}` : ''}
+                      {(row.jalur_masuk?.nama || row.gelombang_penerimaan?.jalur_masuk?.nama) ? ` · ${row.jalur_masuk?.nama || row.gelombang_penerimaan?.jalur_masuk?.nama}` : ''}
                     </span>
                   </div>
                   {row.used_referral_code && (

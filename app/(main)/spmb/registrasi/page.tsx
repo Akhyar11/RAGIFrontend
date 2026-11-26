@@ -693,7 +693,8 @@ export default function RegistrasiSpmbPage() {
         );
         setDiscountLocked(Boolean(tagihan?.tagihan || discountUsage?.tagihan_id));
 
-        const jalurId = p.gelombang_penerimaan?.jalur_masuk_id ? String(p.gelombang_penerimaan.jalur_masuk_id) : '';
+        const savedJalurId = p.jalur_masuk_id ?? p.gelombang_penerimaan?.jalur_masuk_id;
+        const jalurId = savedJalurId ? String(savedJalurId) : '';
         if (jalurId) {
           await fetchGelombang(jalurId);
         }
@@ -754,7 +755,7 @@ export default function RegistrasiSpmbPage() {
           used_referral_code: p.used_referral_code || '',
         });
 
-        const initialJalurId = p.gelombang_penerimaan?.jalur_masuk_id || p.jalur_id;
+        const initialJalurId = p.jalur_masuk_id || p.gelombang_penerimaan?.jalur_masuk_id || p.jalur_id;
         if (initialJalurId) {
           fetchBerkasRequirements(initialJalurId);
         }
@@ -796,7 +797,7 @@ export default function RegistrasiSpmbPage() {
               targetStep = 4;
             } else if (p.nama_lengkap && (p.nik || p.nomor_paspor)) {
               targetStep = 3;
-            } else if (p.program_studi_id && (p.gelombang_id || p.gelombang_penerimaan?.jalur_masuk_id)) {
+            } else if (p.program_studi_id && (p.gelombang_id || p.jalur_masuk_id || p.gelombang_penerimaan?.jalur_masuk_id)) {
               targetStep = 2;
             } else {
               targetStep = 1;
@@ -821,7 +822,7 @@ export default function RegistrasiSpmbPage() {
 
   useEffect(() => {
     const pendaftaran = suksesData?.pendaftaran;
-    const jalurMasukId = pendaftaran?.gelombang_penerimaan?.jalur_masuk_id;
+    const jalurMasukId = pendaftaran?.jalur_masuk_id ?? pendaftaran?.gelombang_penerimaan?.jalur_masuk_id;
     if (!pendaftaran || isEditingBiodata || !jalurMasukId || !pendaftaran.program_studi_id) {
       setBiayaPendaftaranSukses(null);
       return;
@@ -845,7 +846,7 @@ export default function RegistrasiSpmbPage() {
     return () => {
       active = false;
     };
-  }, [suksesData?.pendaftaran?.id, suksesData?.pendaftaran?.gelombang_penerimaan?.jalur_masuk_id, suksesData?.pendaftaran?.program_studi_id, isEditingBiodata]);
+  }, [suksesData?.pendaftaran?.id, suksesData?.pendaftaran?.jalur_masuk_id, suksesData?.pendaftaran?.gelombang_penerimaan?.jalur_masuk_id, suksesData?.pendaftaran?.program_studi_id, isEditingBiodata]);
 
   const handleFileUpload = async (jenisBerkas: string, file: File, requirementId?: number) => {
     if (!file) return;
@@ -884,7 +885,7 @@ export default function RegistrasiSpmbPage() {
   const handleStartEditBiodata = () => {
     if (suksesData?.pendaftaran) {
       const p = suksesData.pendaftaran;
-      setValue('jalur_id', String(p.gelombang_penerimaan?.jalur_masuk_id || '1'));
+      setValue('jalur_id', String(p.jalur_masuk_id || p.gelombang_penerimaan?.jalur_masuk_id || '1'));
       setValue('gelombang_id', String(p.gelombang_id || '1'));
       setValue('program_studi_id', String(p.program_studi_id || '1'));
       if (p.program_studi_pilihan2_id) {
@@ -1041,9 +1042,9 @@ export default function RegistrasiSpmbPage() {
       fetchGelombang(selectedJalur).then((options: SelectOption[]) => {
         const currentGelombang = getValues('gelombang_id');
         const isValid = options.some((opt) => opt.value === String(currentGelombang));
-        // Auto-fill hanya jika kosong atau nilai lama tidak valid pada jalur ini
+        // Otomatis hanya bila tepat satu gelombang yang cocok; selain itu pengguna memilih sendiri.
         if (!isValid) {
-          setValue('gelombang_id', options.length > 0 ? String(options[0].value) : '');
+          setValue('gelombang_id', options.length === 1 ? String(options[0].value) : '');
         }
       });
     } else {
@@ -1100,17 +1101,17 @@ export default function RegistrasiSpmbPage() {
     }
   };
 
-  const fetchGelombang = async (jalurId: any): Promise<SelectOption[]> => {
+  // Jalur dipilih lebih dulu: gelombang terpetakan ke jalur (aktif & dalam periode) dipakai,
+  // bila tidak ada pilihannya adalah gelombang umum yang aktif.
+  const fetchGelombang = async (jalurId: string | number): Promise<SelectOption[]> => {
     try {
-      const res = await spmbService.getGelombang();
-      const list = res.data || [];
-      setGelombangRaw(list);
-      const options = list
-        .filter((g: any) => String(g.jalur_masuk_id) === String(jalurId) && g.pendaftaran_dibuka === true)
-        .map((g: any) => ({
-          value: String(g.id),
-          label: g.nama,
-        }));
+      const result = await spmbService.resolveGelombang(jalurId, 'online');
+      const candidates = result.mode === 'otomatis' && result.gelombang ? [result.gelombang] : result.options;
+      setGelombangRaw(candidates);
+      const options = candidates.map((g) => ({
+        value: String(g.id),
+        label: g.nama,
+      }));
       setGelombangOptions(options);
       return options;
     } catch (error) {

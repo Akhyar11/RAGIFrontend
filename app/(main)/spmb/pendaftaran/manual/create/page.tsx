@@ -15,7 +15,7 @@ import { AsyncSelect } from '@/components/ui/AsyncSelect';
 import { Modal } from '@/components/ui/Modal';
 import { DataTable, type ColumnDef } from '@/components/ui/DataTable';
 import { Textarea } from '@/components/ui/Textarea';
-import { spmbService } from '@/services/spmb.service';
+import { spmbService, type GelombangResolveResult } from '@/services/spmb.service';
 import { useAuth } from '@/hooks/useAuth';
 import { validateApplicantIdentity } from '@/lib/spmb/applicant-identity';
 import { ASAL_LULUSAN_OPTIONS, AGAMA_OPTIONS, PEKERJAAN_OPTIONS, PENGHASILAN_OPTIONS, STATUS_SIPIL_OPTIONS } from '@/lib/spmb/registration-options';
@@ -124,7 +124,8 @@ export default function CreateManualPendaftaranPage() {
   const router = useRouter();
   const { hasPermission } = useAuth();
   const canManage = hasPermission('spmb.manage');
-  const [waveOptions, setWaveOptions] = useState<SelectOption[]>([]);
+  const [gelombangResult, setGelombangResult] = useState<GelombangResolveResult | null>(null);
+  const [gelombangFailedFor, setGelombangFailedFor] = useState('');
   const [jalurOptions, setJalurOptions] = useState<SelectOption[]>([]);
   const [nationalityOptions, setNationalityOptions] = useState<NationalityOption[]>([]);
   const [programOptions, setProgramOptions] = useState<SelectOption[]>([]);
@@ -233,23 +234,62 @@ export default function CreateManualPendaftaranPage() {
     { key: 'email', label: 'EMAIL', render: (row) => <span className="text-xs text-slate-600">{row.email}</span> },
   ];
 
+  const selectedJalur = useWatch({ control, name: 'jalur_masuk_id' }) || '';
+  // Hasil resolver hanya berlaku untuk jalur yang sedang dipilih.
+  const currentGelombangResult = gelombangResult && String(gelombangResult.jalur_masuk_id) === String(selectedJalur) ? gelombangResult : null;
+  const resolvingGelombang = Boolean(selectedJalur) && !currentGelombangResult && gelombangFailedFor !== selectedJalur;
+
+  // Jalur dipilih lebih dulu; gelombang mengikuti aturan pemetaan jalur.
+  useEffect(() => {
+    setValue('gelombang_id', '');
+    if (!selectedJalur) return;
+    let active = true;
+    spmbService.resolveGelombang(selectedJalur, 'manual')
+      .then((result) => {
+        if (!active) return;
+        setGelombangResult(result);
+        if (result.mode === 'otomatis' && result.gelombang) {
+          setValue('gelombang_id', String(result.gelombang.id), { shouldValidate: true });
+        }
+      })
+      .catch(() => {
+        if (!active) return;
+        setGelombangFailedFor(selectedJalur);
+        toast.error('Gagal menentukan gelombang untuk jalur ini.');
+      });
+    return () => {
+      active = false;
+    };
+  }, [selectedJalur, setValue]);
+
+  // Pilihan gelombang diambil dari server sesuai jalur terpilih (terpetakan, atau gelombang umum).
+  const loadGelombangOptions = useCallback(async (search: string) => {
+    if (!selectedJalur) return [];
+    try {
+      const result = await spmbService.resolveGelombang(selectedJalur, 'manual');
+      const keyword = search.trim().toLowerCase();
+      return result.options
+        .filter((item) => !keyword || item.nama.toLowerCase().includes(keyword))
+        .map((item) => ({
+          value: String(item.id),
+          label: `${item.nama}${item.jalur_masuk?.nama ? ` • ${item.jalur_masuk.nama}` : ' • Umum'}`,
+        }));
+    } catch {
+      return [];
+    }
+  }, [selectedJalur]);
+
   useEffect(() => {
     if (!canManage) return;
     const loadOptions = async () => {
       try {
-        const [waves, jalurResponse, programs, nationalities] = await Promise.all([
-          spmbService.getGelombang({ status: 'aktif', per_page: 100 }),
+        const [jalurResponse, programs, nationalities] = await Promise.all([
           spmbService.getJalurMasuk({ status: 'aktif', limit: 100 }),
           spmbService.getProgramStudi(),
           spmbService.getReferensi('kewarganegaraan'),
         ]);
-        const waveData = (waves?.data || []) as Array<{ id: number; nama: string; jalur_masuk?: { nama?: string } }>;
         const jalurData = (jalurResponse?.data || []) as Array<{ id: number; nama: string }>;
         const programData = (programs?.data || []) as Array<{ id: number; nama: string; jenjang?: string }>;
-        setWaveOptions(waveData.map((item) => ({
-          value: String(item.id),
-          label: `${item.nama}${item.jalur_masuk?.nama ? ` • ${item.jalur_masuk.nama}` : ''}`,
-        })));
         setJalurOptions(jalurData.map((item) => ({ value: String(item.id), label: item.nama })));
         setProgramOptions(programData.map((item) => ({
           value: String(item.id),
@@ -421,12 +461,27 @@ export default function CreateManualPendaftaranPage() {
         <section className="card space-y-4 p-5">
           <div><h2 className="text-xs font-bold text-slate-900">Data Pendaftaran</h2><p className="mt-1 text-2xs text-slate-500">Pendaftaran manual dapat menggunakan gelombang aktif walaupun form online sudah ditutup.</p></div>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <Controller name="gelombang_id" control={control} render={({ field }) => (
-              <Select label="Gelombang Penerimaan" required options={waveOptions} value={field.value} onChange={field.onChange} error={errors.gelombang_id?.message || (waveOptions.length === 0 && !loadingOptions ? 'Tidak ada gelombang aktif.' : undefined)} isDisabled={loadingOptions} />
-            )} />
             <Controller name="jalur_masuk_id" control={control} render={({ field }) => (
               <Select label="Jalur Pendaftaran" required options={jalurOptions} value={field.value} onChange={field.onChange} error={errors.jalur_masuk_id?.message} isDisabled={loadingOptions} />
             )} />
+            {currentGelombangResult?.mode === 'otomatis' && currentGelombangResult.gelombang ? (
+              <Input label="Gelombang Penerimaan" value={currentGelombangResult.gelombang.nama} hint="Ditentukan otomatis karena gelombang ini dipetakan ke jalur yang dipilih." disabled readOnly />
+            ) : (
+              <Controller name="gelombang_id" control={control} render={({ field }) => (
+                <AsyncSelect
+                  key={selectedJalur || 'belum-dipilih'}
+                  label="Gelombang Penerimaan"
+                  required
+                  loadOptions={loadGelombangOptions}
+                  defaultOptions
+                  value={field.value}
+                  onChange={(option: { value: string } | null) => field.onChange(option?.value || '')}
+                  error={errors.gelombang_id?.message || (currentGelombangResult?.mode === 'tidak_tersedia' ? 'Tidak ada gelombang aktif untuk jalur ini.' : undefined)}
+                  hint={!selectedJalur ? 'Pilih jalur pendaftaran terlebih dahulu.' : 'Jalur ini tidak memiliki gelombang khusus; pilih gelombang aktif yang berlaku untuk semua jalur.'}
+                  isDisabled={loadingOptions || resolvingGelombang || !selectedJalur}
+                />
+              )} />
+            )}
             <Controller name="program_studi_id" control={control} render={({ field }) => (
               <Select label="Program Studi Pilihan 1" required options={programOptions} value={field.value} onChange={field.onChange} error={errors.program_studi_id?.message} isDisabled={loadingOptions} />
             )} />

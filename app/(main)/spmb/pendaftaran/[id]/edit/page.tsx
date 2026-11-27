@@ -17,7 +17,7 @@ import { DataTable, type ColumnDef } from '@/components/ui/DataTable';
 import { useAuth } from '@/hooks/useAuth';
 import { spmbService, type PendaftaranCalonMhs } from '@/services/spmb.service';
 import { spmbReferenceService } from '@/services/spmb-reference.service';
-import { ASAL_LULUSAN_OPTIONS, AGAMA_OPTIONS, NATIONALITY_CODE, PEKERJAAN_OPTIONS, PENGHASILAN_OPTIONS, SPMB_STATUS, STATUS_SIPIL_OPTIONS } from '@/lib/spmb/registration-options';
+import { ASAL_LULUSAN_OPTIONS, AGAMA_OPTIONS, infoDaftarOptionsFor, normalizeInfoDaftar, NATIONALITY_CODE, PEKERJAAN_OPTIONS, PENGHASILAN_OPTIONS, SPMB_STATUS, STATUS_SIPIL_OPTIONS } from '@/lib/spmb/registration-options';
 import { SpmbResidenceFields } from '@/components/spmb/SpmbResidenceFields';
 import { formatJalurGelombang } from '@/lib/spmb/gelombang';
 
@@ -121,6 +121,7 @@ function toDefaults(p: PendaftaranCalonMhs & Record<string, unknown>): EditValue
   const values: Record<string, unknown> = {};
   for (const key of VALUE_KEYS) values[key] = str(p[key]);
   values.tanggal_lahir = str(p.tanggal_lahir).slice(0, 10);
+  values.info_daftar = normalizeInfoDaftar(p.info_daftar);
   const user = p.user as { email?: string } | undefined;
   return {
     ...(values as EditValues),
@@ -576,7 +577,9 @@ export default function EditPendaftaranPage({ params }: { params: Promise<{ id: 
             <Textarea label="Alamat Perguruan Tinggi Sebelumnya" rows={2} {...register('alamat_pt')} />
           </div>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <Input label="Sumber Informasi Pendaftaran" {...register('info_daftar')} />
+            <Controller name="info_daftar" control={control} render={({ field }) => (
+              <Select label="Sumber Informasi Pendaftaran" placeholder="-- Pilih Sumber Informasi --" options={infoDaftarOptionsFor(field.value)} value={field.value} onChange={field.onChange} isClearable />
+            )} />
             <Input label="Keterangan Sumber Informasi" {...register('ket_info_daftar')} />
           </div>
         </section>

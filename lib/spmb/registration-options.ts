@@ -43,3 +43,37 @@ export const NATIONALITY_CODE = { WNI: 'WNI', WNA: 'WNA' } as const;
 
 /** Status pendaftaran yang diperlakukan khusus di UI (selaras dengan PendaftaranCalonMhs backend). */
 export const SPMB_STATUS = { MAHASISWA_BARU: 'mahasiswa_baru' } as const;
+
+/** Sumber informasi pendaftaran; dipakai bersama oleh form registrasi, input manual, dan edit pendaftaran. */
+export const INFO_DAFTAR_OPTIONS: SelectOption[] = [
+  { value: 'brosur', label: 'Brosur / Spanduk' },
+  { value: 'media_sosial', label: 'Media Sosial' },
+  { value: 'instagram', label: 'Instagram' },
+  { value: 'tiktok', label: 'TikTok' },
+  { value: 'whatsapp', label: 'WhatsApp' },
+  { value: 'website', label: 'Website Kampus' },
+  { value: 'presentasi', label: 'Presentasi di Sekolah' },
+  { value: 'rekomendasi', label: 'Rekomendasi' },
+  { value: 'kerabat', label: 'Kerabat / Keluarga' },
+  { value: 'sekolah', label: 'Sekolah / Guru' },
+  { value: 'lainnya', label: 'Lainnya' },
+];
+
+/**
+ * Mencocokkan nilai tersimpan (termasuk data lama seperti "INSTAGRAM") dengan pilihan baku.
+ * Nilai yang tidak dikenal dikembalikan apa adanya agar tetap tampil dan tidak hilang saat disimpan.
+ */
+export function normalizeInfoDaftar(value: unknown): string {
+  const raw = value === null || value === undefined ? '' : String(value).trim();
+  if (!raw) return '';
+  const key = raw.toLowerCase();
+  const match = INFO_DAFTAR_OPTIONS.find((option) => option.value === key || option.label.toLowerCase() === key);
+  return match ? String(match.value) : raw;
+}
+
+/** Pilihan baku, ditambah nilai tersimpan yang tidak dikenal (data lama) bila ada. */
+export function infoDaftarOptionsFor(current: unknown): SelectOption[] {
+  const value = normalizeInfoDaftar(current);
+  if (!value || INFO_DAFTAR_OPTIONS.some((option) => option.value === value)) return INFO_DAFTAR_OPTIONS;
+  return [...INFO_DAFTAR_OPTIONS, { value, label: value }];
+}

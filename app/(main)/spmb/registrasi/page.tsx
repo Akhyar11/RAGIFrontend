@@ -57,7 +57,7 @@ import { useUiStore } from '@/store/uiStore';
 import api from '@/lib/axios';
 import type { BiayaBebanItem, SpmbKodeDiskonPreview } from '@/types/spmb.types';
 import { isIndonesiaCountry, validateApplicantIdentity } from '@/lib/spmb/applicant-identity';
-import { ASAL_LULUSAN_OPTIONS, AGAMA_OPTIONS, PEKERJAAN_OPTIONS, PENGHASILAN_OPTIONS, STATUS_SIPIL_OPTIONS } from '@/lib/spmb/registration-options';
+import { ASAL_LULUSAN_OPTIONS, AGAMA_OPTIONS, INFO_DAFTAR_OPTIONS, normalizeInfoDaftar, PEKERJAAN_OPTIONS, PENGHASILAN_OPTIONS, STATUS_SIPIL_OPTIONS } from '@/lib/spmb/registration-options';
 import { spmbReferenceService } from '@/services/spmb-reference.service';
 import { SpmbResidenceFields } from '@/components/spmb/SpmbResidenceFields';
 
@@ -171,15 +171,6 @@ const JENJANG_PT_OPTIONS: SelectOption[] = [
   { value: 's1', label: 'Sarjana (S1)' },
   { value: 's2', label: 'Magister (S2)' },
   { value: 's3', label: 'Doktor (S3)' },
-];
-
-const INFO_DAFTAR_OPTIONS: SelectOption[] = [
-  { value: 'brosur', label: 'Brosur / Spanduk' },
-  { value: 'media_sosial', label: 'Media Sosial' },
-  { value: 'kerabat', label: 'Kerabat / Keluarga' },
-  { value: 'sekolah', label: 'Sekolah / Guru' },
-  { value: 'website', label: 'Website Kampus' },
-  { value: 'lainnya', label: 'Lainnya' },
 ];
 
 interface DokumenItemConfig {
@@ -760,7 +751,7 @@ export default function RegistrasiSpmbPage() {
           telepon_wali: p.telepon_wali || '',
           pekerjaan_wali: p.pekerjaan_wali || '',
           penghasilan_wali: p.penghasilan_wali || '',
-          info_daftar: p.info_daftar || '',
+          info_daftar: normalizeInfoDaftar(p.info_daftar),
           ket_info_daftar: p.ket_info_daftar || '',
           used_referral_code: p.used_referral_code || '',
         });

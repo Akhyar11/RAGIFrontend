@@ -19,7 +19,7 @@ import { spmbService, type GelombangResolveResult } from '@/services/spmb.servic
 import { formatJalurGelombang } from '@/lib/spmb/gelombang';
 import { useAuth } from '@/hooks/useAuth';
 import { validateApplicantIdentity } from '@/lib/spmb/applicant-identity';
-import { ASAL_LULUSAN_OPTIONS, AGAMA_OPTIONS, PEKERJAAN_OPTIONS, PENGHASILAN_OPTIONS, STATUS_SIPIL_OPTIONS } from '@/lib/spmb/registration-options';
+import { ASAL_LULUSAN_OPTIONS, AGAMA_OPTIONS, INFO_DAFTAR_OPTIONS, PEKERJAAN_OPTIONS, PENGHASILAN_OPTIONS, STATUS_SIPIL_OPTIONS } from '@/lib/spmb/registration-options';
 import { spmbReferenceService } from '@/services/spmb-reference.service';
 import { SpmbResidenceFields } from '@/components/spmb/SpmbResidenceFields';
 
@@ -625,7 +625,9 @@ export default function CreateManualPendaftaranPage() {
             <div className="mt-4"><Textarea label="Alamat Perguruan Tinggi Sebelumnya" rows={2} disabled={!ptEnabled} {...register('alamat_pt')} /></div>
           </div>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <Input label="Sumber Informasi Pendaftaran" {...register('info_daftar')} />
+            <Controller name="info_daftar" control={control} render={({ field }) => (
+              <Select label="Sumber Informasi Pendaftaran" placeholder="-- Pilih Sumber Informasi --" options={INFO_DAFTAR_OPTIONS} value={field.value} onChange={field.onChange} isClearable />
+            )} />
             <Input label="Keterangan Sumber Informasi" {...register('ket_info_daftar')} />
           </div>
         </section>

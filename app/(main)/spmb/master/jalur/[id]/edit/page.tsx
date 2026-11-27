@@ -19,6 +19,7 @@ const schema = z.object({
   nama: z.string().min(1, 'Nama jalur wajib diisi'),
   deskripsi: z.string().optional().nullable(),
   ada_wawancara: z.boolean(),
+  pilih_perguruan_tinggi: z.boolean(),
   is_active: z.boolean(),
 });
 
@@ -36,7 +37,8 @@ export default function EditJalurPage() {
     resolver: zodResolver(schema),
     defaultValues: {
       is_active: true,
-      ada_wawancara: false
+      ada_wawancara: false,
+      pilih_perguruan_tinggi: false
     }
   });
 
@@ -141,6 +143,14 @@ export default function EditJalurPage() {
                   label="Membutuhkan Wawancara" 
                   hint="Aktifkan jika pendaftar jalur ini wajib mengikuti wawancara."
                   {...register('ada_wawancara')} 
+                />
+              </div>
+
+              <div>
+                <Checkbox 
+                  label="Aktifkan Pilihan Perguruan Tinggi"
+                  hint="Jika aktif, form registrasi dan input manual membuka isian perguruan tinggi asal (transfer/alih jenjang). Jika tidak, isian tersebut dinonaktifkan."
+                  {...register('pilih_perguruan_tinggi')} 
                 />
               </div>
 

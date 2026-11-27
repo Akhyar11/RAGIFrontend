@@ -544,6 +544,16 @@ export default function RegistrasiSpmbPage() {
   }, [referralCodeValue]);
 
   const selectedJalur = watch('jalur_id');
+  // Pilihan perguruan tinggi hanya aktif bila jalur terpilih mengaktifkannya (master jalur masuk).
+  const selectedJalurConfig = jalurRaw.find((j) => String(j.id) === String(selectedJalur));
+  const ptEnabled = Boolean(selectedJalurConfig?.pilih_perguruan_tinggi);
+
+  useEffect(() => {
+    if (!selectedJalurConfig || ptEnabled) return;
+    setValue('asal_lulusan', 'sekolah');
+    (['asal_pt', 'jenis_pt', 'alamat_pt', 'jenjang_pt', 'progdi_pt', 'ipk_pt', 'nim_pt', 'tahun_lulus_pt'] as const)
+      .forEach((name) => setValue(name, ''));
+  }, [selectedJalurConfig, ptEnabled, setValue]);
   const nationalityId = watch('kewarganegaraan_id');
   const nationalityCode = watch('kewarganegaraan');
   const residenceCountry = watch('negara_domisili');
@@ -2097,6 +2107,8 @@ export default function RegistrasiSpmbPage() {
                       options={ASAL_LULUSAN_OPTIONS}
                       value={field.value}
                       onChange={field.onChange}
+                      isDisabled={!ptEnabled}
+                      hint={ptEnabled ? undefined : 'Jalur pendaftaran yang dipilih hanya menerima lulusan sekolah.'}
                       error={errors.asal_lulusan?.message}
                     />
                   )}

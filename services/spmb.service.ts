@@ -19,6 +19,8 @@ export interface JalurMasuk {
   nama: string;
   deskripsi: string;
   ada_wawancara: boolean;
+  /** Mengaktifkan isian perguruan tinggi asal pada form registrasi dan input manual. */
+  pilih_perguruan_tinggi: boolean;
   is_active: boolean;
   created_at: string;
 }

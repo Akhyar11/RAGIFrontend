@@ -128,6 +128,7 @@ export default function CreateManualPendaftaranPage() {
   const [gelombangResult, setGelombangResult] = useState<GelombangResolveResult | null>(null);
   const [gelombangFailedFor, setGelombangFailedFor] = useState('');
   const [jalurOptions, setJalurOptions] = useState<SelectOption[]>([]);
+  const [jalurPtEnabled, setJalurPtEnabled] = useState<Record<string, boolean>>({});
   const [nationalityOptions, setNationalityOptions] = useState<NationalityOption[]>([]);
   const [programOptions, setProgramOptions] = useState<SelectOption[]>([]);
   const [loadingOptions, setLoadingOptions] = useState(true);
@@ -236,6 +237,14 @@ export default function CreateManualPendaftaranPage() {
   ];
 
   const selectedJalur = useWatch({ control, name: 'jalur_masuk_id' }) || '';
+  // Isian perguruan tinggi hanya aktif bila jalur terpilih mengaktifkannya (master jalur masuk).
+  const ptEnabled = Boolean(selectedJalur) && Boolean(jalurPtEnabled[String(selectedJalur)]);
+
+  useEffect(() => {
+    if (ptEnabled) return;
+    (['asal_lulusan', 'asal_pt', 'jenis_pt', 'alamat_pt', 'jenjang_pt', 'progdi_pt', 'ipk_pt', 'nim_pt', 'tahun_lulus_pt'] as const)
+      .forEach((name) => setValue(name, ''));
+  }, [ptEnabled, setValue]);
   // Hasil resolver hanya berlaku untuk jalur yang sedang dipilih.
   const currentGelombangResult = gelombangResult && String(gelombangResult.jalur_masuk_id) === String(selectedJalur) ? gelombangResult : null;
   const resolvingGelombang = Boolean(selectedJalur) && !currentGelombangResult && gelombangFailedFor !== selectedJalur;
@@ -289,9 +298,10 @@ export default function CreateManualPendaftaranPage() {
           spmbService.getProgramStudi(),
           spmbService.getReferensi('kewarganegaraan'),
         ]);
-        const jalurData = (jalurResponse?.data || []) as Array<{ id: number; nama: string }>;
+        const jalurData = (jalurResponse?.data || []) as Array<{ id: number; nama: string; pilih_perguruan_tinggi?: boolean }>;
         const programData = (programs?.data || []) as Array<{ id: number; nama: string; jenjang?: string }>;
         setJalurOptions(jalurData.map((item) => ({ value: String(item.id), label: item.nama })));
+        setJalurPtEnabled(Object.fromEntries(jalurData.map((item) => [String(item.id), Boolean(item.pilih_perguruan_tinggi)])));
         setProgramOptions(programData.map((item) => ({
           value: String(item.id),
           label: `${item.nama}${item.jenjang ? ` (${item.jenjang})` : ''}`,
@@ -598,20 +608,21 @@ export default function CreateManualPendaftaranPage() {
           </div>
           <Textarea label="Alamat Orang Tua/Wali" rows={2} {...register('alamat_ortu')} />
           <div className="border-t border-slate-100 pt-4">
-            <h3 className="mb-3 text-xs font-semibold text-slate-800">Data Pendidikan Tinggi Sebelumnya (Opsional)</h3>
+            <h3 className="text-xs font-semibold text-slate-800">Data Pendidikan Tinggi Sebelumnya (Opsional)</h3>
+            <p className="mb-3 mt-1 text-2xs text-slate-500">{ptEnabled ? 'Jalur ini mengaktifkan pilihan perguruan tinggi asal.' : 'Aktif hanya untuk jalur yang mengaktifkan pilihan perguruan tinggi. Pilih jalur terlebih dahulu.'}</p>
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
               <Controller name="asal_lulusan" control={control} render={({ field }) => (
-                <Select label="Asal Lulusan" options={ASAL_LULUSAN_OPTIONS} value={field.value} onChange={field.onChange} />
+                <Select label="Asal Lulusan" options={ASAL_LULUSAN_OPTIONS} value={field.value} onChange={field.onChange} isDisabled={!ptEnabled} isClearable />
               )} />
-              <Input label="Asal Perguruan Tinggi" {...register('asal_pt')} />
-              <Input label="Jenis Perguruan Tinggi" {...register('jenis_pt')} />
-              <Input label="Jenjang Sebelumnya" {...register('jenjang_pt')} />
-              <Input label="Program Studi Sebelumnya" {...register('progdi_pt')} />
-              <Input type="number" min="0" max="4" step="0.01" label="IPK Sebelumnya" {...register('ipk_pt')} />
-              <Input label="NIM Sebelumnya" {...register('nim_pt')} />
-              <Input label="Tahun Lulus Sebelumnya" {...register('tahun_lulus_pt')} />
+              <Input label="Asal Perguruan Tinggi" disabled={!ptEnabled} {...register('asal_pt')} />
+              <Input label="Jenis Perguruan Tinggi" disabled={!ptEnabled} {...register('jenis_pt')} />
+              <Input label="Jenjang Sebelumnya" disabled={!ptEnabled} {...register('jenjang_pt')} />
+              <Input label="Program Studi Sebelumnya" disabled={!ptEnabled} {...register('progdi_pt')} />
+              <Input type="number" min="0" max="4" step="0.01" label="IPK Sebelumnya" disabled={!ptEnabled} {...register('ipk_pt')} />
+              <Input label="NIM Sebelumnya" disabled={!ptEnabled} {...register('nim_pt')} />
+              <Input label="Tahun Lulus Sebelumnya" disabled={!ptEnabled} {...register('tahun_lulus_pt')} />
             </div>
-            <div className="mt-4"><Textarea label="Alamat Perguruan Tinggi Sebelumnya" rows={2} {...register('alamat_pt')} /></div>
+            <div className="mt-4"><Textarea label="Alamat Perguruan Tinggi Sebelumnya" rows={2} disabled={!ptEnabled} {...register('alamat_pt')} /></div>
           </div>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <Input label="Sumber Informasi Pendaftaran" {...register('info_daftar')} />

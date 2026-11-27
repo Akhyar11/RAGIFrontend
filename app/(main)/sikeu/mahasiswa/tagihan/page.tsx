@@ -789,22 +789,28 @@ export default function StudentTagihanPage() {
                               <CreditCard size={13} className="text-indigo-400" /> Multi-Payment Gateway (1 VA)
                             </span>
                             <span className="text-[10px] bg-emerald-500/20 text-emerald-300 font-bold px-2 py-0.5 rounded border border-emerald-400/30">
-                              Xendit Checkout
+                              Online Checkout
                             </span>
                           </div>
 
                           <div className="flex flex-wrap gap-1 pt-1">
-                            {(paymentChannels.length > 0
-                              ? paymentChannels.filter((c) => c.category === 'va' || c.category === 'instant').map((c) => c.code)
-                              : ['BSN', 'Mandiri', 'BRI', 'BCA', 'Permata', 'QRIS']
-                            ).map((ch) => (
-                              <span
-                                key={ch}
-                                className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-white/10 text-slate-200 border border-white/10"
-                              >
-                                {ch}
+                            {paymentChannels.filter((c) => c.category === 'va' || c.category === 'instant').length > 0 ? (
+                              paymentChannels
+                                .filter((c) => c.category === 'va' || c.category === 'instant')
+                                .map((c) => c.code)
+                                .map((ch) => (
+                                  <span
+                                    key={ch}
+                                    className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-white/10 text-slate-200 border border-white/10"
+                                  >
+                                    {ch}
+                                  </span>
+                                ))
+                            ) : (
+                              <span className="text-[10px] text-slate-400 italic">
+                                Tidak ada kanal pembayaran online aktif
                               </span>
-                            ))}
+                            )}
                           </div>
                         </div>
 

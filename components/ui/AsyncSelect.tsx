@@ -114,6 +114,10 @@ export const AsyncSelect = forwardRef<any, AsyncSelectProps>(
     }, [defaultOptions, wrappedLoadOptions]);
 
     const handleChange = (selected: any, actionMeta: any) => {
+      // Creatable options carry a menu label like `Create "xxx"`; use the typed text as the label.
+      const normalizeNew = (opt: any) =>
+        opt && opt.__isNew__ ? { ...opt, label: String(opt.value) } : opt;
+      selected = Array.isArray(selected) ? selected.map(normalizeNew) : normalizeNew(selected);
       if (selected) {
         if (Array.isArray(selected)) {
           selected.forEach((s: any) => {
@@ -242,6 +246,7 @@ export const AsyncSelect = forwardRef<any, AsyncSelectProps>(
             isClearable={isClearable}
             isDisabled={isDisabled}
             isMulti={isMulti}
+            {...(isCreatable ? { allowCreateWhileLoading: true, formatCreateLabel: (v: string) => `Gunakan "${v}" (tidak ada di daftar)` } : {})}
             formatOptionLabel={formatOptionLabel}
             placeholder={placeholder || 'Cari...'}
             styles={customStyles}

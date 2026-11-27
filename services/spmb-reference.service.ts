@@ -1,4 +1,5 @@
 import axios from 'axios';
+import api from '@/lib/axios';
 import type { SelectOption } from '@/components/ui/Select';
 import { buildCountryOptions } from '@/lib/spmb/countries';
 
@@ -37,6 +38,23 @@ async function getWilayah(path: string): Promise<WilayahRecord[]> {
   return Array.isArray(payload.data) ? payload.data : [];
 }
 
+type SchoolOption = SelectOption & { address?: string; type?: string; location?: string };
+
+async function searchExternalSchools(search: string): Promise<SchoolOption[]> {
+  const query = new URLSearchParams({ sekolah: search, page: '1', perPage: '20' });
+  // API sekolah membalas 404 jika tidak ada hasil; itu bukan error, cukup kembalikan daftar kosong.
+  const response = await referenceApi.get<SekolahResponse>(`${SEKOLAH_API_BASE}/sekolah/s?${query}`, {
+    validateStatus: (status) => (status >= 200 && status < 300) || status === 404,
+  });
+  return (response.data.dataSekolah || []).map((school) => ({
+    value: school.sekolah,
+    label: school.sekolah,
+    address: school.alamat_jalan,
+    type: school.bentuk,
+    location: [school.kabupaten_kota, school.propinsi].filter(Boolean).join(', '),
+  }));
+}
+
 export const spmbReferenceService = {
   getProvinces: async (): Promise<SelectOption[]> => (await getWilayah('provinces.json'))
     .map(({ id, name }) => ({ value: id, label: name })),
@@ -64,16 +82,28 @@ export const spmbReferenceService = {
     return countryOptions;
   },
 
-  searchSchools: async (search: string): Promise<SelectOption[]> => {
-    const query = new URLSearchParams({ sekolah: search.trim(), page: '1', perPage: '20' });
-    const response = await referenceApi.get<SekolahResponse>(`${SEKOLAH_API_BASE}/sekolah/s?${query}`);
-    const payload = response.data;
-    return (payload.dataSekolah || []).map((school) => ({
-      value: school.sekolah,
-      label: school.sekolah,
-      address: school.alamat_jalan,
-      type: school.bentuk,
-      location: [school.kabupaten_kota, school.propinsi].filter(Boolean).join(', '),
+  searchSchools: async (search: string): Promise<SchoolOption[]> => {
+    const term = search.trim();
+    const [local, external] = await Promise.all([
+      api.get('/spmb/master-sekolah', { params: { search: term } })
+        .then((res) => (res.data?.data || []) as Array<{ nama: string; alamat?: string | null; jenis?: string | null }>)
+        .catch(() => []),
+      searchExternalSchools(term).catch(() => [] as SchoolOption[]),
+    ]);
+    const localOptions: SchoolOption[] = local.map((school) => ({
+      value: school.nama,
+      label: school.nama,
+      address: school.alamat || undefined,
+      type: school.jenis || undefined,
+      location: 'Ditambahkan manual',
     }));
+    const seen = new Set(localOptions.map((option) => String(option.value).trim().toLowerCase()));
+    return [...localOptions, ...external.filter((option) => !seen.has(String(option.value).trim().toLowerCase()))];
+  },
+
+  /** Simpan sekolah baru (hasil opsi Create) ke master sekolah. Idempoten di backend. */
+  createSchool: async (nama: string, alamat?: string): Promise<{ created: boolean }> => {
+    const response = await api.post('/spmb/master-sekolah', { nama, alamat: alamat || undefined });
+    return { created: Boolean(response.data?.data?.created) };
   },
 };

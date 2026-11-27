@@ -521,7 +521,12 @@ export default function EditPendaftaranPage({ params }: { params: Promise<{ id: 
                 defaultOptions={field.value ? [{ value: field.value, label: field.value }] : true}
                 value={field.value}
                 onChange={(option: SelectOption | null) => {
-                  const school = option as (SelectOption & { address?: string }) | null;
+                  const school = option as (SelectOption & { address?: string; __isNew__?: boolean }) | null;
+                  if (school?.__isNew__) {
+                    spmbReferenceService.createSchool(String(school.value))
+                      .then(({ created }) => toast.success(created ? 'Sekolah baru disimpan ke master sekolah.' : 'Sekolah sudah ada di master sekolah.'))
+                      .catch(() => toast.error('Gagal menyimpan sekolah baru ke master sekolah.'));
+                  }
                   field.onChange(school?.value || '');
                   if (school?.address) setValue('alamat_sekolah', school.address);
                 }}
